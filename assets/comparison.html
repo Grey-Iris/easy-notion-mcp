@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Why easy-notion-mcp?</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-border: rgba(240, 246, 252, 0.08);
+        --text: #f0f6fc;
+        --muted: #8b949e;
+        --green: #3fb950;
+        --red: #f85149;
+        --blue: #79c0ff;
+        --string: #a5d6ff;
+        --number: #d2a8ff;
+        --boolean: #ffa657;
+        --null: #ff7b72;
+        --punctuation: #8b949e;
+        --shadow: 0 24px 80px rgba(1, 4, 9, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(63, 185, 80, 0.12), transparent 28%),
+          radial-gradient(circle at top right, rgba(121, 192, 255, 0.08), transparent 24%),
+          linear-gradient(180deg, #0d1117 0%, #0a0f15 100%);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif,
+          "Apple Color Emoji", "Segoe UI Emoji";
+      }
+
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 48px 24px 36px;
+      }
+
+      .hero {
+        margin-bottom: 36px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        line-height: 1.15;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--green);
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .comparison {
+        display: flex;
+        gap: 16px;
+        align-items: stretch;
+      }
+
+      .panel {
+        flex: 1 1 0;
+        min-width: 0;
+        height: 520px;
+        background: linear-gradient(180deg, rgba(22, 27, 34, 0.98), rgba(13, 17, 23, 0.98));
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .panel-inner {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        padding: 0 0 8px;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 18px 24px;
+        border-bottom: 1px solid rgba(240, 246, 252, 0.06);
+        background: rgba(13, 17, 23, 0.42);
+      }
+
+      .panel-title {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .token-badge {
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        white-space: nowrap;
+      }
+
+      .panel.raw {
+        border-left: 3px solid var(--red);
+      }
+
+      .panel.raw .token-badge {
+        color: #ffd2cf;
+        background: rgba(248, 81, 73, 0.16);
+        border: 1px solid rgba(248, 81, 73, 0.28);
+      }
+
+      .panel.easy {
+        border-left: 3px solid var(--green);
+      }
+
+      .panel.easy .token-badge {
+        color: #d2f7d8;
+        background: rgba(63, 185, 80, 0.16);
+        border: 1px solid rgba(63, 185, 80, 0.26);
+      }
+
+      .panel-code {
+        position: relative;
+        flex: 1 1 auto;
+        overflow: hidden;
+      }
+
+      .panel.raw .panel-code::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 104px;
+        background: linear-gradient(180deg, rgba(22, 27, 34, 0) 0%, rgba(22, 27, 34, 0.78) 62%, #161b22 100%);
+        pointer-events: none;
+      }
+
+      pre {
+        margin: 0;
+        height: 100%;
+        padding: 24px 24px 18px;
+        overflow: hidden;
+      }
+
+      code {
+        display: block;
+        color: var(--text);
+        font-family:
+          ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 12.5px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .json-key {
+        color: var(--blue);
+      }
+
+      .json-string {
+        color: var(--string);
+      }
+
+      .json-number {
+        color: var(--number);
+      }
+
+      .json-boolean {
+        color: var(--boolean);
+      }
+
+      .json-null {
+        color: var(--null);
+      }
+
+      .json-punctuation {
+        color: var(--punctuation);
+      }
+
+      .metrics {
+        display: flex;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .metric-card {
+        flex: 1 1 0;
+        padding: 20px;
+        text-align: center;
+        background: linear-gradient(180deg, rgba(22, 27, 34, 0.98), rgba(13, 17, 23, 0.98));
+        border: 1px solid var(--panel-border);
+        border-radius: 8px;
+        box-shadow: 0 16px 40px rgba(1, 4, 9, 0.22);
+      }
+
+      .metric-label {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .metric-value {
+        margin: 0 0 8px;
+        font-size: 24px;
+        line-height: 1.1;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .metric-detail {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .footer {
+        margin-top: 18px;
+        color: #9198a1;
+        font-size: 12px;
+        text-align: center;
+      }
+
+      @media (max-width: 900px) {
+        .comparison,
+        .metrics {
+          flex-direction: column;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .wrap {
+          padding: 28px 16px 24px;
+        }
+
+        h1 {
+          font-size: 24px;
+        }
+
+        .panel-header,
+        pre {
+          padding-left: 18px;
+          padding-right: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="hero">
+        <h1>Why easy-notion-mcp?</h1>
+        <p class="subtitle">87% fewer tokens per operation</p>
+      </header>
+
+      <section class="comparison" aria-label="Token efficiency comparison">
+        <article class="panel raw">
+          <div class="panel-inner">
+            <div class="panel-header">
+              <div class="panel-title">Other Notion MCPs</div>
+              <div class="token-badge">~4,300 tokens</div>
+            </div>
+            <div class="panel-code">
+              <pre><code id="raw-json-code" aria-label="Raw Notion JSON"></code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel easy">
+          <div class="panel-inner">
+            <div class="panel-header">
+              <div class="panel-title">easy-notion-mcp</div>
+              <div class="token-badge">~290 tokens</div>
+            </div>
+            <div class="panel-code">
+              <pre><code id="easy-json-code" aria-label="easy-notion-mcp JSON"></code></pre>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="metrics" aria-label="Token reduction metrics">
+        <article class="metric-card">
+          <p class="metric-label">Page Read</p>
+          <p class="metric-value">93% reduction</p>
+          <p class="metric-detail">4,302 → 292 tokens</p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">DB Query</p>
+          <p class="metric-value">87% reduction</p>
+          <p class="metric-detail">2,534 → 319 tokens</p>
+        </article>
+        <article class="metric-card">
+          <p class="metric-label">Search</p>
+          <p class="metric-value">76% reduction</p>
+          <p class="metric-detail">1,582 → 374 tokens</p>
+        </article>
+      </section>
+
+      <p class="footer">Measured with tiktoken cl100k_base encoding on identical content</p>
+    </main>
+
+    <script id="raw-json-source" type="text/plain">
+{
+  "page": {
+    "object": "page",
+    "id": "b1f6c8d0-5c2e-4f1b-8e4e-5d3f7c9a1001",
+    "created_time": "2025-01-15T10:30:00.000Z",
+    "last_edited_time": "2025-01-15T11:02:00.000Z",
+    "created_by": { "object": "user", "id": "0f8fad5b..." },
+    "last_edited_by": { "object": "user", "id": "7c9e6679..." },
+    "cover": { "type": "external", "external": { "url": "https://..." } },
+    "icon": { "type": "emoji", "emoji": "📝" },
+    "parent": { "type": "page_id", "page_id": "b1f6c8d0..." },
+    "archived": false,
+    "in_trash": false,
+    "properties": {
+      "title": {
+        "id": "title",
+        "type": "title",
+        "title": [{
+          "type": "text",
+          "text": { "content": "Meeting Notes", "link": null },
+          "annotations": {
+            "bold": false, "italic": false,
+            "strikethrough": false, "underline": false,
+            "code": false, "color": "default"
+          },
+          "plain_text": "Meeting Notes",
+          "href": null
+        }]
+      }
+    },
+    "url": "https://www.notion.so/Meeting-Notes-b1f6..."
+  },
+  "block_children": {
+    "object": "list",
+    "results": [
+      {
+        "object": "block",
+        "id": "b1f6c8d0-...-5d3f7c9a2001",
+        "parent": { "type": "page_id", "page_id": "b1f6c8d0..." },
+        "created_time": "2025-01-15T10:31:00.000Z",
+        "last_edited_time": "2025-01-15T10:31:00.000Z",
+        "created_by": { "object": "user", "id": "0f8fad5b..." },
+        "has_children": false,
+        "archived": false,
+        "type": "heading_2",
+        "heading_2": {
+          "rich_text": [{
+            "type": "text",
+            "text": { "content": "Decisions & Action Items" },
+            "annotations": { "bold": false, "italic": false, ... }
+          }],
+          "color": "default"
+        }
+      },
+      ...
+    ]
+  }
+}
+    </script>
+
+    <script id="easy-json-source" type="text/plain">
+{
+  "id": "b1f6c8d0-5c2e-4f1b-8e4e-5d3f7c9a1001",
+  "title": "Meeting Notes",
+  "url": "https://www.notion.so/Meeting-Notes-b1f6c...",
+  "markdown": "## Decisions & Action Items\n\nWe aligned on shipping the benchmark script...\n\n- Confirm the fixture shapes match Notion block responses\n- Add token counting with js-tiktoken\n- Share the benchmark summary in the README...\n\n> [!NOTE]\n> Use the same content in both fixtures..."
+}
+    </script>
+
+    <script>
+      function escapeHtml(value) {
+        return value
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+
+      function highlightJson(source) {
+        const text = source.replace(/^\n+|\n+\s*$/g, "");
+        let index = 0;
+        let html = "";
+
+        function wrap(className, value) {
+          return '<span class="' + className + '">' + escapeHtml(value) + "</span>";
+        }
+
+        function readString() {
+          let value = '"';
+          index += 1;
+          while (index < text.length) {
+            const char = text[index];
+            value += char;
+            index += 1;
+            if (char === "\\" && index < text.length) {
+              value += text[index];
+              index += 1;
+              continue;
+            }
+            if (char === '"') {
+              break;
+            }
+          }
+          return value;
+        }
+
+        function readNumber() {
+          let value = "";
+          while (index < text.length && /[0-9eE+.\-]/.test(text[index])) {
+            value += text[index];
+            index += 1;
+          }
+          return value;
+        }
+
+        function readWord() {
+          let value = "";
+          while (index < text.length && /[A-Za-z]/.test(text[index])) {
+            value += text[index];
+            index += 1;
+          }
+          return value;
+        }
+
+        while (index < text.length) {
+          const char = text[index];
+
+          if (char === '"') {
+            const stringToken = readString();
+            let cursor = index;
+            while (cursor < text.length && /\s/.test(text[cursor])) {
+              cursor += 1;
+            }
+            const isKey = text[cursor] === ":";
+            html += wrap(isKey ? "json-key" : "json-string", stringToken);
+            continue;
+          }
+
+          if (/[{}\[\],:]/.test(char)) {
+            html += wrap("json-punctuation", char);
+            index += 1;
+            continue;
+          }
+
+          if (char === "." && text.slice(index, index + 3) === "...") {
+            html += wrap("json-punctuation", "...");
+            index += 3;
+            continue;
+          }
+
+          if (/[0-9-]/.test(char)) {
+            html += wrap("json-number", readNumber());
+            continue;
+          }
+
+          if (/[A-Za-z]/.test(char)) {
+            const word = readWord();
+            if (word === "true" || word === "false") {
+              html += wrap("json-boolean", word);
+            } else if (word === "null") {
+              html += wrap("json-null", word);
+            } else {
+              html += escapeHtml(word);
+            }
+            continue;
+          }
+
+          html += escapeHtml(char);
+          index += 1;
+        }
+
+        return html;
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const rawSource = document.getElementById("raw-json-source").textContent;
+        const easySource = document.getElementById("easy-json-source").textContent;
+        document.getElementById("raw-json-code").innerHTML = highlightJson(rawSource);
+        document.getElementById("easy-json-code").innerHTML = highlightJson(easySource);
+      });
+    </script>
+  </body>
+</html>

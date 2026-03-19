@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.env
+*.log
+
+# MCP Agents session data
+.mcp-agents/
+
+# Internal planning & task tracking
+.planning/
+.tasuku/
+
+# Internal documents (not for public repo)
+audit-report-*.md
+competitor-comparison.md
+launch-touchpoints.md
+notion-mcp-landscape.md
+openclaw-notion-research.md

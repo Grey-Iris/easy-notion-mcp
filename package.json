@@ -1,0 +1,53 @@
+{
+  "name": "easy-notion-mcp",
+  "version": "0.2.0",
+  "description": "Token-efficient, markdown-first Notion MCP server — agents write markdown, never touch raw Notion JSON",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "easy-notion-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jwigg/easy-notion-mcp.git"
+  },
+  "keywords": [
+    "notion",
+    "mcp",
+    "markdown",
+    "easy-notion-mcp",
+    "model-context-protocol",
+    "agent",
+    "ai",
+    "llm"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@notionhq/client": "^5.13.0",
+    "dotenv": "^17.2.3",
+    "marked": "^17.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "js-tiktoken": "^1.0.21",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.18"
+  }
+}
