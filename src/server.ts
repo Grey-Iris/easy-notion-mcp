@@ -1,3 +1,4 @@
+import type { Client } from "@notionhq/client";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -17,6 +18,7 @@ import {
   createNotionClient,
   createPage,
   deleteBlock,
+  findWorkspacePages,
   getCachedSchema,
   getDatabase,
   getMe,
@@ -31,6 +33,7 @@ import {
   uploadFile,
   updateDatabaseEntry,
   updatePage,
+  type PageParent,
 } from "./notion-client.js";
 import type { NotionBlock, RichText } from "./types.js";
 
@@ -429,7 +432,7 @@ const tools = [
         markdown: { type: "string", description: "Markdown content for the page body" },
         parent_page_id: {
           type: "string",
-          description: "Parent page ID. Defaults to NOTION_ROOT_PAGE_ID when omitted.",
+          description: "Parent page ID. Resolution order when omitted: NOTION_ROOT_PAGE_ID env var → last used parent in this session → workspace-level private page (OAuth mode). In stdio mode without NOTION_ROOT_PAGE_ID, this is required on first use.",
         },
         icon: { type: "string", description: "Optional emoji icon" },
         cover: { type: "string", description: "Optional cover image URL" },
@@ -517,7 +520,7 @@ const tools = [
         title: { type: "string", description: "Title for the new page. Defaults to source title + ' (Copy)'" },
         parent_page_id: {
           type: "string",
-          description: "Parent page ID for the new page. Defaults to the source page's parent.",
+          description: "Parent page ID for the new page. Falls back to source page's parent, then follows the same resolution as create_page.",
         },
       },
       required: ["page_id"],
@@ -780,18 +783,50 @@ Call get_database first to see available properties and valid options.`,
 export interface CreateServerConfig {
   rootPageId?: string;
   trustContent?: boolean;
+  allowWorkspaceParent?: boolean;
 }
 
 export function createServer(
   notionClientFactory: () => ReturnType<typeof createNotionClient>,
   config: CreateServerConfig = {},
 ): Server {
-  const { rootPageId, trustContent = false } = config;
+  const { rootPageId, trustContent = false, allowWorkspaceParent = false } = config;
+  let stickyParentPageId: string | undefined;
 
   const server = new Server(
     { name: "easy-notion-mcp", version: "0.2.0" },
     { capabilities: { tools: {} } },
   );
+
+  async function resolveParent(
+    notion: Client,
+    explicitParentId: string | undefined,
+  ): Promise<PageParent> {
+    if (explicitParentId) {
+      stickyParentPageId = explicitParentId;
+      return { type: "page_id", page_id: explicitParentId };
+    }
+
+    if (rootPageId) {
+      return { type: "page_id", page_id: rootPageId };
+    }
+
+    if (stickyParentPageId) {
+      return { type: "page_id", page_id: stickyParentPageId };
+    }
+
+    if (allowWorkspaceParent) {
+      return { type: "workspace", workspace: true };
+    }
+
+    const candidates = await findWorkspacePages(notion, 5);
+    const suggestion = candidates.length > 0
+      ? ` Available top-level pages: ${candidates.map((candidate) => `"${candidate.title}" (${candidate.id})`).join(", ")}`
+      : "";
+    throw new Error(
+      `parent_page_id is required. Set NOTION_ROOT_PAGE_ID or pass parent_page_id explicitly.${suggestion}`,
+    );
+  }
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return { tools: [...tools] };
@@ -812,24 +847,24 @@ export function createServer(
             cover?: string;
           };
 
-          const parentId = parent_page_id ?? rootPageId;
-          if (!parentId) {
-            return textResponse({ error: "parent_page_id is required when NOTION_ROOT_PAGE_ID is not set" });
-          }
-
+          const parent = await resolveParent(notion, parent_page_id);
           const page = await createPage(
             notion,
-            parentId,
+            parent,
             title,
             markdownToBlocks(await processFileUploads(notion, markdown)),
             icon,
             cover,
           ) as any;
-          return textResponse({
+          const response: Record<string, unknown> = {
             id: page.id,
             title,
             url: page.url,
-          });
+          };
+          if (parent.type === "workspace") {
+            response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          return textResponse(response);
         }
         case "append_content": {
           const notion = notionClientFactory();
@@ -978,23 +1013,24 @@ export function createServer(
           const sourcePage = (await getPage(notion, page_id)) as any;
           const sourceTitle = getPageTitle(sourcePage) ?? "Untitled";
           const newTitle = title ?? `${sourceTitle} (Copy)`;
-          const parentId = parent_page_id ?? sourcePage.parent?.page_id ?? rootPageId;
-
-          if (!parentId) {
-            return textResponse({ error: "Could not determine parent page. Provide parent_page_id." });
-          }
+          const explicitParent = parent_page_id ?? sourcePage.parent?.page_id;
+          const parent = await resolveParent(notion, explicitParent);
 
           const sourceBlocks = await fetchBlocksRecursive(notion, page_id);
           const sourceIcon =
             sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
-          const newPage = await createPage(notion, parentId, newTitle, sourceBlocks, sourceIcon);
+          const newPage = await createPage(notion, parent, newTitle, sourceBlocks, sourceIcon);
 
-          return textResponse({
+          const response: Record<string, unknown> = {
             id: (newPage as any).id,
             title: newTitle,
             url: (newPage as any).url,
             source_page_id: page_id,
-          });
+          };
+          if (parent.type === "workspace") {
+            response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          return textResponse(response);
         }
         case "update_page": {
           const notion = notionClientFactory();

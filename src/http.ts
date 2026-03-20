@@ -42,6 +42,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
    */
   function createSessionHandler(
     getNotionToken: (req: express.Request) => string | undefined,
+    allowWorkspaceParent: boolean = false,
   ) {
     return async (req: express.Request, res: express.Response) => {
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
@@ -78,6 +79,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
         const server = createServer(() => notion, {
           rootPageId: options.rootPageId,
           trustContent: options.trustContent ?? false,
+          allowWorkspaceParent,
         });
 
         await server.connect(transport);
@@ -167,7 +169,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
       return authInfo?.extra?.notionToken as string | undefined;
     };
 
-    app.post("/mcp", authMiddleware, createSessionHandler(getNotionTokenFromAuth));
+    app.post("/mcp", authMiddleware, createSessionHandler(getNotionTokenFromAuth, true));
     app.get("/mcp", authMiddleware, createGetHandler());
     app.delete("/mcp", authMiddleware, createDeleteHandler());
 
@@ -177,7 +179,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
     const staticToken = options.notionToken;
     const getStaticToken = () => staticToken;
 
-    app.post("/mcp", createSessionHandler(getStaticToken));
+    app.post("/mcp", createSessionHandler(getStaticToken, false));
     app.get("/mcp", createGetHandler());
     app.delete("/mcp", createDeleteHandler());
 

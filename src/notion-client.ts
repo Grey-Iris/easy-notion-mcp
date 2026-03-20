@@ -4,6 +4,10 @@ import { basename, extname } from "path";
 import { fileURLToPath } from "url";
 import type { NotionBlock } from "./types.js";
 
+export type PageParent =
+  | { type: "page_id"; page_id: string }
+  | { type: "workspace"; workspace: true };
+
 export function createNotionClient(token: string) {
   return new Client({ auth: token, notionVersion: "2025-09-03" });
 }
@@ -243,14 +247,18 @@ async function convertPropertyValues(
 
 export async function createPage(
   client: Client,
-  parentId: string,
+  parent: string | PageParent,
   title: string,
   blocks: NotionBlock[],
   icon?: string,
   cover?: string,
 ) {
+  const resolvedParent = typeof parent === "string"
+    ? { type: "page_id" as const, page_id: parent }
+    : parent;
+
   return client.pages.create({
-    parent: { page_id: parentId },
+    parent: resolvedParent,
     properties: {
       title: {
         title: titleRichText(title),
@@ -260,6 +268,45 @@ export async function createPage(
     ...(icon ? { icon: { type: "emoji", emoji: icon as any } } : {}),
     ...(cover ? { cover: { type: "external", external: { url: cover } } } : {}),
   } as any);
+}
+
+export async function findWorkspacePages(
+  client: Client,
+  limit: number = 5,
+): Promise<Array<{ id: string; title: string }>> {
+  const pages: Array<{ id: string; title: string }> = [];
+  let start_cursor: string | undefined;
+
+  do {
+    const response = await client.search({
+      filter: { property: "object", value: "page" },
+      sort: { timestamp: "last_edited_time", direction: "descending" },
+      start_cursor,
+      page_size: 20,
+    });
+
+    for (const page of response.results as any[]) {
+      if (page.parent?.type !== "workspace") {
+        continue;
+      }
+
+      const titleProperty = Object.values(page.properties ?? {}).find(
+        (property: any) => property?.type === "title",
+      ) as any;
+      const title = (titleProperty?.title ?? [])
+        .map((item: any) => item.plain_text ?? item.text?.content ?? "")
+        .join("");
+
+      pages.push({ id: page.id, title: title || "Untitled" });
+      if (pages.length >= limit) {
+        return pages;
+      }
+    }
+
+    start_cursor = response.has_more ? response.next_cursor ?? undefined : undefined;
+  } while (start_cursor);
+
+  return pages;
 }
 
 export async function appendBlocks(client: Client, pageId: string, blocks: NotionBlock[]) {
