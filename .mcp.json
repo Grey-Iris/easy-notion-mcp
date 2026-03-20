@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "easy-notion-mcp": {
+      "command": "npx",
+      "args": ["-y", "easy-notion-mcp"],
+      "env": {
+        "NOTION_TOKEN": "ntn_your_integration_token",
+        "NOTION_ROOT_PAGE_ID": "your_root_page_id"
+      }
+    }
+  }
+}
