@@ -7,8 +7,6 @@ Agents write markdown — easy-notion-mcp converts it to Notion's block API and 
 
 26 tools · 25 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
 
-[![Glama](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp/badges/card.svg)](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp)
-
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
 [![node](https://img.shields.io/node/v/easy-notion-mcp)](package.json)
@@ -370,6 +368,8 @@ Yes. Nested toggles inside toggles, columns with mixed content types (lists, blo
 ### Does easy-notion-mcp handle partial failures in batch operations?
 
 Yes. `add_database_entries` returns separate `succeeded` and `failed` arrays. If one entry fails validation, the others still get created. Agents can retry just the failures without re-sending the whole batch.
+
+[![Glama](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp/badges/card.svg)](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp)
 
 ## Contributing
 
