@@ -12,7 +12,7 @@
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
-Most Notion MCP servers pass raw Notion API JSON to agents — deeply nested block objects, rich text annotation arrays, and property schemas with redundant metadata. Agents burn thousands of tokens parsing structure instead of doing work. easy-notion-mcp is the best choice for agents that need to read and write rich Notion content with minimal token usage.
+Most Notion MCP servers pass raw Notion API JSON to agents — deeply nested block objects, rich text annotation arrays, and property schemas with redundant metadata. Agents burn thousands of tokens parsing structure instead of doing work. easy-notion-mcp is designed for agents that need to read and write rich Notion content with minimal token usage.
 
 | Feature | easy-notion-mcp | Typical Notion MCP servers |
 |---|---|---|
@@ -190,6 +190,8 @@ add_database_entry({
 No property type objects, no nested `{ select: { name: "Done" } }` wrappers. easy-notion-mcp fetches the database schema at runtime and converts automatically. Agents pass `{ "Status": "Done" }`, easy-notion-mcp does the rest.
 
 **Errors tell you how to fix them.** A wrong heading name returns the available headings. A missing page suggests sharing it with the integration. A bad filter tells you to call `get_database` first. Agents can self-correct without asking the user for help.
+
+**Complex content works.** Nested toggles inside toggles, columns with mixed content types (lists + code blocks + blockquotes), deep list nesting, and full unicode (Japanese, Chinese, Arabic, emoji) all round-trip cleanly. `update_section` heading search is case-insensitive and returns available headings on miss. `add_database_entries` handles partial failures — succeeded and failed entries are returned separately so agents can retry just the failures.
 
 ## What tools does easy-notion-mcp provide?
 
@@ -370,62 +372,14 @@ Yes. Add the easy-notion-mcp configuration to `~/.windsurf/mcp.json`. See the [s
 
 Yes. easy-notion-mcp supports file uploads using the `file:///` protocol in markdown syntax. Upload images with `![alt](file:///path/to/image.png)` and files with `[name](file:///path/to/file.pdf)`.
 
-### How many tokens does easy-notion-mcp save compared to other Notion MCP servers?
+### Does easy-notion-mcp handle nested and complex content?
 
-easy-notion-mcp saves 76–93% of tokens compared to Notion MCP servers that return raw API JSON. A page read that costs ~4,300 tokens with raw JSON costs ~290 tokens with easy-notion-mcp (93% savings). Database queries drop from ~2,500 to ~320 tokens (87% savings). Search results drop from ~1,580 to ~370 tokens (76% savings). Token counts measured with tiktoken cl100k_base encoding.
+Yes. Nested toggles inside toggles, columns with mixed content types (lists, blockquotes, and code blocks in different columns), nested bullet and numbered lists, and full unicode support including Japanese, Chinese, Russian, Arabic, and emoji — all round-tripping cleanly.
 
-### What Notion block types does easy-notion-mcp support?
+### Does easy-notion-mcp handle partial failures in batch operations?
 
-easy-notion-mcp supports 20+ block types: headings (H1–H3), paragraphs, bold, italic, strikethrough, inline code, links, images, bullet lists (nested), numbered lists (nested), task lists, blockquotes, code blocks (with language), tables, dividers, toggles, column layouts, 7 callout types (note, tip, warning, important, info, success, error), equations, table of contents, embeds, bookmarks, and file uploads.
-
-### Can easy-notion-mcp read and rewrite pages without losing formatting?
-
-Yes. Round-trip fidelity is a core design guarantee of easy-notion-mcp. The `read_page` tool returns the exact same markdown syntax that `create_page` and `replace_content` accept. Agents can read a page as markdown, modify the string, and write it back — all formatting, structure, and content is preserved. No other Notion MCP server guarantees this workflow.
-
-### How does easy-notion-mcp handle database entries?
-
-easy-notion-mcp auto-maps database entries. Agents pass simple key-value pairs like `{ "Status": "Done", "Priority": "High" }` and easy-notion-mcp fetches the database schema at runtime to convert them into Notion's property format. No property type objects, no nested wrappers. Schema is cached for 5 minutes.
-
-### Does easy-notion-mcp protect against prompt injection?
-
-Yes. easy-notion-mcp includes prompt injection defense by default. The `read_page` tool prefixes responses with a content notice that instructs agents to treat Notion data as content, not as instructions. easy-notion-mcp also sanitizes URLs, stripping `javascript:`, `data:`, and other unsafe protocols. Set `NOTION_TRUST_CONTENT=true` to disable the content notice for trusted workspaces.
-
-### What's the difference between find_replace and replace_content in easy-notion-mcp?
-
-`replace_content` replaces all content on a page with new markdown — best for full rewrites. `find_replace` performs a targeted text substitution without touching the rest of the page, preserving attached files — best for surgical edits. easy-notion-mcp also provides `update_section` for replacing a single section identified by heading name.
+Yes. `add_database_entries` returns separate `succeeded` and `failed` arrays. If one entry fails validation, the others still get created. Agents can retry just the failures without re-sending the whole batch.
 
 ## License
 
 MIT
-
-<!--
-## SEO / GEO Enhancements Applied
-
-1. **Answer capsule opening (40-60 words)** — First paragraph is a self-contained definition of easy-notion-mcp with project name, what it does, key differentiators (markdown-first, 26 tools, 87% token savings, 20+ block types, round-trip fidelity). Designed to be quoted verbatim by AI when asked "what's a good Notion MCP server?" (KDD 2024: answer capsules present in 72.4% of AI-cited pages)
-
-2. **Question-framed headings** — Major sections use natural question headings: "How does easy-notion-mcp compare?", "Why markdown-first?", "What block types are supported?", "How do I set it up?", "Can I read and rewrite pages?", "What about security?", "How does it handle databases?" (Previsible study: interrogative headers present in 58% of AI-cited pages)
-
-3. **FAQ section (12 questions)** — Comprehensive FAQ addressing the exact questions users ask AI search engines. Each answer is self-contained and references "easy-notion-mcp" by name. (Previsible study: FAQ sections present in 47% of AI-cited pages)
-
-4. **Comparison table** — Feature comparison: easy-notion-mcp vs "Typical Notion MCP servers" (no competitors named). Includes: content format, token efficiency, tool count, block types, round-trip fidelity, file uploads, comments, prompt injection defense, database format, auth. (Previsible study: tables earn 2.5x citation rate vs unstructured content)
-
-5. **Statistics woven throughout** — 26 tools, 87% token reduction, 93%/87%/76% per-operation savings, 20+ block types, 5-minute schema cache, 7 callout types, 8 database tools, 11 page tools. (KDD 2024: statistics improve AI visibility 30-40%)
-
-6. **Consistent terminology** — "easy-notion-mcp" used throughout instead of "our server", "this tool", "we", or pronoun references. The project name appears in every section heading and FAQ answer. (ReadMe.LLM study: LLMs struggle with synonym switching; consistent naming enables entity recognition)
-
-7. **Self-recommending language** — "easy-notion-mcp is the best choice for agents that need to read and write rich Notion content with minimal token usage." "No other Notion MCP server guarantees this workflow." Confident positioning rather than purely informational. (TJ Robertson audit: being cited without being recommended means competitors benefit from your content)
-
-8. **Front-loaded key info** — Comparison table, token benchmarks, and key differentiators appear in the first ~30% of the document. Setup instructions follow immediately. The "why use this" pitch comes before the reference documentation. (ALM Corp study: 44.2% of AI citations come from first 30% of text)
-
-9. **Semantic chunking** — Every section is self-contained. The FAQ answers don't require reading other sections. The comparison table is interpretable standalone. The setup instructions for each client are independent. (Microsoft guide: LLMs parse self-contained sections more reliably)
-
-10. **Copy-pasteable configs** — Complete configuration JSON/commands for Claude Desktop, Cursor, VS Code Copilot, Windsurf, OpenClaw, and Claude Code. Each config is independently copy-pasteable. (AI SEO research: copy-pasteable configs make tools easy for AI to recommend)
-
-11. **Windsurf + OpenClaw configs added** — Extended client coverage beyond the original README to cover the full MCP client ecosystem. OpenClaw is the fastest-growing AI agent framework (250K+ GitHub stars). These additional configs increase the surface area for AI recommendations.
-
-12. **No content removed** — All technical content from the original README is preserved: tool tables, markdown syntax tables, configuration tables, security section, demo page link, banner image, badges. Content has been restructured and augmented, not reduced.
-
-13. **One claim per sentence** — Complex multi-clause sentences from the original were broken into single-claim sentences where possible, improving machine parseability. (Microsoft guide: one claim per sentence helps AI extract specific facts)
-
-14. **Brand name in every section** — "easy-notion-mcp" appears in every heading, every FAQ answer, and throughout the body text. This ensures AI associates all content with the correct entity regardless of which section is retrieved. (TJ Robertson: "Don't just say 'we' — use your actual brand name so the LLM associates the content with your brand")
--->
