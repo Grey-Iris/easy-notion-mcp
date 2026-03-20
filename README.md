@@ -10,6 +10,7 @@ Agents write markdown — easy-notion-mcp converts it to Notion's block API and 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
 [![node](https://img.shields.io/node/v/easy-notion-mcp)](package.json)
+[![Glama](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp/badges/card.svg)](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp)
 
 ```bash
 npx easy-notion-mcp
@@ -104,7 +105,7 @@ openclaw config set mcpServers.notion.args '["easy-notion-mcp"]'
 
 Set the env var: `export NOTION_TOKEN=ntn_your_integration_token`
 
-<details><summary><strong>Claude Desktop</strong> — add to <code>claude_desktop_config.json</code></summary>
+**Claude Desktop / Cursor / Windsurf** — add to your MCP config file:
 
 ```json
 {
@@ -120,49 +121,13 @@ Set the env var: `export NOTION_TOKEN=ntn_your_integration_token`
 }
 ```
 
-</details>
+Config file locations: Claude Desktop → `claude_desktop_config.json` · Cursor → `.cursor/mcp.json` · Windsurf → `~/.windsurf/mcp.json`
 
-<details><summary><strong>Cursor</strong> — add to <code>.cursor/mcp.json</code></summary>
-
-```json
-{
-  "mcpServers": {
-    "notion": {
-      "command": "npx",
-      "args": ["-y", "easy-notion-mcp"],
-      "env": {
-        "NOTION_TOKEN": "ntn_your_integration_token"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-<details><summary><strong>VS Code Copilot</strong> — add to <code>.vscode/mcp.json</code></summary>
+<details><summary><strong>VS Code Copilot</strong> — add to <code>.vscode/mcp.json</code> (uses <code>servers</code> not <code>mcpServers</code>)</summary>
 
 ```json
 {
   "servers": {
-    "notion": {
-      "command": "npx",
-      "args": ["-y", "easy-notion-mcp"],
-      "env": {
-        "NOTION_TOKEN": "ntn_your_integration_token"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-<details><summary><strong>Windsurf</strong> — add to <code>~/.windsurf/mcp.json</code></summary>
-
-```json
-{
-  "mcpServers": {
     "notion": {
       "command": "npx",
       "args": ["-y", "easy-notion-mcp"],
