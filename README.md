@@ -36,21 +36,19 @@ npx easy-notion-mcp
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
 | **Database entry format** | ✅ Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
-| **Auth options** | ✅ API token or OAuth | API token or OAuth | API token or OAuth |
+| **Auth options** | ✅ API token or OAuth | ✅ API token or OAuth | ✅ API token or OAuth |
 
 ### How many tokens does easy-notion-mcp save?
 
-| Operation | Official Notion MCP | better-notion-mcp | easy-notion-mcp |
-|---|---|---|---|
-| Page read | 6,536 tokens | 236 tokens† | **291 tokens** |
-| Database query (5 rows) | 2,983 tokens | 704 tokens | **347 tokens** |
-| Search (3 results) | 1,824 tokens | 347 tokens | **298 tokens** |
-| **vs Official** | — | — | **~92% fewer tokens** |
-| **vs better-notion** | — | — | **~27% fewer tokens** |
+| Operation | easy-notion-mcp | better-notion-mcp | Official Notion MCP | Savings vs Official |
+|---|---|---|---|---|
+| Page read | **291 tokens** | 236 tokens† | 6,536 tokens | **95.5%** |
+| DB query (5 rows) | **347 tokens** | 704 tokens | 2,983 tokens | **88.4%** |
+| Search (3 results) | **298 tokens** | 347 tokens | 1,824 tokens | **83.7%** |
 
 †better-notion-mcp page reads appear smaller because they silently drop 11 block types (callouts, toggles, tables, task lists, equations, bookmarks, embeds). On equal content coverage, easy-notion-mcp is more efficient.
 
-*Measured by running all three servers against the same Notion content and counting tokens with tiktoken cl100k_base. Raw responses saved for verification. The official Notion npm package returns unmodified API JSON. Notion's separate hosted remote MCP server (not the npm package) uses a different format and was not benchmarked.*
+*Measured by running all three MCP servers against the same Notion content and counting tokens with tiktoken cl100k_base. Raw responses saved for verification.*
 
 ## How do I set up easy-notion-mcp?
 
