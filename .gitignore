@@ -3,6 +3,9 @@ dist/
 .env
 *.log
 
+# MCP Registry auth tokens
+.mcpregistry_*
+
 # MCP Agents session data
 .mcp-agents/
 
