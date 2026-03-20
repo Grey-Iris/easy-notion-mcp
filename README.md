@@ -32,21 +32,21 @@ npx easy-notion-mcp
 | **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
 | **Block types** | ✅ 25 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
 | **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
-| **Tools** | ✅ 26 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
+| **Tools** | 26 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
-| **Database entry format** | ✅ Simple `{"Status": "Done"}` key-value pairs | ✅ Simplified key-value pairs | ✅ Simplified key-value pairs |
-| **Auth options** | ✅ API token or OAuth | ✅ API token or OAuth | ✅ API token or OAuth |
+| **Database entry format** | Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
+| **Auth options** | API token or OAuth | API token or OAuth | API token or OAuth |
 
 ### How many tokens does easy-notion-mcp save?
 
 | Operation | easy-notion-mcp | better-notion-mcp | Official Notion MCP | Savings vs Official |
 |---|---|---|---|---|
-| Page read | **291 tokens** | 236 tokens† | 6,536 tokens | **95.5%** |
+| Page read | **291 tokens** | ⚠️ 236 tokens | 6,536 tokens | **95.5%** |
 | DB query (5 rows) | **347 tokens** | 704 tokens | 2,983 tokens | **88.4%** |
 | Search (3 results) | **298 tokens** | 347 tokens | 1,824 tokens | **83.7%** |
 
-†better-notion-mcp page reads appear smaller because they silently drop 11 block types (callouts, toggles, tables, task lists, equations, bookmarks, embeds). On equal content coverage, easy-notion-mcp is more efficient.
+⚠️ better-notion-mcp page reads appear smaller because they silently drop 11 block types (callouts, toggles, tables, task lists, equations, bookmarks, embeds). On equal content coverage, easy-notion-mcp is more efficient.
 
 *Measured by running all three MCP servers against the same Notion content and counting tokens with tiktoken cl100k_base. Raw responses saved for verification.*
 
@@ -203,10 +203,13 @@ Read it back — same markdown comes out:
 
 ```javascript
 read_page({ page_id: "..." })
-// → { markdown: "## Decisions\n\n- Ship v2 by Friday\n- [ ] Update deploy scripts\n\n> [!WARNING]\n> Deploy window is Saturday 2–4am only" }
 ```
 
-Modify the string, call `replace_content`, done. Or target a single section by heading name with `update_section`. Or do a surgical `find_replace` without touching the rest of the page.
+```json
+{ "markdown": "## Decisions\n\n- Ship v2 by Friday\n- [ ] Update deploy scripts\n\n> [!WARNING]\n> Deploy window is Saturday 2–4am only" }
+```
+
+Modify the string, call `replace_content`, done. Or target a single section by heading name with `update_section`. Or do a surgical `find_replace` without touching the rest of the page. Pages can also have emoji icons and cover images set via `create_page` or `update_page`.
 
 **Databases** — write simple key-value pairs:
 
@@ -284,7 +287,7 @@ easy-notion-mcp fetches the database schema, maps values to Notion's property fo
 
 ## What block types does easy-notion-mcp support?
 
-easy-notion-mcp supports 20+ block types using standard markdown syntax extended with conventions for Notion-specific blocks like toggles, columns, and callouts. Agents write familiar markdown — easy-notion-mcp handles the conversion to and from Notion's block format.
+easy-notion-mcp supports 25 block types using standard markdown syntax extended with conventions for Notion-specific blocks like toggles, columns, and callouts. Agents write familiar markdown — easy-notion-mcp handles the conversion to and from Notion's block format.
 
 ### Standard markdown
 
