@@ -1,6 +1,6 @@
 <div align="center">
 
-# easy-notion-mcp
+# Easy Notion MCP
 
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
@@ -29,14 +29,14 @@ npx easy-notion-mcp
 
 | Feature | easy-notion-mcp | Official Notion MCP (npm) | better-notion-mcp |
 |---|---|---|---|
-| **Content format** | Standard GFM markdown | Raw Notion API JSON | Markdown (limited block types) |
-| **Block types** | 25 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | All (as raw JSON) | ~7 (headings, paragraphs, lists, code, quotes, dividers) |
-| **Round-trip fidelity** | Full — read markdown, modify, write back | No — raw JSON requires block reconstruction | Partial — unsupported blocks silently dropped |
-| **Tools** | 26 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
-| **File uploads** | `file:///path` in markdown | No ([open feature request](https://github.com/makenotion/notion-mcp-server/issues/191)) | Yes (5-step lifecycle) |
-| **Prompt injection defense** | Content notice prefix + URL sanitization | No | No |
-| **Database entry format** | Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
-| **Auth options** | API token or OAuth | API token or OAuth | API token or OAuth |
+| **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
+| **Block types** | ✅ 25 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
+| **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
+| **Tools** | ✅ 26 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
+| **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
+| **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
+| **Database entry format** | ✅ Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
+| **Auth options** | ✅ API token or OAuth | API token or OAuth | API token or OAuth |
 
 ### How many tokens does easy-notion-mcp save?
 
