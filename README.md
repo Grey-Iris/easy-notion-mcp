@@ -10,7 +10,7 @@ Markdown-first Notion MCP server — save 87% of tokens on every operation.
 
 Save 87% of tokens on every Notion operation. Agents write markdown — never raw JSON.
 
-**[See the demo page](https://www.notion.so/easy-notion-mcp-327be876242f817f9129ff1a5a624814)** — a live page created and managed entirely through this server.
+**[See the demo page](https://www.notion.so/easy-notion-mcp-327be876242f817f9129ff1a5a624814)** — a live page created and managed entirely through this MCP.
 
 | Operation | Other MCPs | easy-notion-mcp | Savings |
 |---|---|---|---|
