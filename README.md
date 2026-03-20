@@ -35,7 +35,7 @@ npx easy-notion-mcp
 | **Tools** | ✅ 26 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
-| **Database entry format** | ✅ Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
+| **Database entry format** | ✅ Simple `{"Status": "Done"}` key-value pairs | ✅ Simplified key-value pairs | ✅ Simplified key-value pairs |
 | **Auth options** | ✅ API token or OAuth | ✅ API token or OAuth | ✅ API token or OAuth |
 
 ### How many tokens does easy-notion-mcp save?
