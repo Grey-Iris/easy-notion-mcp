@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1080, initial-scale=1.0" />
-    <title>Stop paying LLMs to write Notion JSON</title>
+    <title>Stop paying for LLM's to write Notion JSON</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -89,6 +89,7 @@
         padding: 52px 40px 56px;
         transform-origin: top center;
         animation: zoomReveal 8s ease-in-out forwards;
+        animation-play-state: paused;
       }
 
       /* ── Header ── */
@@ -394,7 +395,7 @@
   <body>
     <div class="container">
       <header class="header">
-        <h1>Stop paying LLMs<br>to write <span class="highlight">Notion JSON.</span></h1>
+        <h1>Stop paying for LLM's<br>to write <span class="highlight">Notion JSON.</span></h1>
         <p class="sub"><em>notion-mcp-server</em> requires 67 lines of block objects. Here's what that looks like.</p>
       </header>
 
@@ -710,6 +711,11 @@
         var naturalH = container.scrollHeight;
         var scale = Math.min(1, (viewportH - 40) / naturalH); // 40px breathing room
         container.style.setProperty("--final-scale", scale);
+
+        // Start animation after a short delay (gives recorder time to spin up)
+        setTimeout(function () {
+          container.style.animationPlayState = "running";
+        }, 1500);
       });
     </script>
   </body>
