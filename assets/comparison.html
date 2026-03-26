@@ -46,187 +46,106 @@
 
       body {
         width: 1080px;
-        min-height: 1920px;
         background: var(--page-bg);
         font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
         color: #cdd6f4;
         position: relative;
-        overflow: hidden;
       }
 
-      /* ── JSON wall — the entire background ── */
-      .json-wall {
-        position: absolute;
+      /* Background gradient (fixed) */
+      body::before {
+        content: "";
+        position: fixed;
         inset: 0;
-        padding: 20px 28px;
-        overflow: hidden;
-        opacity: 0.28;
+        background:
+          radial-gradient(ellipse 600px 500px at 15% 20%, rgba(232, 120, 90, 0.08), transparent),
+          radial-gradient(ellipse 500px 400px at 85% 30%, rgba(77, 184, 164, 0.07), transparent),
+          radial-gradient(ellipse 700px 500px at 50% 80%, rgba(99, 102, 241, 0.05), transparent);
+        pointer-events: none;
         z-index: 0;
       }
 
-      .json-wall code {
-        font-family: "JetBrains Mono", monospace;
-        font-size: 13px;
-        line-height: 1.65;
-        display: block;
-        white-space: pre;
-        color: #585b70;
-      }
-
-      .json-wall .jk { color: rgba(137, 180, 250, 0.5); }
-      .json-wall .js { color: rgba(243, 139, 168, 0.4); }
-      .json-wall .jb { color: rgba(250, 179, 135, 0.4); }
-      .json-wall .jp { color: rgba(69, 71, 90, 0.6); }
-
-      /* Vignette over the JSON wall */
-      .vignette {
-        position: absolute;
-        inset: 0;
-        background:
-          radial-gradient(ellipse 120% 80% at 50% 45%, transparent 30%, var(--page-bg) 75%);
-        z-index: 1;
-        pointer-events: none;
-      }
-
-      /* Extra darkening at edges */
-      .vignette::after {
+      /* Noise */
+      body::after {
         content: "";
-        position: absolute;
+        position: fixed;
         inset: 0;
-        background:
-          linear-gradient(to bottom, var(--page-bg), transparent 15%, transparent 85%, var(--page-bg));
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+        background-size: 200px 200px;
         pointer-events: none;
+        z-index: 100;
       }
 
-      /* ── Gradient color wash ── */
-      .color-wash {
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        pointer-events: none;
-        background:
-          radial-gradient(ellipse 500px 400px at 20% 15%, rgba(232, 120, 90, 0.10), transparent),
-          radial-gradient(ellipse 400px 350px at 80% 80%, rgba(99, 102, 241, 0.08), transparent);
-      }
-
-      /* ── Content layer ── */
-      .content {
+      .container {
         position: relative;
-        z-index: 2;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        min-height: 1920px;
-        padding: 80px 44px 60px;
+        z-index: 1;
+        padding: 52px 40px 56px;
       }
 
-      /* ── Headline ── */
-      .headline {
+      /* ── Header ── */
+      .header {
         text-align: center;
-        margin-bottom: 48px;
-        opacity: 0;
-        animation: fadeUp 0.7s ease-out 0.15s forwards;
+        margin-bottom: 36px;
       }
 
-      .headline h1 {
-        font-size: 52px;
+      .header h1 {
+        font-size: 48px;
         font-weight: 900;
         letter-spacing: -0.04em;
         line-height: 1.1;
-        color: #ffffff;
+        color: #fff;
       }
 
-      .headline h1 .highlight {
+      .header h1 .highlight {
         color: var(--coral);
       }
 
-      .headline .sub {
-        margin-top: 14px;
-        font-size: 18px;
+      .header .sub {
+        margin-top: 10px;
+        font-size: 16px;
         font-weight: 600;
-        color: #6c7086;
+        color: #585b70;
       }
 
-      .headline .sub em {
+      .header .sub em {
         font-style: normal;
-        color: #9ca0b0;
+        color: #7f849c;
       }
 
-      /* ── The red "waste" badge over the JSON wall ── */
-      .waste-badge {
-        display: inline-flex;
-        align-items: baseline;
-        gap: 10px;
-        padding: 16px 32px;
-        border-radius: 14px;
-        background: rgba(232, 120, 90, 0.12);
-        border: 1.5px solid rgba(232, 120, 90, 0.25);
-        margin-bottom: 40px;
-        opacity: 0;
-        animation: fadeUp 0.6s ease-out 0.35s forwards;
+      /* ── Side-by-side panels — asymmetric ── */
+      .panels {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
       }
 
-      .waste-badge .number {
-        font-family: "JetBrains Mono", monospace;
-        font-size: 48px;
-        font-weight: 800;
-        color: var(--coral);
-        letter-spacing: -0.04em;
-      }
-
-      .waste-badge .label {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--coral-deep);
-        letter-spacing: 0.02em;
-      }
-
-      /* ── The floating markdown card ── */
-      .md-card {
-        width: 680px;
-        border-radius: 16px;
+      /* ── macOS window base ── */
+      .mac-window {
+        border-radius: 12px;
         overflow: hidden;
         background: var(--win-bg);
-        border: 1px solid rgba(77, 184, 164, 0.15);
-        box-shadow:
-          0 0 0 1px rgba(77, 184, 164, 0.08),
-          0 30px 100px -10px rgba(0, 0, 0, 0.7),
-          0 0 80px -20px rgba(77, 184, 164, 0.15);
-        opacity: 0;
-        animation: cardSlam 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
-        position: relative;
+        border: 1px solid var(--win-border);
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.3);
       }
 
-      /* Green glow line on top */
-      .md-card::before {
-        content: "";
-        position: absolute;
-        top: -1px;
-        left: 15%;
-        right: 15%;
-        height: 2px;
-        background: linear-gradient(90deg, transparent, var(--mint), transparent);
-        z-index: 5;
-      }
-
-      .md-card .title-bar {
+      .title-bar {
         display: flex;
         align-items: center;
-        height: 44px;
-        padding: 0 16px;
+        height: 40px;
+        padding: 0 14px;
         background: var(--win-bar);
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
       }
 
       .dots {
         display: flex;
-        gap: 8px;
-        margin-right: 14px;
+        gap: 7px;
+        margin-right: 12px;
       }
 
       .dots span {
-        width: 12px;
-        height: 12px;
+        width: 11px;
+        height: 11px;
         border-radius: 50%;
       }
 
@@ -236,59 +155,129 @@
 
       .title-bar .filename {
         font-family: "JetBrains Mono", monospace;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 500;
-        color: #6c7086;
+        color: #585b70;
         flex: 1;
         text-align: center;
-        margin-right: 52px;
+        margin-right: 48px;
       }
 
-      /* Green token badge inside card */
-      .md-card .token-row {
-        padding: 14px 24px;
+      /* Token count row */
+      .token-row {
+        padding: 10px 18px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-        background: rgba(77, 184, 164, 0.06);
+        background: rgba(0, 0, 0, 0.15);
         display: flex;
         align-items: baseline;
-        gap: 10px;
+        gap: 8px;
       }
 
-      .md-card .token-row .number {
+      .token-row .number {
         font-family: "JetBrains Mono", monospace;
-        font-size: 40px;
+        font-size: 34px;
         font-weight: 800;
-        color: var(--mint);
         letter-spacing: -0.04em;
       }
 
-      .md-card .token-row .label {
-        font-size: 16px;
+      .token-row .label {
+        font-size: 14px;
         font-weight: 700;
-        color: rgba(77, 184, 164, 0.6);
       }
 
-      .md-card pre {
+      /* ── JSON window — wide, tall ── */
+      .json-win {
+        flex: 1.15;
+      }
+
+      .json-win .token-row .number { color: var(--coral); }
+      .json-win .token-row .label { color: var(--coral-deep); opacity: 0.7; }
+
+      .json-win pre {
         margin: 0;
-        padding: 24px 28px 28px;
+        padding: 14px 16px 20px;
       }
 
-      .md-card code {
+      .json-win code {
         font-family: "JetBrains Mono", monospace;
-        font-size: 15px;
-        line-height: 1.75;
+        font-size: 11.5px;
+        line-height: 1.55;
         display: block;
         white-space: pre;
       }
 
-      .md-card .ln {
+      .json-win .ln {
         display: inline-block;
-        width: 24px;
+        width: 26px;
         text-align: right;
-        margin-right: 18px;
+        margin-right: 14px;
+        color: #313244;
+        user-select: none;
+        font-size: 10px;
+      }
+
+      .jk { color: var(--j-key); }
+      .js { color: var(--j-string); }
+      .jb { color: var(--j-bool); }
+      .jp { color: var(--j-punct); }
+
+      /* ── Markdown window — narrow, short ── */
+      .md-win {
+        flex: 0.85;
+      }
+
+      .md-win .token-row {
+        background: rgba(77, 184, 164, 0.05);
+      }
+
+      .md-win .token-row .number { color: var(--mint); }
+      .md-win .token-row .label { color: rgba(77, 184, 164, 0.5); }
+
+      /* Green glow */
+      .md-win {
+        box-shadow:
+          0 25px 80px rgba(0, 0, 0, 0.45),
+          0 8px 24px rgba(0, 0, 0, 0.3),
+          0 0 60px -15px rgba(77, 184, 164, 0.15);
+      }
+
+      .md-win::after {
+        content: "";
+        position: absolute;
+        top: -1px;
+        left: 15%;
+        right: 15%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--mint), transparent);
+        opacity: 0.5;
+        z-index: 5;
+      }
+
+      .md-win {
+        position: relative;
+      }
+
+      .md-win pre {
+        margin: 0;
+        padding: 18px 20px 22px;
+      }
+
+      .md-win code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        line-height: 1.7;
+        display: block;
+        white-space: pre;
+      }
+
+      .md-win .ln {
+        display: inline-block;
+        width: 22px;
+        text-align: right;
+        margin-right: 16px;
         color: #1e3a2e;
         user-select: none;
-        font-size: 12px;
+        font-size: 11px;
       }
 
       .mh { color: var(--m-heading); font-weight: 700; }
@@ -302,71 +291,66 @@
       .cursor {
         display: inline-block;
         width: 2px;
-        height: 18px;
+        height: 16px;
         background: var(--mint);
         margin-left: 2px;
         vertical-align: text-bottom;
         animation: blink 1s step-end infinite;
       }
 
-      /* ── Reduction callout below the card ── */
+      /* ── Stat + footer below the md window ── */
+      .right-col {
+        flex: 0.85;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
       .reduction {
-        margin-top: 40px;
         text-align: center;
-        opacity: 0;
-        animation: fadeUp 0.6s ease-out 1s forwards;
+        padding: 28px 20px;
+        border-radius: 12px;
+        background: var(--win-bg);
+        border: 1px solid var(--win-border);
       }
 
       .reduction .big {
         font-family: "JetBrains Mono", monospace;
-        font-size: 72px;
+        font-size: 52px;
         font-weight: 800;
         letter-spacing: -0.05em;
         color: var(--mint);
         line-height: 1;
-        text-shadow: 0 0 60px rgba(77, 184, 164, 0.3);
+        text-shadow: 0 0 50px rgba(77, 184, 164, 0.25);
       }
 
       .reduction .context {
-        font-size: 22px;
+        font-size: 15px;
         font-weight: 700;
-        color: #585b70;
+        color: #45475a;
         margin-top: 6px;
-        letter-spacing: -0.01em;
       }
 
-      /* ── Footer brand ── */
-      .footer {
-        margin-top: 48px;
+      .brand-card {
         text-align: center;
-        opacity: 0;
-        animation: fadeUp 0.5s ease-out 1.2s forwards;
+        padding: 20px;
+        border-radius: 12px;
+        background: var(--win-bg);
+        border: 1px solid var(--win-border);
       }
 
-      .footer .brand {
+      .brand-card .name {
         font-family: "JetBrains Mono", monospace;
-        font-size: 20px;
+        font-size: 17px;
         font-weight: 700;
         color: var(--mint);
-        letter-spacing: -0.02em;
       }
 
-      .footer .tagline {
-        font-size: 15px;
+      .brand-card .tagline {
+        font-size: 13px;
         color: #45475a;
-        margin-top: 4px;
+        margin-top: 3px;
         font-weight: 600;
-      }
-
-      /* ── Animations ── */
-      @keyframes fadeUp {
-        from { opacity: 0; transform: translateY(18px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-
-      @keyframes cardSlam {
-        from { opacity: 0; transform: scale(0.92) translateY(30px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
       }
 
       @keyframes blink {
@@ -376,46 +360,51 @@
     </style>
   </head>
   <body>
-    <!-- Layer 0: JSON wall background -->
-    <div class="json-wall">
-      <code id="bg-json"></code>
-    </div>
-    <div class="vignette"></div>
-    <div class="color-wash"></div>
-
-    <!-- Layer 2: Actual content -->
-    <div class="content">
-      <header class="headline">
+    <div class="container">
+      <header class="header">
         <h1>Stop paying LLMs<br>to write <span class="highlight">Notion JSON.</span></h1>
-        <p class="sub"><em>notion-mcp-server</em> requires 67 lines of block objects per page.</p>
+        <p class="sub"><em>notion-mcp-server</em> requires 67 lines of block objects. Here's what that looks like.</p>
       </header>
 
-      <div class="waste-badge">
-        <span class="number">~450</span>
-        <span class="label">tokens wasted per call</span>
-      </div>
-
-      <div class="md-card">
-        <div class="title-bar">
-          <div class="dots"><span class="d-r"></span><span class="d-y"></span><span class="d-g"></span></div>
-          <span class="filename">easy-notion-mcp</span>
+      <section class="panels">
+        <!-- LEFT: The long JSON wall -->
+        <div class="mac-window json-win">
+          <div class="title-bar">
+            <div class="dots"><span class="d-r"></span><span class="d-y"></span><span class="d-g"></span></div>
+            <span class="filename">notion-mcp-server</span>
+          </div>
+          <div class="token-row">
+            <span class="number">~450</span>
+            <span class="label">tokens</span>
+          </div>
+          <pre><code id="json-code"></code></pre>
         </div>
-        <div class="token-row">
-          <span class="number">~40</span>
-          <span class="label">tokens — same result</span>
+
+        <!-- RIGHT: Short markdown + stats underneath -->
+        <div class="right-col">
+          <div class="mac-window md-win">
+            <div class="title-bar">
+              <div class="dots"><span class="d-r"></span><span class="d-y"></span><span class="d-g"></span></div>
+              <span class="filename">easy-notion-mcp</span>
+            </div>
+            <div class="token-row">
+              <span class="number">~40</span>
+              <span class="label">tokens</span>
+            </div>
+            <pre><code id="md-code"></code></pre>
+          </div>
+
+          <div class="reduction">
+            <div class="big">91% less</div>
+            <div class="context">same page, same blocks</div>
+          </div>
+
+          <div class="brand-card">
+            <div class="name">easy-notion-mcp</div>
+            <div class="tagline">Agents write markdown. Not JSON.</div>
+          </div>
         </div>
-        <pre><code id="md-code"></code></pre>
-      </div>
-
-      <div class="reduction">
-        <div class="big">91% cheaper</div>
-        <div class="context">same page, same blocks, fraction of the cost</div>
-      </div>
-
-      <footer class="footer">
-        <div class="brand">easy-notion-mcp</div>
-        <div class="tagline">Agents write markdown. Not JSON.</div>
-      </footer>
+      </section>
     </div>
 
     <script>
@@ -426,10 +415,10 @@
         return '<span class="' + cls + '">' + esc(text) + "</span>";
       }
 
-      /* JSON tokenizer */
       function highlightJSON(src) {
         var lines = src.split("\n"), out = [];
         for (var li = 0; li < lines.length; li++) {
+          var ln = '<span class="ln">' + (li + 1) + "</span>";
           var text = lines[li], html = "", idx = 0;
           while (idx < text.length) {
             var ch = text[idx];
@@ -457,12 +446,11 @@
             }
             html += esc(ch); idx++;
           }
-          out.push(html);
+          out.push(ln + html);
         }
         return out.join("\n");
       }
 
-      /* Markdown highlighter */
       function highlightMD(src) {
         var lines = src.split("\n"), out = [];
         for (var i = 0; i < lines.length; i++) {
@@ -485,44 +473,40 @@
         return out.join("\n");
       }
 
-      /* The full verbose JSON — repeats to fill the background */
-      var jsonBlock = [
+      // Full verbose JSON with all annotations expanded
+      var jsonSource = [
         '{',
         '  "parent": {',
-        '    "page_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"',
+        '    "page_id": "a1b2c3d4-e5f6-abcd"',
         '  },',
         '  "properties": {',
-        '    "title": [',
-        '      {',
-        '        "text": {',
-        '          "content": "Project Update"',
-        '        }',
+        '    "title": [{',
+        '      "text": {',
+        '        "content": "Project Update"',
         '      }',
-        '    ]',
+        '    }]',
         '  },',
         '  "children": [',
         '    {',
         '      "type": "heading_2",',
         '      "heading_2": {',
-        '        "rich_text": [',
-        '          {',
-        '            "type": "text",',
-        '            "text": {',
-        '              "content": "Status",',
-        '              "link": null',
-        '            },',
-        '            "annotations": {',
-        '              "bold": false,',
-        '              "italic": false,',
-        '              "strikethrough": false,',
-        '              "underline": false,',
-        '              "code": false,',
-        '              "color": "default"',
-        '            },',
-        '            "plain_text": "Status",',
-        '            "href": null',
-        '          }',
-        '        ],',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Status",',
+        '            "link": null',
+        '          },',
+        '          "annotations": {',
+        '            "bold": false,',
+        '            "italic": false,',
+        '            "strikethrough": false,',
+        '            "underline": false,',
+        '            "code": false,',
+        '            "color": "default"',
+        '          },',
+        '          "plain_text": "Status",',
+        '          "href": null',
+        '        }],',
         '        "is_toggleable": false,',
         '        "color": "default"',
         '      }',
@@ -534,8 +518,7 @@
         '          {',
         '            "type": "text",',
         '            "text": {',
-        '              "content": "The project is ",',
-        '              "link": null',
+        '              "content": "The project is "',
         '            },',
         '            "annotations": {',
         '              "bold": false,',
@@ -545,14 +528,12 @@
         '              "code": false,',
         '              "color": "default"',
         '            },',
-        '            "plain_text": "The project is ",',
-        '            "href": null',
+        '            "plain_text": "The project is "',
         '          },',
         '          {',
         '            "type": "text",',
         '            "text": {',
-        '              "content": "on track",',
-        '              "link": null',
+        '              "content": "on track"',
         '            },',
         '            "annotations": {',
         '              "bold": true,',
@@ -562,14 +543,12 @@
         '              "code": false,',
         '              "color": "default"',
         '            },',
-        '            "plain_text": "on track",',
-        '            "href": null',
+        '            "plain_text": "on track"',
         '          },',
         '          {',
         '            "type": "text",',
         '            "text": {',
-        '              "content": " for launch.",',
-        '              "link": null',
+        '              "content": " for launch."',
         '            },',
         '            "annotations": {',
         '              "bold": false,',
@@ -579,8 +558,7 @@
         '              "code": false,',
         '              "color": "default"',
         '            },',
-        '            "plain_text": " for launch.",',
-        '            "href": null',
+        '            "plain_text": " for launch."',
         '          }',
         '        ],',
         '        "color": "default"',
@@ -589,69 +567,80 @@
         '    {',
         '      "type": "bulleted_list_item",',
         '      "bulleted_list_item": {',
-        '        "rich_text": [',
-        '          {',
-        '            "type": "text",',
-        '            "text": {',
-        '              "content": "Backend API complete",',
-        '              "link": null',
-        '            },',
-        '            "annotations": {',
-        '              "bold": false,',
-        '              "italic": false,',
-        '              "strikethrough": false,',
-        '              "underline": false,',
-        '              "code": false,',
-        '              "color": "default"',
-        '            }',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Backend API complete"',
+        '          },',
+        '          "annotations": {',
+        '            "bold": false,',
+        '            "italic": false,',
+        '            "strikethrough": false,',
+        '            "underline": false,',
+        '            "code": false,',
+        '            "color": "default"',
         '          }',
-        '        ],',
+        '        }],',
         '        "color": "default"',
         '      }',
         '    },',
         '    {',
         '      "type": "bulleted_list_item",',
         '      "bulleted_list_item": {',
-        '        "rich_text": [',
-        '          {',
-        '            "type": "text",',
-        '            "text": {',
-        '              "content": "Frontend in review",',
-        '              "link": null',
-        '            },',
-        '            "annotations": {',
-        '              "bold": false,',
-        '              "italic": false,',
-        '              "strikethrough": false,',
-        '              "underline": false,',
-        '              "code": false,',
-        '              "color": "default"',
-        '            }',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Frontend in review"',
+        '          },',
+        '          "annotations": {',
+        '            "bold": false,',
+        '            "italic": false,',
+        '            "strikethrough": false,',
+        '            "underline": false,',
+        '            "code": false,',
+        '            "color": "default"',
         '          }',
-        '        ],',
+        '        }],',
+        '        "color": "default"',
+        '      }',
+        '    },',
+        '    {',
+        '      "type": "bulleted_list_item",',
+        '      "bulleted_list_item": {',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Tests passing"',
+        '          },',
+        '          "annotations": {',
+        '            "bold": false,',
+        '            "italic": false,',
+        '            "strikethrough": false,',
+        '            "underline": false,',
+        '            "code": false,',
+        '            "color": "default"',
+        '          }',
+        '        }],',
         '        "color": "default"',
         '      }',
         '    },',
         '    {',
         '      "type": "callout",',
         '      "callout": {',
-        '        "rich_text": [',
-        '          {',
-        '            "type": "text",',
-        '            "text": {',
-        '              "content": "Ship date: Friday",',
-        '              "link": null',
-        '            },',
-        '            "annotations": {',
-        '              "bold": false,',
-        '              "italic": false,',
-        '              "strikethrough": false,',
-        '              "underline": false,',
-        '              "code": false,',
-        '              "color": "default"',
-        '            }',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Ship date: Friday"',
+        '          },',
+        '          "annotations": {',
+        '            "bold": false,',
+        '            "italic": false,',
+        '            "strikethrough": false,',
+        '            "underline": false,',
+        '            "code": false,',
+        '            "color": "default"',
         '          }',
-        '        ],',
+        '        }],',
         '        "icon": {',
         '          "type": "emoji",',
         '          "emoji": "\uD83D\uDE80"',
@@ -662,9 +651,6 @@
         '  ]',
         '}'
       ].join("\n");
-
-      // Repeat JSON to fill the viewport
-      var fullBg = jsonBlock + "\n\n" + jsonBlock + "\n\n" + jsonBlock;
 
       var mdSource = [
         '## Status',
@@ -680,7 +666,7 @@
       ].join("\n");
 
       document.addEventListener("DOMContentLoaded", function () {
-        document.getElementById("bg-json").innerHTML = highlightJSON(fullBg);
+        document.getElementById("json-code").innerHTML = highlightJSON(jsonSource);
         document.getElementById("md-code").innerHTML =
           highlightMD(mdSource) + '<span class="cursor"></span>';
       });
