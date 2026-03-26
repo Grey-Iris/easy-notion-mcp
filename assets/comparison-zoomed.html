@@ -79,7 +79,7 @@
       }
 
       body {
-        height: 1920px;
+        height: 100vh;
         overflow: hidden;
       }
 
@@ -704,11 +704,11 @@
         document.getElementById("md-code").innerHTML =
           highlightMD(mdSource) + '<span class="cursor"></span>';
 
-        // Calculate scale needed to fit the full container in the viewport
+        // Calculate scale needed to fit the full container in the actual viewport
         var container = document.querySelector(".container");
-        var viewportH = 1920;
+        var viewportH = window.innerHeight;
         var naturalH = container.scrollHeight;
-        var scale = Math.min(1, (viewportH - 20) / naturalH); // 20px breathing room
+        var scale = Math.min(1, (viewportH - 40) / naturalH); // 40px breathing room
         container.style.setProperty("--final-scale", scale);
       });
     </script>
