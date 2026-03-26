@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.misterwigglesworth/easy-notion",
-  "description": "Markdown-first Notion MCP server — 87% fewer tokens, 26 tools, round-trip fidelity.",
+  "description": "Markdown-first Notion MCP server — 92% fewer tokens, 26 tools, round-trip fidelity.",
   "repository": {
     "url": "https://github.com/Grey-Iris/easy-notion-mcp",
     "source": "github"
   },
-  "version": "0.2.2",
+  "version": "0.2.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "easy-notion-mcp",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "transport": {
         "type": "stdio"
       },
@@ -25,8 +25,8 @@
         },
         {
           "name": "NOTION_ROOT_PAGE_ID",
-          "description": "Root page ID that scopes the server's access",
-          "isRequired": true,
+          "description": "Default parent page ID for create_page (optional — falls back to workspace root in OAuth mode)",
+          "isRequired": false,
           "format": "string",
           "isSecret": false
         }
