@@ -2,500 +2,729 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Why easy-notion-mcp?</title>
+    <meta name="viewport" content="width=1080, initial-scale=1.0" />
+    <title>Same page. Different syntax.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800;0,9..40,900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --bg: #0d1117;
-        --panel: #161b22;
-        --panel-border: rgba(240, 246, 252, 0.08);
-        --text: #f0f6fc;
-        --muted: #8b949e;
-        --green: #3fb950;
-        --red: #f85149;
-        --blue: #79c0ff;
-        --string: #a5d6ff;
-        --number: #d2a8ff;
-        --boolean: #ffa657;
-        --null: #ff7b72;
-        --punctuation: #8b949e;
-        --shadow: 0 24px 80px rgba(1, 4, 9, 0.45);
+        /* Brand palette (from twitter cards) */
+        --navy: #1a2b3c;
+        --teal: #2d8a9c;
+        --teal-dark: #1d6e7e;
+        --mint: #4db8a4;
+        --coral: #e8785a;
+        --coral-deep: #d4604a;
+
+        /* Window chrome */
+        --win-bg: #1e1e2e;
+        --win-bar: #2a2a3e;
+        --win-border: rgba(255, 255, 255, 0.08);
+        --win-shadow: 0 25px 80px rgba(0, 0, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.3);
+
+        /* Traffic lights */
+        --dot-red: #ff5f57;
+        --dot-yellow: #febc2e;
+        --dot-green: #28c840;
+
+        /* JSON syntax (muted reds — this is the "bad" side) */
+        --j-key: #89b4fa;
+        --j-string: #f38ba8;
+        --j-bool: #fab387;
+        --j-punct: #45475a;
+        --j-text: #a6adc8;
+
+        /* Markdown syntax (warm greens/teals — this is the "good" side) */
+        --m-heading: #89dceb;
+        --m-bold: #f9e2af;
+        --m-bullet: #cba6f7;
+        --m-callout: #a6e3a1;
+        --m-text: #cdd6f4;
+        --m-dim: #6c7086;
+
+        /* Page bg */
+        --page-bg: #11111b;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
 
       body {
-        margin: 0;
-        min-height: 100vh;
-        background:
-          radial-gradient(circle at top left, rgba(63, 185, 80, 0.12), transparent 28%),
-          radial-gradient(circle at top right, rgba(121, 192, 255, 0.08), transparent 24%),
-          linear-gradient(180deg, #0d1117 0%, #0a0f15 100%);
-        color: var(--text);
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif,
-          "Apple Color Emoji", "Segoe UI Emoji";
-      }
-
-      .wrap {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 48px 24px 36px;
-      }
-
-      .hero {
-        margin-bottom: 36px;
-      }
-
-      h1 {
-        margin: 0 0 8px;
-        font-size: 28px;
-        line-height: 1.15;
-        font-weight: 700;
-        letter-spacing: -0.03em;
-      }
-
-      .subtitle {
-        margin: 0;
-        color: var(--green);
-        font-size: 16px;
-        font-weight: 600;
-      }
-
-      .comparison {
-        display: flex;
-        gap: 16px;
-        align-items: stretch;
-      }
-
-      .panel {
-        flex: 1 1 0;
-        min-width: 0;
-        height: 520px;
-        background: linear-gradient(180deg, rgba(22, 27, 34, 0.98), rgba(13, 17, 23, 0.98));
-        border: 1px solid var(--panel-border);
-        border-radius: 14px;
-        box-shadow: var(--shadow);
+        width: 1080px;
+        height: 1920px;
         overflow: hidden;
+        background: var(--page-bg);
+        font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        color: #cdd6f4;
+        position: relative;
       }
 
-      .panel-inner {
+      /* ── Background mesh gradient ── */
+      body::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 600px 500px at 15% 30%, rgba(45, 138, 156, 0.08), transparent),
+          radial-gradient(ellipse 500px 400px at 85% 25%, rgba(232, 120, 90, 0.06), transparent),
+          radial-gradient(ellipse 700px 500px at 50% 80%, rgba(77, 184, 164, 0.04), transparent);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      /* ── Subtle noise ── */
+      body::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+        background-size: 200px 200px;
+        pointer-events: none;
+        z-index: 100;
+      }
+
+      .container {
+        position: relative;
+        z-index: 1;
         display: flex;
         flex-direction: column;
         height: 100%;
-        padding: 0 0 8px;
+        padding: 56px 44px 48px;
       }
 
-      .panel-header {
+      /* ── Header ── */
+      .header {
+        text-align: center;
+        margin-bottom: 44px;
+        opacity: 0;
+        animation: fadeUp 0.7s ease-out 0.15s forwards;
+      }
+
+      .overline {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--teal);
+        margin-bottom: 14px;
+      }
+
+      h1 {
+        font-size: 54px;
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        line-height: 1.08;
+        color: #ffffff;
+      }
+
+      h1 .accent {
+        background: linear-gradient(135deg, var(--teal) 20%, var(--mint) 80%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .versus {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 18px 24px;
-        border-bottom: 1px solid rgba(240, 246, 252, 0.06);
-        background: rgba(13, 17, 23, 0.42);
-      }
-
-      .panel-title {
-        font-size: 15px;
-        font-weight: 600;
-        letter-spacing: -0.01em;
-      }
-
-      .token-badge {
-        padding: 6px 10px;
-        border-radius: 999px;
-        font-size: 12px;
+        justify-content: center;
+        gap: 16px;
+        margin-top: 22px;
+        font-size: 16px;
         font-weight: 700;
-        letter-spacing: 0.01em;
-        white-space: nowrap;
       }
 
-      .panel.raw {
-        border-left: 3px solid var(--red);
+      .versus .left { color: rgba(243, 139, 168, 0.8); }
+      .versus .right { color: var(--mint); }
+      .versus .vs-dot {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--win-bar);
+        border: 1px solid var(--win-border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        color: #6c7086;
+        letter-spacing: 0.04em;
       }
 
-      .panel.raw .token-badge {
-        color: #ffd2cf;
-        background: rgba(248, 81, 73, 0.16);
-        border: 1px solid rgba(248, 81, 73, 0.28);
+      /* ── Panel wrapper ── */
+      .panels {
+        display: flex;
+        gap: 20px;
+        flex: 1;
+        min-height: 0;
+        opacity: 0;
+        animation: fadeUp 0.7s ease-out 0.4s forwards;
       }
 
-      .panel.easy {
-        border-left: 3px solid var(--green);
-      }
-
-      .panel.easy .token-badge {
-        color: #d2f7d8;
-        background: rgba(63, 185, 80, 0.16);
-        border: 1px solid rgba(63, 185, 80, 0.26);
-      }
-
-      .panel-code {
-        position: relative;
-        flex: 1 1 auto;
+      /* ── macOS-style window ── */
+      .mac-window {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border-radius: 12px;
         overflow: hidden;
+        background: var(--win-bg);
+        border: 1px solid var(--win-border);
+        box-shadow: var(--win-shadow);
+        position: relative;
       }
 
-      .panel.raw .panel-code::after {
+      /* Title bar */
+      .title-bar {
+        display: flex;
+        align-items: center;
+        height: 44px;
+        padding: 0 16px;
+        background: var(--win-bar);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        flex-shrink: 0;
+      }
+
+      .dots {
+        display: flex;
+        gap: 8px;
+        margin-right: 14px;
+      }
+
+      .dots span {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+      }
+
+      .dots .d-r { background: var(--dot-red); }
+      .dots .d-y { background: var(--dot-yellow); }
+      .dots .d-g { background: var(--dot-green); }
+
+      .title-bar .filename {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6c7086;
+        flex: 1;
+        text-align: center;
+        margin-right: 52px; /* offset for dots width to truly center */
+      }
+
+      /* Tab badge (token count) */
+      .token-pill {
+        position: absolute;
+        top: 54px;
+        right: 14px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 100px;
+        z-index: 3;
+      }
+
+      .mac-window.json-win .token-pill {
+        color: #f38ba8;
+        background: rgba(243, 139, 168, 0.10);
+        border: 1px solid rgba(243, 139, 168, 0.15);
+      }
+
+      .mac-window.md-win .token-pill {
+        color: var(--mint);
+        background: rgba(77, 184, 164, 0.10);
+        border: 1px solid rgba(77, 184, 164, 0.15);
+      }
+
+      /* Code area */
+      .code-body {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+        padding: 18px 0;
+      }
+
+      /* Official panel: overflow fade + "continues" label */
+      .mac-window.json-win .code-body::after {
         content: "";
         position: absolute;
-        right: 0;
         bottom: 0;
         left: 0;
-        height: 104px;
-        background: linear-gradient(180deg, rgba(22, 27, 34, 0) 0%, rgba(22, 27, 34, 0.78) 62%, #161b22 100%);
+        right: 0;
+        height: 140px;
+        background: linear-gradient(to bottom, transparent, var(--win-bg) 80%);
         pointer-events: none;
+        z-index: 2;
+      }
+
+      .mac-window.json-win .code-body::before {
+        content: "· · ·  67 lines  · · ·";
+        position: absolute;
+        bottom: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        color: #585b70;
+        z-index: 3;
+        letter-spacing: 0.06em;
+      }
+
+      /* easy panel: vertically center the short code */
+      .mac-window.md-win .code-body {
+        display: flex;
+        align-items: center;
+      }
+
+      /* Glow accent on easy panel */
+      .mac-window.md-win {
+        box-shadow:
+          var(--win-shadow),
+          0 0 60px -15px rgba(77, 184, 164, 0.15);
+      }
+
+      .mac-window.md-win::after {
+        content: "";
+        position: absolute;
+        top: -1px;
+        left: 20%;
+        right: 20%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--mint), transparent);
+        opacity: 0.5;
+        border-radius: 0 0 2px 2px;
+        z-index: 5;
       }
 
       pre {
         margin: 0;
-        height: 100%;
-        padding: 24px 24px 18px;
-        overflow: hidden;
+        padding: 0 20px;
+        width: 100%;
       }
 
       code {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 13px;
+        line-height: 1.7;
         display: block;
-        color: var(--text);
-        font-family:
-          ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas,
-          "Liberation Mono", "Courier New", monospace;
-        font-size: 12.5px;
-        line-height: 1.5;
-        white-space: pre-wrap;
-        word-break: break-word;
+        white-space: pre;
       }
 
-      .json-key {
-        color: var(--blue);
+      /* Line numbers */
+      .ln {
+        display: inline-block;
+        width: 28px;
+        text-align: right;
+        margin-right: 16px;
+        color: #313244;
+        user-select: none;
+        font-size: 11.5px;
       }
 
-      .json-string {
-        color: var(--string);
+      .mac-window.md-win .ln { color: #1e3a2e; }
+
+      /* ── Syntax classes ── */
+      .jk { color: var(--j-key); }
+      .js { color: var(--j-string); }
+      .jb { color: var(--j-bool); }
+      .jp { color: var(--j-punct); }
+
+      .mh { color: var(--m-heading); font-weight: 700; }
+      .mb { color: var(--m-bold); font-weight: 700; }
+      .mbr { color: var(--m-dim); }
+      .mbu { color: var(--m-bullet); font-weight: 600; }
+      .mc { color: var(--m-callout); }
+      .mt { color: var(--m-text); }
+      .mq { color: var(--m-callout); opacity: 0.4; }
+
+      /* Cursor */
+      .cursor {
+        display: inline-block;
+        width: 2px;
+        height: 16px;
+        background: var(--mint);
+        margin-left: 2px;
+        vertical-align: text-bottom;
+        animation: blink 1s step-end infinite;
       }
 
-      .json-number {
-        color: var(--number);
-      }
-
-      .json-boolean {
-        color: var(--boolean);
-      }
-
-      .json-null {
-        color: var(--null);
-      }
-
-      .json-punctuation {
-        color: var(--punctuation);
-      }
-
-      .metrics {
+      /* ── Stats strip ── */
+      .stats {
         display: flex;
-        gap: 12px;
-        margin-top: 28px;
+        gap: 14px;
+        margin-top: 36px;
+        opacity: 0;
+        animation: fadeUp 0.7s ease-out 0.7s forwards;
       }
 
-      .metric-card {
-        flex: 1 1 0;
-        padding: 20px;
+      .stat-card {
+        flex: 1;
+        padding: 24px 16px;
         text-align: center;
-        background: linear-gradient(180deg, rgba(22, 27, 34, 0.98), rgba(13, 17, 23, 0.98));
-        border: 1px solid var(--panel-border);
-        border-radius: 8px;
-        box-shadow: 0 16px 40px rgba(1, 4, 9, 0.22);
+        border-radius: 12px;
+        background: var(--win-bg);
+        border: 1px solid var(--win-border);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
       }
 
-      .metric-label {
-        margin: 0 0 10px;
-        color: var(--muted);
+      .stat-label {
         font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-
-      .metric-value {
-        margin: 0 0 8px;
-        font-size: 24px;
-        line-height: 1.1;
         font-weight: 700;
-        letter-spacing: -0.03em;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #585b70;
+        margin-bottom: 12px;
       }
 
-      .metric-detail {
-        margin: 0;
-        color: var(--muted);
+      .stat-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 10px;
+      }
+
+      .stat-old {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 26px;
+        font-weight: 700;
+        color: var(--coral);
+        opacity: 0.75;
+        text-decoration: line-through;
+        text-decoration-thickness: 2px;
+        text-decoration-color: var(--coral-deep);
+      }
+
+      .stat-arrow {
+        font-size: 18px;
+        color: #585b70;
+      }
+
+      .stat-new {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 34px;
+        font-weight: 700;
+        color: var(--mint);
+      }
+
+      .stat-sub {
+        margin-top: 6px;
         font-size: 12px;
+        color: #585b70;
+        font-weight: 600;
       }
 
+      /* ── Footer ── */
       .footer {
-        margin-top: 18px;
-        color: #9198a1;
-        font-size: 12px;
         text-align: center;
+        margin-top: 32px;
+        opacity: 0;
+        animation: fadeUp 0.5s ease-out 1s forwards;
       }
 
-      @media (max-width: 900px) {
-        .comparison,
-        .metrics {
-          flex-direction: column;
-        }
+      .footer .brand {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--mint);
+        letter-spacing: -0.02em;
       }
 
-      @media (max-width: 640px) {
-        .wrap {
-          padding: 28px 16px 24px;
-        }
+      .footer .tagline {
+        font-size: 14px;
+        color: #585b70;
+        margin-top: 4px;
+        font-weight: 500;
+      }
 
-        h1 {
-          font-size: 24px;
-        }
+      /* ── Animations ── */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
 
-        .panel-header,
-        pre {
-          padding-left: 18px;
-          padding-right: 18px;
-        }
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
       }
     </style>
   </head>
   <body>
-    <main class="wrap">
-      <header class="hero">
-        <h1>Why easy-notion-mcp?</h1>
-        <p class="subtitle">87% fewer tokens per operation</p>
+    <div class="container">
+      <header class="header">
+        <div class="overline">creating the same notion page</div>
+        <h1>Same page.<br>Different <span class="accent">syntax.</span></h1>
+        <div class="versus">
+          <span class="left">notion-mcp-server</span>
+          <span class="vs-dot">vs</span>
+          <span class="right">easy-notion-mcp</span>
+        </div>
       </header>
 
-      <section class="comparison" aria-label="Token efficiency comparison">
-        <article class="panel raw">
-          <div class="panel-inner">
-            <div class="panel-header">
-              <div class="panel-title">Other Notion MCPs</div>
-              <div class="token-badge">~4,300 tokens</div>
-            </div>
-            <div class="panel-code">
-              <pre><code id="raw-json-code" aria-label="Raw Notion JSON"></code></pre>
-            </div>
+      <section class="panels">
+        <!-- Official: macOS window with JSON -->
+        <div class="mac-window json-win">
+          <div class="title-bar">
+            <div class="dots"><span class="d-r"></span><span class="d-y"></span><span class="d-g"></span></div>
+            <span class="filename">create_page.json</span>
           </div>
-        </article>
+          <div class="token-pill">~450 tokens</div>
+          <div class="code-body">
+            <pre><code id="json-code"></code></pre>
+          </div>
+        </div>
 
-        <article class="panel easy">
-          <div class="panel-inner">
-            <div class="panel-header">
-              <div class="panel-title">easy-notion-mcp</div>
-              <div class="token-badge">~290 tokens</div>
-            </div>
-            <div class="panel-code">
-              <pre><code id="easy-json-code" aria-label="easy-notion-mcp JSON"></code></pre>
-            </div>
+        <!-- Easy: macOS window with markdown -->
+        <div class="mac-window md-win">
+          <div class="title-bar">
+            <div class="dots"><span class="d-r"></span><span class="d-y"></span><span class="d-g"></span></div>
+            <span class="filename">create_page</span>
           </div>
-        </article>
+          <div class="token-pill">~40 tokens</div>
+          <div class="code-body">
+            <pre><code id="md-code"></code></pre>
+          </div>
+        </div>
       </section>
 
-      <section class="metrics" aria-label="Token reduction metrics">
-        <article class="metric-card">
-          <p class="metric-label">Page Read</p>
-          <p class="metric-value">93% reduction</p>
-          <p class="metric-detail">4,302 → 292 tokens</p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">DB Query</p>
-          <p class="metric-value">87% reduction</p>
-          <p class="metric-detail">2,534 → 319 tokens</p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">Search</p>
-          <p class="metric-value">76% reduction</p>
-          <p class="metric-detail">1,582 → 374 tokens</p>
-        </article>
+      <section class="stats">
+        <div class="stat-card">
+          <div class="stat-label">Lines</div>
+          <div class="stat-row">
+            <span class="stat-old" data-count="67">0</span>
+            <span class="stat-arrow">&rarr;</span>
+            <span class="stat-new" data-count="11">0</span>
+          </div>
+          <div class="stat-sub">84% fewer</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Tokens</div>
+          <div class="stat-row">
+            <span class="stat-old" data-count="450">0</span>
+            <span class="stat-arrow">&rarr;</span>
+            <span class="stat-new" data-count="40">0</span>
+          </div>
+          <div class="stat-sub">91% cheaper</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Block types</div>
+          <div class="stat-row">
+            <span class="stat-old" data-count="2">0</span>
+            <span class="stat-arrow">&rarr;</span>
+            <span class="stat-new" data-count="15">0</span>
+          </div>
+          <div class="stat-sub">in spec</div>
+        </div>
       </section>
 
-      <p class="footer">Measured with tiktoken cl100k_base encoding on identical content</p>
-    </main>
-
-    <script id="raw-json-source" type="text/plain">
-{
-  "page": {
-    "object": "page",
-    "id": "b1f6c8d0-5c2e-4f1b-8e4e-5d3f7c9a1001",
-    "created_time": "2025-01-15T10:30:00.000Z",
-    "last_edited_time": "2025-01-15T11:02:00.000Z",
-    "created_by": { "object": "user", "id": "0f8fad5b..." },
-    "last_edited_by": { "object": "user", "id": "7c9e6679..." },
-    "cover": { "type": "external", "external": { "url": "https://..." } },
-    "icon": { "type": "emoji", "emoji": "📝" },
-    "parent": { "type": "page_id", "page_id": "b1f6c8d0..." },
-    "archived": false,
-    "in_trash": false,
-    "properties": {
-      "title": {
-        "id": "title",
-        "type": "title",
-        "title": [{
-          "type": "text",
-          "text": { "content": "Meeting Notes", "link": null },
-          "annotations": {
-            "bold": false, "italic": false,
-            "strikethrough": false, "underline": false,
-            "code": false, "color": "default"
-          },
-          "plain_text": "Meeting Notes",
-          "href": null
-        }]
-      }
-    },
-    "url": "https://www.notion.so/Meeting-Notes-b1f6..."
-  },
-  "block_children": {
-    "object": "list",
-    "results": [
-      {
-        "object": "block",
-        "id": "b1f6c8d0-...-5d3f7c9a2001",
-        "parent": { "type": "page_id", "page_id": "b1f6c8d0..." },
-        "created_time": "2025-01-15T10:31:00.000Z",
-        "last_edited_time": "2025-01-15T10:31:00.000Z",
-        "created_by": { "object": "user", "id": "0f8fad5b..." },
-        "has_children": false,
-        "archived": false,
-        "type": "heading_2",
-        "heading_2": {
-          "rich_text": [{
-            "type": "text",
-            "text": { "content": "Decisions & Action Items" },
-            "annotations": { "bold": false, "italic": false, ... }
-          }],
-          "color": "default"
-        }
-      },
-      ...
-    ]
-  }
-}
-    </script>
-
-    <script id="easy-json-source" type="text/plain">
-{
-  "id": "b1f6c8d0-5c2e-4f1b-8e4e-5d3f7c9a1001",
-  "title": "Meeting Notes",
-  "url": "https://www.notion.so/Meeting-Notes-b1f6c...",
-  "markdown": "## Decisions & Action Items\n\nWe aligned on shipping the benchmark script...\n\n- Confirm the fixture shapes match Notion block responses\n- Add token counting with js-tiktoken\n- Share the benchmark summary in the README...\n\n> [!NOTE]\n> Use the same content in both fixtures..."
-}
-    </script>
+      <footer class="footer">
+        <div class="brand">easy-notion-mcp</div>
+        <div class="tagline">Agents write markdown. Not JSON.</div>
+      </footer>
+    </div>
 
     <script>
-      function escapeHtml(value) {
-        return value
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
+      function esc(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+      function w(cls, text) {
+        return '<span class="' + cls + '">' + esc(text) + "</span>";
       }
 
-      function highlightJson(source) {
-        const text = source.replace(/^\n+|\n+\s*$/g, "");
-        let index = 0;
-        let html = "";
-
-        function wrap(className, value) {
-          return '<span class="' + className + '">' + escapeHtml(value) + "</span>";
-        }
-
-        function readString() {
-          let value = '"';
-          index += 1;
-          while (index < text.length) {
-            const char = text[index];
-            value += char;
-            index += 1;
-            if (char === "\\" && index < text.length) {
-              value += text[index];
-              index += 1;
+      /* Single-pass JSON tokenizer */
+      function highlightJSON(src) {
+        var lines = src.split("\n"), out = [];
+        for (var li = 0; li < lines.length; li++) {
+          var ln = '<span class="ln">' + (li + 1) + "</span>";
+          var text = lines[li], html = "", idx = 0;
+          while (idx < text.length) {
+            var ch = text[idx];
+            if (ch === " " || ch === "\t") { html += ch; idx++; continue; }
+            if (ch === '"') {
+              var str = '"'; idx++;
+              while (idx < text.length) {
+                var c = text[idx]; str += c; idx++;
+                if (c === "\\" && idx < text.length) { str += text[idx]; idx++; continue; }
+                if (c === '"') break;
+              }
+              var peek = idx;
+              while (peek < text.length && text[peek] === " ") peek++;
+              html += w(text[peek] === ":" ? "jk" : "js", str);
               continue;
             }
-            if (char === '"') {
-              break;
+            if ("{[}]:,".indexOf(ch) !== -1) { html += w("jp", ch); idx++; continue; }
+            if (text.substr(idx, 4) === "true") { html += w("jb", "true"); idx += 4; continue; }
+            if (text.substr(idx, 5) === "false") { html += w("jb", "false"); idx += 5; continue; }
+            if ((ch >= "0" && ch <= "9") || ch === "-") {
+              var num = "";
+              while (idx < text.length && /[0-9eE+.\-]/.test(text[idx])) { num += text[idx]; idx++; }
+              html += w("jb", num); continue;
             }
+            html += esc(ch); idx++;
           }
-          return value;
+          out.push(ln + html);
         }
-
-        function readNumber() {
-          let value = "";
-          while (index < text.length && /[0-9eE+.\-]/.test(text[index])) {
-            value += text[index];
-            index += 1;
-          }
-          return value;
-        }
-
-        function readWord() {
-          let value = "";
-          while (index < text.length && /[A-Za-z]/.test(text[index])) {
-            value += text[index];
-            index += 1;
-          }
-          return value;
-        }
-
-        while (index < text.length) {
-          const char = text[index];
-
-          if (char === '"') {
-            const stringToken = readString();
-            let cursor = index;
-            while (cursor < text.length && /\s/.test(text[cursor])) {
-              cursor += 1;
-            }
-            const isKey = text[cursor] === ":";
-            html += wrap(isKey ? "json-key" : "json-string", stringToken);
-            continue;
-          }
-
-          if (/[{}\[\],:]/.test(char)) {
-            html += wrap("json-punctuation", char);
-            index += 1;
-            continue;
-          }
-
-          if (char === "." && text.slice(index, index + 3) === "...") {
-            html += wrap("json-punctuation", "...");
-            index += 3;
-            continue;
-          }
-
-          if (/[0-9-]/.test(char)) {
-            html += wrap("json-number", readNumber());
-            continue;
-          }
-
-          if (/[A-Za-z]/.test(char)) {
-            const word = readWord();
-            if (word === "true" || word === "false") {
-              html += wrap("json-boolean", word);
-            } else if (word === "null") {
-              html += wrap("json-null", word);
-            } else {
-              html += escapeHtml(word);
-            }
-            continue;
-          }
-
-          html += escapeHtml(char);
-          index += 1;
-        }
-
-        return html;
+        return out.join("\n");
       }
 
+      /* Markdown highlighter */
+      function highlightMD(src) {
+        var lines = src.split("\n"), out = [];
+        for (var i = 0; i < lines.length; i++) {
+          var ln = '<span class="ln">' + (i + 1) + "</span>";
+          var line = lines[i], h = "";
+          if (/^##\s/.test(line)) h = w("mh", line);
+          else if (/^>\s\[!/.test(line)) h = w("mq", "> ") + w("mc", line.slice(2));
+          else if (/^>\s/.test(line)) h = w("mq", "> ") + w("mc", line.slice(2));
+          else if (/^- /.test(line)) h = w("mbu", "- ") + w("mt", line.slice(2));
+          else if (line === "") h = "";
+          else {
+            h = esc(line).replace(
+              /\*\*(.+?)\*\*/g,
+              '<span class="mbr">**</span><span class="mb">$1</span><span class="mbr">**</span>'
+            );
+            h = '<span class="mt">' + h + "</span>";
+          }
+          out.push(ln + h);
+        }
+        return out.join("\n");
+      }
+
+      /* Animated counters */
+      function animateCounters() {
+        document.querySelectorAll("[data-count]").forEach(function (el) {
+          var target = parseInt(el.getAttribute("data-count"), 10);
+          var start = performance.now();
+          (function tick(now) {
+            var p = Math.min((now - start) / 1200, 1);
+            var eased = 1 - Math.pow(1 - p, 3);
+            el.textContent = Math.round(target * eased);
+            if (p < 1) requestAnimationFrame(tick);
+          })(performance.now());
+        });
+      }
+
+      /* Source data */
+      var jsonSource = [
+        '{',
+        '  "parent": { "page_id": "abc123" },',
+        '  "properties": {',
+        '    "title": [{',
+        '      "text": { "content": "Project Update" }',
+        '    }]',
+        '  },',
+        '  "children": [',
+        '    {',
+        '      "type": "heading_2",',
+        '      "heading_2": {',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Status"',
+        '          }',
+        '        }]',
+        '      }',
+        '    },',
+        '    {',
+        '      "type": "paragraph",',
+        '      "paragraph": {',
+        '        "rich_text": [',
+        '          {',
+        '            "type": "text",',
+        '            "text": {',
+        '              "content": "The project is "',
+        '            }',
+        '          },',
+        '          {',
+        '            "type": "text",',
+        '            "text": {',
+        '              "content": "on track"',
+        '            },',
+        '            "annotations": {',
+        '              "bold": true',
+        '            }',
+        '          },',
+        '          {',
+        '            "type": "text",',
+        '            "text": {',
+        '              "content": " for launch."',
+        '            }',
+        '          }',
+        '        ]',
+        '      }',
+        '    },',
+        '    {',
+        '      "type": "bulleted_list_item",',
+        '      "bulleted_list_item": {',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Backend API complete"',
+        '          }',
+        '        }]',
+        '      }',
+        '    },',
+        '    {',
+        '      "type": "bulleted_list_item",',
+        '      "bulleted_list_item": {',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Frontend in review"',
+        '          }',
+        '        }]',
+        '      }',
+        '    },',
+        '    {',
+        '      "type": "bulleted_list_item",',
+        '      "bulleted_list_item": {',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Tests passing"',
+        '          }',
+        '        }]',
+        '      }',
+        '    },',
+        '    {',
+        '      "type": "callout",',
+        '      "callout": {',
+        '        "rich_text": [{',
+        '          "type": "text",',
+        '          "text": {',
+        '            "content": "Ship date: Friday"',
+        '          }',
+        '        }],',
+        '        "icon": {',
+        '          "type": "emoji",',
+        '          "emoji": "\uD83D\uDE80"',
+        '        }',
+        '      }',
+        '    }',
+        '  ]',
+        '}'
+      ].join("\n");
+
+      var mdSource = [
+        '## Status',
+        '',
+        'The project is **on track** for launch.',
+        '',
+        '- Backend API complete',
+        '- Frontend in review',
+        '- Tests passing',
+        '',
+        '> [!NOTE]',
+        '> Ship date: Friday'
+      ].join("\n");
+
       document.addEventListener("DOMContentLoaded", function () {
-        const rawSource = document.getElementById("raw-json-source").textContent;
-        const easySource = document.getElementById("easy-json-source").textContent;
-        document.getElementById("raw-json-code").innerHTML = highlightJson(rawSource);
-        document.getElementById("easy-json-code").innerHTML = highlightJson(easySource);
+        document.getElementById("json-code").innerHTML = highlightJSON(jsonSource);
+        document.getElementById("md-code").innerHTML =
+          highlightMD(mdSource) + '<span class="cursor"></span>';
+        setTimeout(animateCounters, 1400);
       });
     </script>
   </body>
