@@ -12,6 +12,27 @@ import type express from "express";
  * - Session management works
  */
 
+describe("HTTP Transport — Health Check", () => {
+  let app: express.Express;
+
+  beforeAll(async () => {
+    app = await createApp({
+      notionToken: "ntn_fake_token_for_testing",
+    });
+  });
+
+  it("GET / returns server status and transport info", async () => {
+    const res = await request(app).get("/");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      status: "ok",
+      server: "easy-notion-mcp",
+      transport: "streamable-http",
+      endpoint: "/mcp",
+    });
+  });
+});
+
 describe("HTTP Transport — Static Token Mode", () => {
   let app: express.Express;
 

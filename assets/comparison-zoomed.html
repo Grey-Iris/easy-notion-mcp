@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1080, initial-scale=1.0" />
-    <title>Stop paying LLMs to write Notion JSON</title>
+    <title>Stop paying for LLM's to write Notion JSON</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -78,10 +78,18 @@
         z-index: 100;
       }
 
+      body {
+        height: 100vh;
+        overflow: hidden;
+      }
+
       .container {
         position: relative;
         z-index: 1;
         padding: 52px 40px 56px;
+        transform-origin: top center;
+        animation: zoomReveal 8s ease-in-out forwards;
+        animation-play-state: paused;
       }
 
       /* ── Header ── */
@@ -119,6 +127,10 @@
         display: flex;
         gap: 20px;
         align-items: flex-start;
+      }
+
+      .json-col {
+        flex: 1.15;
       }
 
       /* ── macOS window base ── */
@@ -363,27 +375,44 @@
         0%, 100% { opacity: 1; }
         50% { opacity: 0; }
       }
+
+      /*
+        Timeline (8s total):
+        0-3s:   Hold at scale(1) — readable, looks like normal comparison
+        3-7s:   Smooth zoom out — the JSON tower reveals itself
+        7-8s:   Hold at final scale — the full horror is visible
+      */
+      @keyframes zoomReveal {
+        0%, 37.5% {
+          transform: scale(1);
+        }
+        87.5%, 100% {
+          transform: scale(var(--final-scale));
+        }
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <header class="header">
-        <h1>Stop paying LLMs<br>to write <span class="highlight">Notion JSON.</span></h1>
+        <h1>Stop paying for LLM's<br>to write <span class="highlight">Notion JSON.</span></h1>
         <p class="sub"><em>notion-mcp-server</em> requires 67 lines of block objects. Here's what that looks like.</p>
       </header>
 
       <section class="panels">
-        <!-- LEFT: The long JSON wall -->
-        <div class="mac-window json-win">
-          <div class="title-bar">
-            <div class="dots"><span class="d-r"></span><span class="d-y"></span><span class="d-g"></span></div>
-            <span class="filename">notion-mcp-server</span>
+        <!-- LEFT: The long JSON wall, scaled to fit -->
+        <div class="json-col">
+          <div class="mac-window json-win" id="json-win">
+            <div class="title-bar">
+              <div class="dots"><span class="d-r"></span><span class="d-y"></span><span class="d-g"></span></div>
+              <span class="filename">notion-mcp-server</span>
+            </div>
+            <div class="token-row">
+              <span class="number">~450</span>
+              <span class="label">tokens</span>
+            </div>
+            <pre><code id="json-code"></code></pre>
           </div>
-          <div class="token-row">
-            <span class="number">~450</span>
-            <span class="label">tokens</span>
-          </div>
-          <pre><code id="json-code"></code></pre>
         </div>
 
         <!-- RIGHT: Short markdown + stats underneath -->
@@ -675,6 +704,18 @@
         document.getElementById("json-code").innerHTML = highlightJSON(jsonSource);
         document.getElementById("md-code").innerHTML =
           highlightMD(mdSource) + '<span class="cursor"></span>';
+
+        // Calculate scale needed to fit the full container in the actual viewport
+        var container = document.querySelector(".container");
+        var viewportH = window.innerHeight;
+        var naturalH = container.scrollHeight;
+        var scale = Math.min(1, (viewportH - 40) / naturalH); // 40px breathing room
+        container.style.setProperty("--final-scale", scale);
+
+        // Start animation after a short delay (gives recorder time to spin up)
+        setTimeout(function () {
+          container.style.animationPlayState = "running";
+        }, 1500);
       });
     </script>
   </body>

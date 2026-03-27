@@ -12,6 +12,7 @@ dist/
 # Internal planning & task tracking
 .planning/
 .tasuku/
+internal/
 
 # Internal documents (not for public repo)
 audit-report-*.md

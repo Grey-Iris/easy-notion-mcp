@@ -140,7 +140,23 @@ Config file locations: Claude Desktop → `claude_desktop_config.json` · Cursor
 
 </details>
 
-easy-notion-mcp works with any MCP-compatible client. The server runs via stdio (API token mode) or HTTP (OAuth mode).
+**Dify / n8n / FlowiseAI** (Docker-based platforms):
+
+Run the HTTP server on your host machine:
+
+```bash
+NOTION_TOKEN=ntn_your_integration_token npx easy-notion-mcp-http
+```
+
+In your platform's MCP server settings, use `host.docker.internal` instead of `localhost`:
+
+```
+http://host.docker.internal:3333/mcp
+```
+
+> **Why not localhost?** These platforms typically run in Docker. `localhost` inside a container refers to the container itself, not your host machine. `host.docker.internal` bridges the gap.
+
+easy-notion-mcp works with any MCP-compatible client. The server runs via stdio (API token mode) or HTTP (OAuth or API token mode).
 
 ![](assets/papercraft-divider.png)
 

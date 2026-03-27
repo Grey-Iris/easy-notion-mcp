@@ -115,6 +115,16 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
     };
   }
 
+  // Health check — helps verify the HTTP server is running and reachable
+  app.get("/", (_req: express.Request, res: express.Response) => {
+    res.json({
+      status: "ok",
+      server: "easy-notion-mcp",
+      transport: "streamable-http",
+      endpoint: "/mcp",
+    });
+  });
+
   if (useOAuth) {
     // Dynamic imports to avoid loading auth modules when not needed
     const { mcpAuthRouter } = await import(
