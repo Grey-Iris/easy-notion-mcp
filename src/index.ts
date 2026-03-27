@@ -22,7 +22,9 @@ const server = createServer(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("easy-notion-mcp server running on stdio");
+  console.error(
+    "easy-notion-mcp running on stdio — for HTTP clients, run easy-notion-mcp-http instead",
+  );
 }
 
 main().catch((error) => {
