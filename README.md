@@ -156,6 +156,10 @@ http://host.docker.internal:3333/mcp
 
 > **Why not localhost?** These platforms typically run in Docker. `localhost` inside a container refers to the container itself, not your host machine. `host.docker.internal` bridges the gap.
 
+### With Docker
+
+See [Docker setup instructions](docs/docker.md) for building and running the server in a container with either OAuth or API token authentication.
+
 easy-notion-mcp works with any MCP-compatible client. The server runs via stdio (API token mode) or HTTP (OAuth or API token mode).
 
 ![](assets/papercraft-divider.png)
