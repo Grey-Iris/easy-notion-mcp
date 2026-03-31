@@ -237,6 +237,15 @@ async function convertPropertyValues(
       case "status":
         result[key] = { status: { name: String(value) } };
         break;
+      case "relation":
+        result[key] = {
+          relation: (Array.isArray(value) ? value : [value])
+              .filter((id) => id)
+              .map((id) => ({
+                id: String(id),
+              })),
+        };
+        break;
       default:
         break;
     }
