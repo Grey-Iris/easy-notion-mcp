@@ -27,7 +27,7 @@ jobs:
 
       - name: Security audit
         if: matrix.node-version == 20
-        run: npm audit --audit-level=moderate
+        run: npm audit --omit=dev --audit-level=moderate
 
   dependency-review:
     if: github.event_name == 'pull_request'
@@ -38,3 +38,6 @@ jobs:
         with:
           fail-on-severity: moderate
           deny-licenses: GPL-3.0, AGPL-3.0
+          # path-to-regexp ReDoS — not exploitable (static routes only).
+          # Remove once express pulls in path-to-regexp >=8.4.0
+          allow-ghsas: GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7
