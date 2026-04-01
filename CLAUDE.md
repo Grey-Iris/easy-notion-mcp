@@ -15,6 +15,18 @@ npm run start:http  # same as above
 
 CI runs on every PR and push to `main`/`dev` (GitHub Actions: build, typecheck, test on Node 18 + 20).
 
+## Releasing
+
+Tag-triggered via GitHub Actions. To publish a new version:
+
+1. Bump version in `package.json`
+2. Commit: `git commit -am "Bump to vX.Y.Z"`
+3. Tag: `git tag vX.Y.Z`
+4. Push: `git push && git push --tags`
+5. CI runs tests → publishes to npm → creates GitHub release
+
+Requires `NPM_TOKEN` secret in repo settings.
+
 ## Architecture
 
 ```
