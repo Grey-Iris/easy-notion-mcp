@@ -1122,7 +1122,7 @@ export function createServer(
           const notion = notionClientFactory();
           const results = await searchNotion(notion, "", "databases") as any[];
           return textResponse(results.map((r: any) => ({
-            id: r.id,
+            id: r.parent?.database_id ?? r.id,
             title: r.title?.[0]?.plain_text ?? "",
             url: r.url,
           })));
