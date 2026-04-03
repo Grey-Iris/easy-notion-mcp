@@ -414,7 +414,7 @@ const tools = [
 - Tables: | col | col | with header row and --- separator
 - Code blocks: triple backtick with optional language
 - Blockquotes: > text
-- Callouts: > [!NOTE], > [!TIP], > [!WARNING], > [!IMPORTANT], > [!INFO], > [!SUCCESS], > [!ERROR] \u2192 styled callout blocks with emoji
+- Callouts: > [!NOTE]\\n> content, > [!TIP]\\n> content, > [!WARNING]\\n> content, > [!IMPORTANT]\\n> content, > [!INFO]\\n> content, > [!SUCCESS]\\n> content, > [!ERROR]\\n> content \u2192 styled callout blocks with emoji
 - Dividers: ---
 - Toggle blocks: +++ Title\\ncontent\\n+++ (collapsible sections)
 - Column layouts: ::: columns\\n::: column\\nleft\\n:::\\n::: column\\nright\\n:::\\n:::
