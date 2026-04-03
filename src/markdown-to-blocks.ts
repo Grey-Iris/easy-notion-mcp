@@ -188,7 +188,7 @@ function listTokenToBlocks(token: any): NotionBlock[] {
 function blockquoteToBlock(token: any): NotionBlock {
   const paragraphText = token.tokens?.[0]?.text ?? token.text ?? "";
   const calloutMatch = paragraphText.match(
-    /^\[!(NOTE|TIP|WARNING|IMPORTANT|INFO|SUCCESS|ERROR)\]\s*(?:\n([\s\S]*))?$/i,
+    /^\[!(NOTE|TIP|WARNING|IMPORTANT|INFO|SUCCESS|ERROR)\]\s*(?:\n?([\s\S]*))?$/i,
   );
 
   if (calloutMatch) {

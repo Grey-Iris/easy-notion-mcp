@@ -294,6 +294,113 @@ describe("markdownToBlocks", () => {
     ]);
   });
 
+  it("converts inline NOTE callout", () => {
+    expect(markdownToBlocks("> [!NOTE] This is a note")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("This is a note")],
+          icon: { type: "emoji", emoji: "💡" },
+        },
+      },
+    ]);
+  });
+
+  it("converts inline TIP callout", () => {
+    expect(markdownToBlocks("> [!TIP] This is a tip")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("This is a tip")],
+          icon: { type: "emoji", emoji: "💚" },
+        },
+      },
+    ]);
+  });
+
+  it("converts inline WARNING callout", () => {
+    expect(markdownToBlocks("> [!WARNING] This is a warning")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("This is a warning")],
+          icon: { type: "emoji", emoji: "⚠️" },
+        },
+      },
+    ]);
+  });
+
+  it("converts inline IMPORTANT callout", () => {
+    expect(markdownToBlocks("> [!IMPORTANT] This is important")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("This is important")],
+          icon: { type: "emoji", emoji: "🔴" },
+        },
+      },
+    ]);
+  });
+
+  it("converts inline INFO callout", () => {
+    expect(markdownToBlocks("> [!INFO] This is info")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("This is info")],
+          icon: { type: "emoji", emoji: "ℹ️" },
+        },
+      },
+    ]);
+  });
+
+  it("converts inline SUCCESS callout", () => {
+    expect(markdownToBlocks("> [!SUCCESS] This is success")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("This is success")],
+          icon: { type: "emoji", emoji: "✅" },
+        },
+      },
+    ]);
+  });
+
+  it("converts inline ERROR callout", () => {
+    expect(markdownToBlocks("> [!ERROR] This is error")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("This is error")],
+          icon: { type: "emoji", emoji: "❌" },
+        },
+      },
+    ]);
+  });
+
+  it("handles both inline and multi-line callout syntax", () => {
+    // Inline form
+    expect(markdownToBlocks("> [!TIP] Quick tip")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("Quick tip")],
+          icon: { type: "emoji", emoji: "💚" },
+        },
+      },
+    ]);
+    // Multi-line form (existing behavior)
+    expect(markdownToBlocks("> [!TIP]\n> Quick tip")).toEqual([
+      {
+        type: "callout",
+        callout: {
+          rich_text: [text("Quick tip")],
+          icon: { type: "emoji", emoji: "💚" },
+        },
+      },
+    ]);
+  });
+
   it("converts single-line equations", () => {
     expect(markdownToBlocks("$$E=mc^2$$")).toEqual([
       {
