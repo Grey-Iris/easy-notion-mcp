@@ -10,6 +10,7 @@
     "easy-notion-mcp-http": "dist/http.js"
   },
   "scripts": {
+    "prepare": "tsc",
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
@@ -46,7 +47,8 @@
     "@notionhq/client": "^5.13.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "marked": "^17.0.0"
+    "marked": "^17.0.0",
+    "picomatch": "^4.0.4"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -55,6 +57,6 @@
     "js-tiktoken": "^1.0.21",
     "supertest": "^7.2.2",
     "typescript": "^5.3.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.2"
   }
 }
