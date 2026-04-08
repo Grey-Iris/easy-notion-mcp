@@ -505,4 +505,66 @@ describe("blocksToMarkdown", () => {
     ];
     expect(blocksToMarkdown(blocks)).toBe("[doc.pdf]()");
   });
+
+  it("converts toggle headings with children", () => {
+    const blocks: NotionBlock[] = [
+      {
+        type: "heading_2",
+        heading_2: {
+          rich_text: [text("Toggle Heading")],
+          is_toggleable: true,
+          children: [
+            { type: "paragraph", paragraph: { rich_text: [text("Hidden content")] } },
+            { type: "bulleted_list_item", bulleted_list_item: { rich_text: [text("item 1")] } },
+          ],
+        },
+      },
+    ];
+
+    expect(blocksToMarkdown(blocks)).toBe("## Toggle Heading\n\nHidden content\n\n- item 1");
+  });
+
+  it("converts toggle heading_1 with children", () => {
+    const blocks: NotionBlock[] = [
+      {
+        type: "heading_1",
+        heading_1: {
+          rich_text: [text("H1 Toggle")],
+          is_toggleable: true,
+          children: [
+            { type: "paragraph", paragraph: { rich_text: [text("Content inside H1")] } },
+          ],
+        },
+      },
+    ];
+
+    expect(blocksToMarkdown(blocks)).toBe("# H1 Toggle\n\nContent inside H1");
+  });
+
+  it("converts toggle heading_3 with children", () => {
+    const blocks: NotionBlock[] = [
+      {
+        type: "heading_3",
+        heading_3: {
+          rich_text: [text("H3 Toggle")],
+          is_toggleable: true,
+          children: [
+            { type: "paragraph", paragraph: { rich_text: [text("Content inside H3")] } },
+          ],
+        },
+      },
+    ];
+
+    expect(blocksToMarkdown(blocks)).toBe("### H3 Toggle\n\nContent inside H3");
+  });
+
+  it("converts non-toggleable headings without children (backwards compatible)", () => {
+    const blocks: NotionBlock[] = [
+      { type: "heading_1", heading_1: { rich_text: [text("H1")] } },
+      { type: "heading_2", heading_2: { rich_text: [text("H2")] } },
+      { type: "heading_3", heading_3: { rich_text: [text("H3")] } },
+    ];
+
+    expect(blocksToMarkdown(blocks)).toBe("# H1\n\n## H2\n\n### H3");
+  });
 });

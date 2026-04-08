@@ -74,12 +74,30 @@ function renderBlock(block: NotionBlock, indent: number): string {
   const prefix = " ".repeat(indent);
 
   switch (block.type) {
-    case "heading_1":
-      return `${prefix}# ${richTextToMarkdown(block.heading_1.rich_text)}`;
-    case "heading_2":
-      return `${prefix}## ${richTextToMarkdown(block.heading_2.rich_text)}`;
-    case "heading_3":
-      return `${prefix}### ${richTextToMarkdown(block.heading_3.rich_text)}`;
+    case "heading_1": {
+      const h1Text = `${prefix}# ${richTextToMarkdown(block.heading_1.rich_text)}`;
+      const h1Children = block.heading_1.children ?? [];
+      if (h1Children.length > 0) {
+        return `${h1Text}\n\n${renderBlocks(h1Children, indent)}`;
+      }
+      return h1Text;
+    }
+    case "heading_2": {
+      const h2Text = `${prefix}## ${richTextToMarkdown(block.heading_2.rich_text)}`;
+      const h2Children = block.heading_2.children ?? [];
+      if (h2Children.length > 0) {
+        return `${h2Text}\n\n${renderBlocks(h2Children, indent)}`;
+      }
+      return h2Text;
+    }
+    case "heading_3": {
+      const h3Text = `${prefix}### ${richTextToMarkdown(block.heading_3.rich_text)}`;
+      const h3Children = block.heading_3.children ?? [];
+      if (h3Children.length > 0) {
+        return `${h3Text}\n\n${renderBlocks(h3Children, indent)}`;
+      }
+      return h3Text;
+    }
     case "paragraph":
       return `${prefix}${richTextToMarkdown(block.paragraph.rich_text)}`;
     case "toggle": {
