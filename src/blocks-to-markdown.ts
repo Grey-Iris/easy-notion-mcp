@@ -75,24 +75,39 @@ function renderBlock(block: NotionBlock, indent: number): string {
 
   switch (block.type) {
     case "heading_1": {
-      const h1Text = `${prefix}# ${richTextToMarkdown(block.heading_1.rich_text)}`;
+      const h1Title = richTextToMarkdown(block.heading_1.rich_text);
       const h1Children = block.heading_1.children ?? [];
+      if (block.heading_1.is_toggleable) {
+        const childContent = h1Children.length > 0 ? `\n${renderBlocks(h1Children, indent)}` : "";
+        return `${prefix}+++ # ${h1Title}${childContent}\n${prefix}+++`;
+      }
+      const h1Text = `${prefix}# ${h1Title}`;
       if (h1Children.length > 0) {
         return `${h1Text}\n\n${renderBlocks(h1Children, indent)}`;
       }
       return h1Text;
     }
     case "heading_2": {
-      const h2Text = `${prefix}## ${richTextToMarkdown(block.heading_2.rich_text)}`;
+      const h2Title = richTextToMarkdown(block.heading_2.rich_text);
       const h2Children = block.heading_2.children ?? [];
+      if (block.heading_2.is_toggleable) {
+        const childContent = h2Children.length > 0 ? `\n${renderBlocks(h2Children, indent)}` : "";
+        return `${prefix}+++ ## ${h2Title}${childContent}\n${prefix}+++`;
+      }
+      const h2Text = `${prefix}## ${h2Title}`;
       if (h2Children.length > 0) {
         return `${h2Text}\n\n${renderBlocks(h2Children, indent)}`;
       }
       return h2Text;
     }
     case "heading_3": {
-      const h3Text = `${prefix}### ${richTextToMarkdown(block.heading_3.rich_text)}`;
+      const h3Title = richTextToMarkdown(block.heading_3.rich_text);
       const h3Children = block.heading_3.children ?? [];
+      if (block.heading_3.is_toggleable) {
+        const childContent = h3Children.length > 0 ? `\n${renderBlocks(h3Children, indent)}` : "";
+        return `${prefix}+++ ### ${h3Title}${childContent}\n${prefix}+++`;
+      }
+      const h3Text = `${prefix}### ${h3Title}`;
       if (h3Children.length > 0) {
         return `${h3Text}\n\n${renderBlocks(h3Children, indent)}`;
       }

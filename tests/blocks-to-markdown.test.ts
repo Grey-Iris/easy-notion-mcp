@@ -521,7 +521,7 @@ describe("blocksToMarkdown", () => {
       },
     ];
 
-    expect(blocksToMarkdown(blocks)).toBe("## Toggle Heading\n\nHidden content\n\n- item 1");
+    expect(blocksToMarkdown(blocks)).toBe("+++ ## Toggle Heading\nHidden content\n\n- item 1\n+++");
   });
 
   it("converts toggle heading_1 with children", () => {
@@ -538,7 +538,7 @@ describe("blocksToMarkdown", () => {
       },
     ];
 
-    expect(blocksToMarkdown(blocks)).toBe("# H1 Toggle\n\nContent inside H1");
+    expect(blocksToMarkdown(blocks)).toBe("+++ # H1 Toggle\nContent inside H1\n+++");
   });
 
   it("converts toggle heading_3 with children", () => {
@@ -555,7 +555,7 @@ describe("blocksToMarkdown", () => {
       },
     ];
 
-    expect(blocksToMarkdown(blocks)).toBe("### H3 Toggle\n\nContent inside H3");
+    expect(blocksToMarkdown(blocks)).toBe("+++ ### H3 Toggle\nContent inside H3\n+++");
   });
 
   it("converts non-toggleable headings without children (backwards compatible)", () => {
