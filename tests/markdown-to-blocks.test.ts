@@ -640,6 +640,62 @@ describe("markdownToBlocks", () => {
     expect(blocksToMarkdown(markdownToBlocks(markdown))).toBe(markdown);
   });
 
+  it("converts +++ ## heading to toggleable heading_2 with children", () => {
+    expect(markdownToBlocks("+++ ## My Section\n- [ ] item 1\n- [x] item 2\n+++")).toEqual([
+      {
+        type: "heading_2",
+        heading_2: {
+          rich_text: [text("My Section")],
+          is_toggleable: true,
+          children: [
+            { type: "to_do", to_do: { rich_text: [text("item 1")], checked: false } },
+            { type: "to_do", to_do: { rich_text: [text("item 2")], checked: true } },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("converts +++ # heading to toggleable heading_1 with children", () => {
+    expect(markdownToBlocks("+++ # Top Level\nsome content\n+++")).toEqual([
+      {
+        type: "heading_1",
+        heading_1: {
+          rich_text: [text("Top Level")],
+          is_toggleable: true,
+          children: [
+            { type: "paragraph", paragraph: { rich_text: [text("some content")] } },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("converts +++ ### heading to toggleable heading_3 with children", () => {
+    expect(markdownToBlocks("+++ ### Sub Section\ndetail\n+++")).toEqual([
+      {
+        type: "heading_3",
+        heading_3: {
+          rich_text: [text("Sub Section")],
+          is_toggleable: true,
+          children: [
+            { type: "paragraph", paragraph: { rich_text: [text("detail")] } },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("falls back to plain toggle when title starts with #### or more", () => {
+    const blocks = markdownToBlocks("+++ #### Not a heading\ncontent\n+++");
+    expect(blocks[0].type).toBe("toggle");
+  });
+
+  it("falls back to plain toggle when # is not followed by a space", () => {
+    const blocks = markdownToBlocks("+++ #hashtag\ncontent\n+++");
+    expect(blocks[0].type).toBe("toggle");
+  });
+
   it("converts two-column layouts", () => {
     expect(
       markdownToBlocks("::: columns\n::: column\nLeft side content\n:::\n::: column\nRight side content\n:::\n:::"),
