@@ -117,6 +117,7 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 2. **blocks-to-markdown.ts** — Add a case to convert the Notion block type back to markdown
 3. **tests/** — Add tests for both directions (markdown → blocks and blocks → markdown)
 4. **server.ts** — Update the `create_page` tool description to document the new syntax
+5. **CLAUDE.md** — Add a row to the "Custom markdown conventions" table above so future contributors and agents know the syntax exists. This is the one exception to CONTRIBUTING.md rule #4's "do not modify CLAUDE.md without pre-approval" — block-type additions are pre-approved by this checklist.
 
 ## Key decisions
 
