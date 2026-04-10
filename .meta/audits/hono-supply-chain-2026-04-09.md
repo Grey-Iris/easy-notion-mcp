@@ -4,6 +4,8 @@
 **Scope:** Transitive `hono` / `@hono/node-server` advisories blocking PR #18 CI
 **Posture:** Neutral — this report de-risks the three fix options. It does not pick one.
 
+> **2026-04-09 follow-up note (read before §Q3):** The framing in §Q3 and §Executive summary item 4 that the MCP SDK maintainer closed PR #1709 "on an incorrect premise" did not hold up on closer analysis. The maintainer used "peer dependency" loosely to describe a dep whose version is effectively controlled by the consumer's install — the substantive point (caret ranges + fresh installs → patched versions automatically) is correct regardless of the vocabulary slip. No upstream correction was filed. Q1, Q2, Q4, and Q5 remain accurate as written; only the Q3 interpretation of maintainer intent should be read as superseded by this note. The "Unverified / flagged" section already hedged confidence on this point ("I'm interpreting one maintainer comment"); this note makes the correction explicit rather than leaving it in the hedge.
+
 ## Executive summary
 
 1. **The "not exploitable" claim is supportable on the code-path evidence.** The MCP SDK's production code imports exactly one symbol from the hono tree — `getRequestListener` from `@hono/node-server` — and touches none of the vulnerable APIs (`serveStatic`, `getCookie`/`setCookie`, `ipRestriction`, `toSSG`). Our own `src/` does not import hono at all. (high confidence)
