@@ -95,6 +95,9 @@ Notion has block types with no standard markdown equivalent. We use these conven
 | Notion block | Markdown syntax |
 |---|---|
 | Toggle (collapsible) | `+++ Title\ncontent\n+++` |
+| Toggle heading H1 (collapsible) | `+++ # Title\ncontent\n+++` |
+| Toggle heading H2 (collapsible) | `+++ ## Title\ncontent\n+++` |
+| Toggle heading H3 (collapsible) | `+++ ### Title\ncontent\n+++` |
 | Column layout | `::: columns\n::: column\ncontent\n:::\n:::` |
 | Callout (note) | `> [!NOTE]\n> text` |
 | Callout (tip) | `> [!TIP]\n> text` |

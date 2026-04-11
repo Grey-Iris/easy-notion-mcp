@@ -114,6 +114,39 @@ describe("round-trip fidelity", () => {
     expect(roundTrip(input)).toBe(input);
   });
 
+  it("round-trips a toggle heading H2 with a checklist", () => {
+    const input = [
+      "+++ ## Packing list",
+      "- [ ] T-shirts",
+      "- [x] Passport",
+      "+++",
+    ].join("\n");
+
+    expect(roundTrip(input)).toBe(input);
+  });
+
+  it("round-trips a toggle heading H2 containing nested toggle heading H3", () => {
+    // Canonical form: renderBlocks joins children with \n\n, so blank lines
+    // appear between the heading marker and its first child, and before +++.
+    const input = [
+      "+++ ## Food to bring",
+      "+++ ### Lunch",
+      "",
+      "- [ ] Sandwiches",
+      "- [ ] Chips",
+      "+++",
+      "",
+      "+++ ### Dinner",
+      "- [ ] Pasta",
+      "- [ ] Sauce",
+      "+++",
+      "",
+      "+++",
+    ].join("\n");
+
+    expect(roundTrip(input)).toBe(input);
+  });
+
   it("round-trips a column layout", () => {
     const input = [
       "::: columns",

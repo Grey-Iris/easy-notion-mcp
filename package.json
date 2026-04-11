@@ -10,6 +10,7 @@
     "easy-notion-mcp-http": "dist/http.js"
   },
   "scripts": {
+    "prepare": "tsc",
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
