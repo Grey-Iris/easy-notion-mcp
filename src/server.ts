@@ -124,17 +124,17 @@ function normalizeBlock(block: any): NotionBlock | null {
     case "heading_1":
       return {
         type: "heading_1",
-        heading_1: { rich_text: block.heading_1.rich_text as any },
+        heading_1: { rich_text: block.heading_1.rich_text as any, is_toggleable: block.heading_1.is_toggleable ?? false },
       };
     case "heading_2":
       return {
         type: "heading_2",
-        heading_2: { rich_text: block.heading_2.rich_text as any },
+        heading_2: { rich_text: block.heading_2.rich_text as any, is_toggleable: block.heading_2.is_toggleable ?? false },
       };
     case "heading_3":
       return {
         type: "heading_3",
-        heading_3: { rich_text: block.heading_3.rich_text as any },
+        heading_3: { rich_text: block.heading_3.rich_text as any, is_toggleable: block.heading_3.is_toggleable ?? false },
       };
     case "paragraph":
       return {
@@ -288,6 +288,15 @@ function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
       break;
     case "toggle":
       block.toggle.children = children;
+      break;
+    case "heading_1":
+      block.heading_1.children = children;
+      break;
+    case "heading_2":
+      block.heading_2.children = children;
+      break;
+    case "heading_3":
+      block.heading_3.children = children;
       break;
     case "table":
       block.table.children = children;

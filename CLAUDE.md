@@ -2,6 +2,27 @@
 
 Markdown-first Notion MCP server. Agents write markdown, the server converts it to Notion's block API. Agents never touch Notion block objects directly.
 
+## Open source context
+
+**This is open source software** (MIT-licensed, published to npm as `easy-notion-mcp` and on GitHub as `Grey-Iris/easy-notion-mcp`). Commits, PR bodies, issue responses, and diffs become part of the public record — they are cited back at the project, not just read. That should shape how you work on this repo:
+
+- **Security claims are load-bearing.** If CI allowlists a CVE as "not exploitable" or a commit claims "we don't use the vulnerable code path," that claim needs to be grounded in actual file:line evidence from the code paths involved, not in reasoning from what we import. When in doubt, patch rather than whitelist — users install this server and hand it their Notion workspace token, so "theoretically safe" is not the bar.
+- **Upstream-first for transitive fixes.** If a root cause lives in a dependency (e.g. `@modelcontextprotocol/sdk` pulling a vulnerable `hono`), file an issue or PR upstream alongside any local patch. Local overrides are a short-term workaround; upstream fixes help the whole ecosystem and reduce our long-term exception list.
+- **Downstream consumers exist.** People install via `npx easy-notion-mcp`, wrap us in other MCP clients, or depend on us as a library. Consider how changes to `package.json`, `exports`, `bin`, default behavior, and tool schemas affect them — not just our own CI.
+- **PR scope discipline.** Keep PRs narrowly scoped so reviewers and future auditors can tell what changed and why. Don't bundle unrelated fixes into a docs PR, don't let chores leak into feature branches. Semantic titles, focused diffs.
+- **Honest positioning.** Avoid marketing superlatives in README/docs. Soften unverifiable comparisons, cite real numbers, and match the existing measured tone.
+
+### Screening `.meta/` files before commit
+
+Handoffs, audits, and plans under `.meta/` are public by default. That's the right default — transparency is a feature, and agent portability requires these files to travel with the repo rather than living local-only. But before committing any `.meta/handoffs/*.md` or `.meta/audits/*.md` file, run a 30-second screen:
+
+1. **Third parties by name or specific role?** ("James's co-founder", "client X asked for Y", "$VENDOR's support said Z"). If yes: generalize to a role-less description, get consent, or move that specific file to a gitignored `.meta/handoffs-private/` path.
+2. **Business, financial, or client information?** Deal terms, pricing, customer lists, revenue, internal roadmap items not yet announced.
+3. **Credentials or secrets, even partially redacted.** Never commit them, even with `[REDACTED]`.
+4. **Tone you wouldn't want cited back in six months.** Self-deprecation is fine and often valuable; gratuitous snark about a maintainer or project isn't.
+
+If any item fails the screen, stop and ask the user before committing. The default is still public — screening is a filter, not a rejection. The goal is to keep the honest writing that makes handoffs valuable while catching the rare detail that shouldn't go out.
+
 ## Commands
 
 ```bash
@@ -74,6 +95,9 @@ Notion has block types with no standard markdown equivalent. We use these conven
 | Notion block | Markdown syntax |
 |---|---|
 | Toggle (collapsible) | `+++ Title\ncontent\n+++` |
+| Toggle heading H1 (collapsible) | `+++ # Title\ncontent\n+++` |
+| Toggle heading H2 (collapsible) | `+++ ## Title\ncontent\n+++` |
+| Toggle heading H3 (collapsible) | `+++ ### Title\ncontent\n+++` |
 | Column layout | `::: columns\n::: column\ncontent\n:::\n:::` |
 | Callout (note) | `> [!NOTE]\n> text` |
 | Callout (tip) | `> [!TIP]\n> text` |
@@ -96,6 +120,7 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 2. **blocks-to-markdown.ts** — Add a case to convert the Notion block type back to markdown
 3. **tests/** — Add tests for both directions (markdown → blocks and blocks → markdown)
 4. **server.ts** — Update the `create_page` tool description to document the new syntax
+5. **CLAUDE.md** — Add a row to the "Custom markdown conventions" table above so future contributors and agents know the syntax exists. This is the one exception to CONTRIBUTING.md rule #4's "do not modify CLAUDE.md without pre-approval" — block-type additions are pre-approved by this checklist.
 
 ## Key decisions
 
