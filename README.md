@@ -90,10 +90,12 @@ Create a [Notion integration](https://www.notion.so/my-integrations), copy the t
 **Claude Code:**
 
 ```bash
-claude mcp add notion -- npx -y easy-notion-mcp
+claude mcp add notion -s user \
+  -e NOTION_TOKEN=ntn_your_integration_token \
+  -- npx -y easy-notion-mcp
 ```
 
-Set the env var: `export NOTION_TOKEN=ntn_your_integration_token`
+This registers the server in your Claude Code **user-level** config (`-s user`) and passes `NOTION_TOKEN` directly to the MCP child process via `-e`. Your shell environment and rcfiles are untouched — the token lives in Claude Code's config file, scoped to this server, and is not visible to other processes. To set a default parent page for `create_page`, add `-e NOTION_ROOT_PAGE_ID=<page-id-or-url>` to the same command.
 
 **OpenClaw:**
 
@@ -102,7 +104,13 @@ openclaw config set mcpServers.notion.command "npx"
 openclaw config set mcpServers.notion.args '["easy-notion-mcp"]'
 ```
 
-Set the env var: `export NOTION_TOKEN=ntn_your_integration_token`
+Then provide the token via the parent shell environment before starting OpenClaw:
+
+```bash
+export NOTION_TOKEN=ntn_your_integration_token
+```
+
+This `export` form is the generic fallback for any MCP client that inherits the parent shell environment. Caveat: it only persists for the current shell session unless you add it to your shell rcfile, which has its own security implications — prefer the `-e` form above when using Claude Code specifically.
 
 **Claude Desktop / Cursor / Windsurf** — add to your MCP config file:
 
@@ -137,6 +145,29 @@ Config file locations: Claude Desktop → `claude_desktop_config.json` · Cursor
   }
 }
 ```
+
+</details>
+
+<details><summary><strong>Manual project-scoped install (advanced)</strong> — register easy-notion-mcp per-project by placing <code>.mcp.json</code> at your project root</summary>
+
+If you want to register `easy-notion-mcp` per-project instead of user-wide, paste the following into a `.mcp.json` file at **your** project's root:
+
+```json
+{
+  "mcpServers": {
+    "easy-notion-mcp": {
+      "command": "npx",
+      "args": ["-y", "easy-notion-mcp"],
+      "env": {
+        "NOTION_TOKEN": "ntn_your_integration_token",
+        "NOTION_ROOT_PAGE_ID": "your_root_page_id"
+      }
+    }
+  }
+}
+```
+
+Replace the placeholder values with your real Notion integration token and (optional) root page ID. Note that this file should live in **your** project, not in this repo — Claude Code will auto-register any server it finds in a project-scoped `.mcp.json` and try to start it, so committing one with placeholder credentials will cause "Failed to connect" on repo open.
 
 </details>
 
@@ -341,6 +372,8 @@ easy-notion-mcp supports creating databases with typed schemas, querying with fi
 | `NOTION_TOKEN` | Yes | — | Notion API integration token |
 | `NOTION_ROOT_PAGE_ID` | No | — | Default parent page ID |
 | `NOTION_TRUST_CONTENT` | No | `false` | Skip content notice on `read_page` responses |
+
+> **About `.env` files (contributors only):** easy-notion-mcp loads a `.env` file from the current working directory via `dotenv`. In practice this means `.env` only "just works" when you run the server from a cloned repo checkout (`node dist/index.js` after `npm install && npm run build`), because the repo root is your cwd. It is **not** loaded when the package is invoked via `npx easy-notion-mcp` or a global install from an arbitrary directory — that is standard npm CLI behavior. For the `npx` path, pass `NOTION_TOKEN` via the `-e` flag in the [Claude Code setup](#with-api-token) above, or via your MCP client's config `env` block.
 
 ### OAuth / HTTP transport
 

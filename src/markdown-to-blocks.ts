@@ -578,6 +578,43 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
 
   return segments.flatMap((segment) => {
     if (segment.type === "toggle") {
+      // Detect toggle heading syntax: "+++ ## Title" → toggleable heading_2
+      const headingMatch = segment.title.match(/^(#{1,3})\s+(.*)$/);
+      if (headingMatch) {
+        const depth = headingMatch[1].length;
+        const headingText = headingMatch[2];
+        const childrenBlocks = segment.content.trim()
+          ? markdownToBlocks(segment.content)
+          : [];
+        if (depth === 1) {
+          return [{
+            type: "heading_1",
+            heading_1: {
+              rich_text: blockTextToRichText(headingText),
+              is_toggleable: true,
+              ...(childrenBlocks.length ? { children: childrenBlocks } : {}),
+            },
+          }];
+        }
+        if (depth === 2) {
+          return [{
+            type: "heading_2",
+            heading_2: {
+              rich_text: blockTextToRichText(headingText),
+              is_toggleable: true,
+              ...(childrenBlocks.length ? { children: childrenBlocks } : {}),
+            },
+          }];
+        }
+        return [{
+          type: "heading_3",
+          heading_3: {
+            rich_text: blockTextToRichText(headingText),
+            is_toggleable: true,
+            ...(childrenBlocks.length ? { children: childrenBlocks } : {}),
+          },
+        }];
+      }
       return [
         {
           type: "toggle",
