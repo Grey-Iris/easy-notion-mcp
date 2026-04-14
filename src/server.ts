@@ -31,6 +31,7 @@ import {
   restorePage,
   searchNotion,
   uploadFile,
+  updateDataSource,
   updateDatabaseEntry,
   updatePage,
   type PageParent,
@@ -618,8 +619,43 @@ const tools = [
             required: ["name", "type"],
           },
         },
+        is_inline: { type: "boolean", description: "Create the database inline within the parent page" },
       },
       required: ["title", "parent_page_id", "schema"],
+    },
+  },
+  {
+    name: "update_data_source",
+    description: `CRITICAL — full-list semantics: when you update a select or status property's \`options\` array, you MUST send the FULL desired list. ANY existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. To ADD one option, first call get_database, then resend the full current list with your addition appended.
+
+Cannot toggle \`is_inline\` on existing databases — \`is_inline\` is a database-level field, not a data-source field. A separate \`update_database\` tool will be added in a future PR.
+
+Updates a database's schema: rename existing properties, add/update/remove select or status options, change the database title, or move it to/from trash. Use this AFTER get_database tells you the current schema. Pass the same \`database_id\` you passed to get_database — the server resolves the underlying data source internally.
+
+The \`properties\` field uses the raw Notion API shape. The server does NO merging, normalization, or validation of property payloads — whatever you send is forwarded as-is. In particular: sending \`null\` as a property value permanently DELETES that property (and any row data in it).
+
+Status property notes:
+- As of Notion's 2026-03-19 changelog, status properties are updatable via API (https://developers.notion.com/page/changelog). The legacy \`update-a-database\` and \`update-property-schema-object\` reference pages still claim status is non-updatable — ignore those; the changelog is authoritative.
+- Status property GROUPS (default: "To-do" / "In progress" / "Complete") CANNOT be reconfigured via API. Group structure must be edited in the Notion UI. New status options added via API are assigned to the default group and cannot be reassigned programmatically.
+- Known upstream issue: Notion's API may return a stale schema where options assigned to the \`in_progress\` group appear as an empty array, causing validation errors on writes (makenotion/notion-mcp-server#232). If writes to in_progress-group options fail unexpectedly, this is the likely cause.
+
+Property payload examples (raw Notion shape):
+- Rename a property:         { "Old Name": { "name": "New Name" } }
+- Replace status options:    { "Status": { "status": { "options": [{ "name": "Backlog" }, { "name": "Doing" }, { "name": "Done" }] } } }
+- Permanently delete a property and its data: { "Unused": null }
+
+This tool CANNOT update row/page data — use page update tools for that.
+
+At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided; empty updates are rejected.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        database_id: { type: "string", description: "Database ID" },
+        title: { type: "string", description: "New database title" },
+        properties: { type: "object", description: "Raw Notion property update map" },
+        in_trash: { type: "boolean", description: "True to trash, false to restore" },
+      },
+      required: ["database_id"],
     },
   },
   {
@@ -1108,17 +1144,47 @@ export function createServer(
         }
         case "create_database": {
           const notion = notionClientFactory();
-          const { title, parent_page_id, schema } = args as {
+          const { title, parent_page_id, schema, is_inline } = args as {
             title: string;
             parent_page_id: string;
             schema: Array<{ name: string; type: string }>;
+            is_inline?: boolean;
           };
-          const result = await createDatabase(notion, parent_page_id, title, schema) as any;
+          const result = await createDatabase(
+            notion,
+            parent_page_id,
+            title,
+            schema,
+            is_inline === undefined ? undefined : { is_inline },
+          ) as any;
           return textResponse({
             id: result.id,
             title,
             url: result.url,
             properties: schema.map(s => s.name),
+          });
+        }
+        case "update_data_source": {
+          const notion = notionClientFactory();
+          const { database_id, title, properties, in_trash } = args as {
+            database_id: unknown;
+            title?: string;
+            properties?: Parameters<typeof updateDataSource>[2]["properties"];
+            in_trash?: boolean;
+          };
+          if (typeof database_id !== "string") {
+            throw new Error("update_data_source: `database_id` must be a string");
+          }
+          const result = await updateDataSource(notion, database_id, {
+            title,
+            properties,
+            in_trash,
+          }) as any;
+          return textResponse({
+            id: database_id,
+            title: title ?? result.title?.[0]?.plain_text ?? "",
+            url: result.url,
+            properties: Object.keys(result.properties ?? {}),
           });
         }
         case "get_database": {

@@ -1,4 +1,5 @@
 import { Client } from "@notionhq/client";
+import type { UpdateDataSourceParameters } from "@notionhq/client/build/src/api-endpoints.js";
 import { readFile, stat } from "fs/promises";
 import { basename, extname } from "path";
 import { fileURLToPath } from "url";
@@ -35,6 +36,8 @@ function getMimeType(filePath: string): string {
 function titleRichText(content: string) {
   return [{ type: "text" as const, text: { content } }];
 }
+
+type PropertiesUpdate = UpdateDataSourceParameters["properties"];
 
 const schemaCache = new Map<string, { schema: any; expires: number }>();
 const dataSourceIdCache = new Map<string, { dsId: string; expires: number }>();
@@ -457,12 +460,45 @@ export async function createDatabase(
   parentId: string,
   title: string,
   schema: Array<{ name: string; type: string }>,
+  options?: { is_inline?: boolean },
 ) {
   return client.databases.create({
     parent: { type: "page_id", page_id: parentId },
     title: titleRichText(title),
     initial_data_source: { properties: schemaToProperties(schema) },
+    ...(options?.is_inline !== undefined ? { is_inline: options.is_inline } : {}),
   } as any);
+}
+
+export async function updateDataSource(
+  client: Client,
+  databaseId: string,
+  updates: {
+    title?: string;
+    properties?: PropertiesUpdate;
+    in_trash?: boolean;
+  },
+) {
+  if (
+    updates.title === undefined &&
+    updates.properties === undefined &&
+    updates.in_trash === undefined
+  ) {
+    throw new Error(
+      "updateDataSource: at least one of `title`, `properties`, or `in_trash` must be provided",
+    );
+  }
+
+  const dataSourceId = await getDataSourceId(client, databaseId);
+
+  const body: Record<string, unknown> = { data_source_id: dataSourceId };
+  if (updates.title !== undefined) body.title = titleRichText(updates.title);
+  if (updates.properties !== undefined) body.properties = updates.properties;
+  if (updates.in_trash !== undefined) body.in_trash = updates.in_trash;
+
+  const result = await client.dataSources.update(body as any);
+  schemaCache.delete(databaseId);
+  return result;
 }
 
 export async function queryDatabase(
