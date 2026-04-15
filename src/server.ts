@@ -626,7 +626,7 @@ const tools = [
   },
   {
     name: "update_data_source",
-    description: `CRITICAL — full-list semantics: when you update a select or status property's \`options\` array, you MUST send the FULL desired list. ANY existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. To ADD one option, first call get_database, then resend the full current list with your addition appended.
+    description: `CRITICAL — full-list semantics: when you update a select or status property's \`options\` array, you MUST send the FULL desired list. ANY existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. Rows that currently reference a removed option are SILENTLY REASSIGNED to the default group's first option (e.g. 'Not started' for status properties) — not cleared, not errored, not left dangling. NO SIGNAL IS RAISED. If you want to preserve the meaning of existing rows when removing an option, reclassify those rows to another explicit option BEFORE removing the option from the schema. To ADD one option, first call get_database, then resend the full current list with your addition appended.
 
 Cannot toggle \`is_inline\` on existing databases — \`is_inline\` is a database-level field, not a data-source field. A separate \`update_database\` tool will be added in a future PR.
 
