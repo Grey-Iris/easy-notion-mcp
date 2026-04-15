@@ -13,6 +13,7 @@ dist/
 .planning/
 .tasuku/
 internal/
+.meta/investigations/
 
 # Internal documents (not for public repo)
 audit-report-*.md

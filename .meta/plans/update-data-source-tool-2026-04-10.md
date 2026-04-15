@@ -427,3 +427,50 @@ Codex's review was sharp and I accepted essentially all of it — nothing was ov
 - Open Question #1: drop `is_inline` toggle on existing DBs from this PR; do NOT bundle an `update_database` tool. Codex agreed with option A, explicitly citing that "one coherent idea" is not a good enough reason to mix database-level and data-source-level mutations when the rest of the server speaks `database_id`.
 
 **No overrules.** I considered pushing back on nothing — Codex's review was grounded in actual file reads and the points stood on their own. The plan is materially stronger as a result.
+
+---
+
+## 12. Runtime findings (2026-04-13)
+
+The builder session executed §7 runtime evidence against a throwaway database under `NOTION_ROOT_PAGE_ID`, with the cleanup invariant holding across all probes (5 test databases created, 5 trashed via `updateDataSource(..., { in_trash: true })` — dogfooding the new path).
+
+### Payload 1 — status options
+
+**(a) Omit = remove: CONFIRMED for status properties.** Second update omitting `Blocked` returned a response with exactly the three preserved options; `Blocked` was absent from both `options` and the default group's `option_ids`. The pattern-parity assumption from fact sheet Q3 held — status behaves like select.
+
+**(b) Row-reference behavior: OUTCOME (d) — NOT one of the three §8 anticipated.** §8 enumerated three possible outcomes when a removed option is still referenced by an existing row: reject, clear the cell, or leave a dangling reference. The observed outcome is none of those. **Notion silently reassigned the test row's `Status` from `Blocked` → `Not started`** (the first option of the default "To-do" group) — no error, no warning, no cleared cell, no dangling reference, no signal of any kind.
+
+This is the most data-preserving outcome Notion could have chosen, but it is **destructive in disguise**: an agent that removes an option loses the semantic meaning on every row that referenced it, with nothing to alert the caller. A row that used to mean "Blocked" silently becomes "Not started" — same shape, different meaning, zero signal.
+
+**Response to this finding:** After orchestrator + human deliberation, we added a single paragraph to the `update_data_source` tool description warning agents about this behavior (commit `c58325d` on `feat/update-data-source-tool`). We deliberately did NOT add defensive scan-and-block logic to the wrapper — that would break the codebase's faithful-wrapper philosophy, introduce consistency complexity (race conditions between scan and update), and conflict with §2's explicit rejection of structured-helper layers on top of raw pass-through. The description is part of the API surface; agents that read it get the same information a human dev reading Notion's own docs would get, except Notion's docs don't actually document this behavior, so we're documenting it *better* than upstream.
+
+The deeper structural concern — that we discovered this silent-failure mode only by luck (Codex pushed for a row-reference test in the runtime probe) and may have other silent-failure modes in the other 26 wrappers — has been tracked as a separate Pattern 6 audit follow-up: `audit-existing-tools-for-silentf` in tasuku. That work happens after this PR ships.
+
+**(c) ID/color stability: CONFIRMED.** All three kept options retained their `id` and `color` values unchanged across the second update. Preserving the full option metadata (not just names) on partial updates works as expected. If agents send name-only payloads, they are likely testing accidental recreation rather than true update semantics — Codex was right to insist on the id+color preservation path during plan review.
+
+### Payload 2 — property rename: CONFIRMED
+
+Renaming `Name → Task` returned a response with `properties` keyed as `["Status", "Task"]`, with `Task` retaining `id: "title"` and `type: "title"`. Response-body shape confirms the rename. The optional query-verification tightening from §8 builder notes was not executed — not naturally cheap during the probe, and the response-body check was sufficient.
+
+### Payload 3 — `is_inline` on create: CONFIRMED
+
+All three paths exercised: `{ is_inline: true }` → response shows `true`; `{ is_inline: false }` → response shows `false`; flag omitted → response shows `false` (Notion default). The conditional-spread branch in the `createDatabase` wrapper handles all three correctly — explicit `false` is not dropped by any truthy check.
+
+### Cache invalidation: CONFIRMED end-to-end
+
+A supplementary probe wrapped `client.dataSources.retrieve` with a call counter to verify the correctness fix Codex drove into the plan during review. Sequence:
+
+- First `getCachedSchema` → 1 retrieve call (cache miss, fresh fetch)
+- Second `getCachedSchema`, no update in between → still 1 call (cache hit)
+- `updateDataSource` (rename `Name → TaskName`) → still 1 call (update path doesn't call retrieve)
+- Third `getCachedSchema` post-update → **2 calls**, returning fresh data including the renamed property
+
+`schemaCache.delete(databaseId)` on successful update propagates correctly to downstream readers. Without this, `get_database` would return stale schemas for up to 5 minutes after a successful mutation and the update would *look broken* to the agent that just issued it.
+
+### Status option `description` field — NOT TESTED
+
+Plan §8 flagged the status option `description` field as an untested edge case ("if an agent passes `{name, id, color}` without `description`, does Notion preserve the existing description or null it out?"). The test database's default options all had `description: null`, so the edge case could not be observed during this probe. Untested but unlikely to bite in practice since descriptions are uncommon on status options. Left as a note for the separate audit follow-up.
+
+### Cleanup invariant: HELD
+
+All 5 test databases created during the probes (1 payload-1 DB + 3 payload-3 DBs + 1 cache-probe DB) were successfully trashed via `updateDataSource(..., { in_trash: true })` in finally blocks, even when supplementary probe steps had logging-path bugs mid-run. No test databases leaked into the sandbox page.
