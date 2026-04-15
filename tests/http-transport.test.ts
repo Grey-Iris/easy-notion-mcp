@@ -133,14 +133,15 @@ describe("HTTP Transport — Static Token Mode", () => {
     expect(toolsBody.result).toBeDefined();
     expect(toolsBody.result.tools).toBeDefined();
     expect(Array.isArray(toolsBody.result.tools)).toBe(true);
-    // We should have 26 tools
-    expect(toolsBody.result.tools.length).toBe(26);
+    // We should have 27 tools
+    expect(toolsBody.result.tools.length).toBe(27);
 
     // Verify a few expected tool names
     const toolNames = toolsBody.result.tools.map((t: any) => t.name);
     expect(toolNames).toContain("create_page");
     expect(toolNames).toContain("read_page");
     expect(toolNames).toContain("search");
+    expect(toolNames).toContain("update_data_source");
   });
 
   it("returns 400 for GET /mcp without a session", async () => {
