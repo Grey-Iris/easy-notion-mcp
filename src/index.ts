@@ -16,6 +16,8 @@ const server = createServer(
   {
     rootPageId: process.env.NOTION_ROOT_PAGE_ID,
     trustContent: process.env.NOTION_TRUST_CONTENT === "true",
+    transport: "stdio",
+    workspaceRoot: process.env.NOTION_MCP_WORKSPACE_ROOT || process.cwd(),
   }
 );
 

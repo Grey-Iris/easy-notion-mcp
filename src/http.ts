@@ -80,6 +80,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
           rootPageId: options.rootPageId,
           trustContent: options.trustContent ?? false,
           allowWorkspaceParent,
+          transport: "http",
         });
 
         await server.connect(transport);
