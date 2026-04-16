@@ -7,6 +7,7 @@ import {
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
 import { processFileUploads } from "./file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
+import { readMarkdownFile } from "./read-markdown-file.js";
 import {
   addComment,
   appendBlocks,
@@ -413,6 +414,13 @@ function enhanceError(error: unknown, toolName: string, args: Record<string, unk
   return message;
 }
 
+type ToolDefinition = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  transports?: readonly [ServerTransport, ...ServerTransport[]];
+};
+
 const tools = [
   {
     name: "create_page",
@@ -449,6 +457,38 @@ const tools = [
       },
       required: ["title", "markdown"],
     },
+  },
+  {
+    name: "create_page_from_file",
+    description: `Create a Notion page from a local markdown file. The server reads the file, validates it, and creates the page — identical result to calling create_page, without shipping the file's content through the agent's context window.
+
+STDIO MODE ONLY. This tool is not available when the server runs over HTTP, because in HTTP mode the server's filesystem belongs to the server host, not the caller.
+
+Restrictions:
+- file_path must be an ABSOLUTE path (no relative paths, no ~ expansion)
+- File must be inside the configured workspace root (defaults to the server's process.cwd(); override via the NOTION_MCP_WORKSPACE_ROOT env var)
+- File extension must be .md or .markdown
+- File size must be ≤ 1 MB (1,048,576 bytes)
+- File must be valid UTF-8
+- Symlinks are resolved and the resolved path must still be inside the workspace root
+
+Same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, task lists, etc.).`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Page title" },
+        file_path: {
+          type: "string",
+          description: "Absolute path to a local .md or .markdown file (≤ 1 MB, UTF-8, inside the configured workspace root)",
+        },
+        parent_page_id: {
+          type: "string",
+          description: "Parent page ID. Same resolution rules as create_page.",
+        },
+      },
+      required: ["title", "file_path"],
+    },
+    transports: ["stdio"] as const,
   },
   {
     name: "append_content",
@@ -823,19 +863,29 @@ Call get_database first to see available properties and valid options.`,
       properties: {},
     },
   },
-] as const;
+] as const satisfies readonly ToolDefinition[];
+
+export type ServerTransport = "stdio" | "http";
 
 export interface CreateServerConfig {
   rootPageId?: string;
   trustContent?: boolean;
   allowWorkspaceParent?: boolean;
+  transport?: ServerTransport;
+  workspaceRoot?: string;
 }
 
 export function createServer(
   notionClientFactory: () => ReturnType<typeof createNotionClient>,
   config: CreateServerConfig = {},
 ): Server {
-  const { rootPageId, trustContent = false, allowWorkspaceParent = false } = config;
+  const {
+    rootPageId,
+    trustContent = false,
+    allowWorkspaceParent = false,
+    transport = "stdio",
+    workspaceRoot,
+  } = config;
   let stickyParentPageId: string | undefined;
 
   const server = new Server(
@@ -874,11 +924,25 @@ export function createServer(
   }
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools] };
+    const visible = (tools as readonly ToolDefinition[])
+      .filter((tool) => !tool.transports || tool.transports.includes(transport))
+      .map(({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema,
+      }));
+    return { tools: visible };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
+
+    const toolDef = (tools as readonly ToolDefinition[]).find((tool) => tool.name === name);
+    if (toolDef?.transports && !toolDef.transports.includes(transport)) {
+      return textResponse({
+        error: `Tool '${name}' is not available in '${transport}' transport mode.`,
+      });
+    }
 
     try {
       switch (name) {
@@ -901,6 +965,38 @@ export function createServer(
             icon,
             cover,
           ) as any;
+          const response: Record<string, unknown> = {
+            id: page.id,
+            title,
+            url: page.url,
+          };
+          if (parent.type === "workspace") {
+            response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          return textResponse(response);
+        }
+        case "create_page_from_file": {
+          if (!workspaceRoot) {
+            return textResponse({
+              error: "create_page_from_file requires workspaceRoot to be configured on the server. This tool is stdio-only.",
+            });
+          }
+          const notion = notionClientFactory();
+          const { title, file_path, parent_page_id } = args as {
+            title: string;
+            file_path: string;
+            parent_page_id?: string;
+          };
+
+          const parent = await resolveParent(notion, parent_page_id);
+          const markdown = await readMarkdownFile(file_path, workspaceRoot);
+          const page = await createPage(
+            notion,
+            parent,
+            title,
+            markdownToBlocks(markdown),
+          ) as any;
+
           const response: Record<string, unknown> = {
             id: page.id,
             title,

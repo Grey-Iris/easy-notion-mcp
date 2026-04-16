@@ -142,6 +142,7 @@ describe("HTTP Transport — Static Token Mode", () => {
     expect(toolNames).toContain("read_page");
     expect(toolNames).toContain("search");
     expect(toolNames).toContain("update_data_source");
+    expect(toolNames).not.toContain("create_page_from_file");
   });
 
   it("returns 400 for GET /mcp without a session", async () => {
