@@ -222,11 +222,11 @@ export function convertPropertyValue(
     case "status":
       return { status: { name: String(value) } };
     case "relation":
-      throw new Error(
-        `Property '${key}' has type 'relation'. ` +
-          `This server does not yet support writing relation properties — support is planned for a future release. ` +
-          `Remove '${key}' from this payload if you want the rest of the row to succeed, then set the relation in the Notion UI.`,
-      );
+      return {
+        relation: (Array.isArray(value) ? value : [value])
+          .filter((id) => id)
+          .map((id) => ({ id: String(id) })),
+      };
     case "people":
     case "files":
       throw new Error(

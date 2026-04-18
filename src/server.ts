@@ -73,6 +73,8 @@ export function simplifyProperty(prop: any): unknown {
       return prop.status?.name ?? null;
     case "people":
       return prop.people?.map((p: any) => p.name ?? p.id) ?? [];
+    case "relation":
+      return prop.relation?.map((r: any) => r.id) ?? [];
     case "unique_id":
       if (!prop.unique_id) return null;
       return prop.unique_id.prefix
