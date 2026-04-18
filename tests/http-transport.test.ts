@@ -220,7 +220,7 @@ describe("HTTP Transport — Static Token Mode bearer enforcement (AU-1..AU-6)",
       params: {
         protocolVersion: "2025-03-26",
         capabilities: {},
-        clientInfo: { name: "test" },
+        clientInfo: { name: "test", version: "1.0.0" },
       },
       id: 1,
     };
