@@ -249,7 +249,7 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
     vi.clearAllMocks();
   });
 
-  it("G4b-1: relation property — error contains name, 'relation', 'future release', and an immediate-fix clause", async () => {
+  it("G5a-1: relation property write succeeds — pages.create called with relation: [{id}]", async () => {
     const dbId = freshDbId("b1");
     const notion = makeNotion({
       dbId,
@@ -262,11 +262,10 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
         arguments: { database_id: dbId, properties: { Name: "x", Ref: "abc" } },
       });
       const text = parseToolText(result);
-      expect(text).toContain("'Ref'");
-      expect(text).toContain("relation");
-      expect(text).toMatch(/future release/i);
-      expect(text).toMatch(/remove/i);
-      expect(notion.pages.create).not.toHaveBeenCalled();
+      expect(text).toContain("created-page");
+      expect(notion.pages.create).toHaveBeenCalledTimes(1);
+      const callArgs = notion.pages.create.mock.calls[0][0];
+      expect(callArgs.properties.Ref).toEqual({ relation: [{ id: "abc" }] });
     } finally {
       await close();
     }
@@ -391,7 +390,7 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
     }
   });
 
-  it("G4b-7: update_database_entry with relation property — error, pages.update NOT called", async () => {
+  it("G5a-7: update_database_entry with relation property succeeds — pages.update called with relation: [{id}]", async () => {
     const dbId = freshDbId("b7");
     const notion = makeNotion({
       dbId,
@@ -404,19 +403,20 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
         arguments: { page_id: "row-1", properties: { Ref: "abc" } },
       });
       const text = parseToolText(result);
-      expect(text).toContain("'Ref'");
-      expect(text).toContain("relation");
-      expect(notion.pages.update).not.toHaveBeenCalled();
+      expect(text).toContain("row-1");
+      expect(notion.pages.update).toHaveBeenCalledTimes(1);
+      const callArgs = notion.pages.update.mock.calls[0][0];
+      expect(callArgs.properties.Ref).toEqual({ relation: [{ id: "abc" }] });
     } finally {
       await close();
     }
   });
 
-  it("G4b-8: add_database_entries sandwich [good, bad(relation), good] — loop continues", async () => {
+  it("G4b-8: add_database_entries sandwich [good, bad(people), good] — loop continues after throw", async () => {
     const dbId = freshDbId("b8");
     const notion = makeNotion({
       dbId,
-      schemaProvider: () => ({ Name: { type: "title" }, Ref: { type: "relation" } }),
+      schemaProvider: () => ({ Name: { type: "title" }, Owner: { type: "people" } }),
     });
     const { client, close } = await connect(notion);
     try {
@@ -426,7 +426,7 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
           database_id: dbId,
           entries: [
             { Name: "ok-0" },
-            { Name: "ok-1", Ref: "abc" },
+            { Name: "ok-1", Owner: "uid" },
             { Name: "ok-2" },
           ],
         },
@@ -435,31 +435,8 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
       expect(response.succeeded).toHaveLength(2);
       expect(response.failed).toHaveLength(1);
       expect(response.failed[0].index).toBe(1);
-      expect(response.failed[0].error).toMatch(/relation/);
-      expect(response.failed[0].error).toMatch(/future release/i);
-    } finally {
-      await close();
-    }
-  });
-
-  it("G4b-9: mixed payload — throw-before-write on add_database_entry (no partial state)", async () => {
-    const dbId = freshDbId("b9");
-    const notion = makeNotion({
-      dbId,
-      schemaProvider: () => ({ Name: { type: "title" }, Ref: { type: "relation" } }),
-    });
-    const { client, close } = await connect(notion);
-    try {
-      const result = await client.callTool({
-        name: "add_database_entry",
-        arguments: {
-          database_id: dbId,
-          properties: { Name: "ok", Ref: "abc" },
-        },
-      });
-      const text = parseToolText(result);
-      expect(text).toContain("'Ref'");
-      expect(notion.pages.create).not.toHaveBeenCalled();
+      expect(response.failed[0].error).toMatch(/people/);
+      expect(response.failed[0].error).toMatch(/does not support/i);
     } finally {
       await close();
     }

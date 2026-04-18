@@ -1,19 +1,24 @@
 import { describe, expect, it } from "vitest";
 
-// Copy of the relation branch from simplifyProperty (src/server.ts:77-78)
-function simplifyRelation(prop: any): string[] {
-  return prop.relation?.map((r: any) => r.id) ?? [];
+import { convertPropertyValue } from "../src/notion-client.js";
+import { simplifyProperty } from "../src/server.js";
+
+// Thin wrapper around the production write-side dispatcher. Pinning the type
+// to "relation" + a stable key keeps the assertion bodies focused on the
+// relation-shape contract; any drift inside convertPropertyValue's relation
+// branch surfaces here.
+function convertRelation(value: unknown): { relation: Array<{ id: string }> } {
+  return convertPropertyValue("relation", "Ref", value) as {
+    relation: Array<{ id: string }>;
+  };
 }
 
-// Copy of the relation branch from convertPropertyValues (src/notion-client.ts:240-248)
-function convertRelation(value: unknown): { relation: Array<{ id: string }> } {
-  return {
-    relation: (Array.isArray(value) ? value : [value])
-      .filter((id) => id)
-      .map((id) => ({
-        id: String(id),
-      })),
-  };
+// The production simplifyProperty dispatches on prop.type; the assertion
+// bodies below pass bare {relation: ...} payloads, so we inject the
+// discriminator here. Spread first so the test payload still controls the
+// relation field shape (array, null, undefined, missing).
+function simplifyRelation(prop: any): string[] {
+  return simplifyProperty({ ...prop, type: "relation" }) as string[];
 }
 
 describe("relation property", () => {
