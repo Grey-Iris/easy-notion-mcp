@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import { createApp } from "../src/http.js";
+import { createApp, getBindHost } from "../src/http.js";
 import type express from "express";
+import type { AddressInfo } from "net";
 
 /**
  * Integration tests for the HTTP transport layer.
@@ -10,7 +11,12 @@ import type express from "express";
  * - The MCP protocol works over HTTP (static token mode)
  * - OAuth endpoints respond correctly
  * - Session management works
+ * - Static-token mode requires NOTION_MCP_BEARER (bearer-always, G-1b)
+ * - Bind host defaults to 127.0.0.1, configurable via NOTION_MCP_BIND_HOST (G-1b)
  */
+
+const BEARER = "test-bearer-secret";
+const AUTH_HEADER = `Bearer ${BEARER}`;
 
 describe("HTTP Transport — Health Check", () => {
   let app: express.Express;
@@ -18,6 +24,7 @@ describe("HTTP Transport — Health Check", () => {
   beforeAll(async () => {
     app = await createApp({
       notionToken: "ntn_fake_token_for_testing",
+      bearer: BEARER,
     });
   });
 
@@ -39,6 +46,7 @@ describe("HTTP Transport — Static Token Mode", () => {
   beforeAll(async () => {
     app = await createApp({
       notionToken: "ntn_fake_token_for_testing",
+      bearer: BEARER,
     });
   });
 
@@ -58,14 +66,13 @@ describe("HTTP Transport — Static Token Mode", () => {
       .post("/mcp")
       .set("Content-Type", "application/json")
       .set("Accept", "application/json, text/event-stream")
+      .set("Authorization", AUTH_HEADER)
       .send(initRequest);
 
     expect(res.status).toBe(200);
 
-    // Response may be JSON or SSE — parse accordingly
     let body: any;
     if (res.headers["content-type"]?.includes("text/event-stream")) {
-      // Parse SSE: find lines starting with "data: "
       const lines = res.text.split("\n");
       for (const line of lines) {
         if (line.startsWith("data: ")) {
@@ -82,11 +89,9 @@ describe("HTTP Transport — Static Token Mode", () => {
     expect(body.result.serverInfo.name).toBe("easy-notion-mcp");
     expect(body.result.protocolVersion).toBe("2025-03-26");
 
-    // Extract session ID for follow-up requests
     const sessionId = res.headers["mcp-session-id"];
     expect(sessionId).toBeDefined();
 
-    // Now send initialized notification + tools/list in same session
     const initializedNotification = {
       jsonrpc: "2.0",
       method: "notifications/initialized",
@@ -96,10 +101,10 @@ describe("HTTP Transport — Static Token Mode", () => {
       .post("/mcp")
       .set("Content-Type", "application/json")
       .set("Accept", "application/json, text/event-stream")
+      .set("Authorization", AUTH_HEADER)
       .set("mcp-session-id", sessionId)
       .send(initializedNotification);
 
-    // List tools
     const listToolsRequest = {
       jsonrpc: "2.0",
       method: "tools/list",
@@ -111,6 +116,7 @@ describe("HTTP Transport — Static Token Mode", () => {
       .post("/mcp")
       .set("Content-Type", "application/json")
       .set("Accept", "application/json, text/event-stream")
+      .set("Authorization", AUTH_HEADER)
       .set("mcp-session-id", sessionId)
       .send(listToolsRequest);
 
@@ -133,10 +139,8 @@ describe("HTTP Transport — Static Token Mode", () => {
     expect(toolsBody.result).toBeDefined();
     expect(toolsBody.result.tools).toBeDefined();
     expect(Array.isArray(toolsBody.result.tools)).toBe(true);
-    // We should have 27 tools
     expect(toolsBody.result.tools.length).toBe(27);
 
-    // Verify a few expected tool names
     const toolNames = toolsBody.result.tools.map((t: any) => t.name);
     expect(toolNames).toContain("create_page");
     expect(toolNames).toContain("read_page");
@@ -145,25 +149,26 @@ describe("HTTP Transport — Static Token Mode", () => {
     expect(toolNames).not.toContain("create_page_from_file");
   });
 
-  it("returns 400 for GET /mcp without a session", async () => {
-    const res = await request(app).get("/mcp");
+  it("returns 400 for authed GET /mcp without a session", async () => {
+    const res = await request(app).get("/mcp").set("Authorization", AUTH_HEADER);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("No active session");
   });
 
-  it("returns 400 for DELETE /mcp without a session", async () => {
-    const res = await request(app).delete("/mcp");
+  it("returns 400 for authed DELETE /mcp without a session", async () => {
+    const res = await request(app).delete("/mcp").set("Authorization", AUTH_HEADER);
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("No active session");
   });
 
-  it("rejects POST /mcp without notionToken when no static token configured", async () => {
-    const noTokenApp = await createApp({});
+  it("rejects POST /mcp when no static Notion token is configured", async () => {
+    const noTokenApp = await createApp({ bearer: BEARER });
 
     const res = await request(noTokenApp)
       .post("/mcp")
       .set("Content-Type", "application/json")
       .set("Accept", "application/json, text/event-stream")
+      .set("Authorization", AUTH_HEADER)
       .send({
         jsonrpc: "2.0",
         method: "initialize",
@@ -180,6 +185,92 @@ describe("HTTP Transport — Static Token Mode", () => {
   });
 });
 
+describe("HTTP Transport — Static Token Mode bearer enforcement (AU-1..AU-6)", () => {
+  it("AU-1: createApp in static-token mode without bearer throws at construction", async () => {
+    await expect(
+      createApp({ notionToken: "ntn_fake_token_for_testing" }),
+    ).rejects.toThrow(/NOTION_MCP_BEARER/);
+  });
+
+  it("AU-1 (error shape): bearer-missing error includes example + README pointer", async () => {
+    try {
+      await createApp({ notionToken: "ntn_fake_token_for_testing" });
+      throw new Error("expected createApp to reject");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).toMatch(/NOTION_MCP_BEARER/);
+      expect(message).toMatch(/openssl rand/);
+      expect(message).toMatch(/README|docs/i);
+    }
+  });
+
+  describe("with bearer configured", () => {
+    let app: express.Express;
+
+    beforeAll(async () => {
+      app = await createApp({
+        notionToken: "ntn_fake_token_for_testing",
+        bearer: BEARER,
+      });
+    });
+
+    const initBody = {
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26",
+        capabilities: {},
+        clientInfo: { name: "test" },
+      },
+      id: 1,
+    };
+
+    it("AU-2: POST /mcp with no Authorization header returns 401", async () => {
+      const res = await request(app)
+        .post("/mcp")
+        .set("Content-Type", "application/json")
+        .set("Accept", "application/json, text/event-stream")
+        .send(initBody);
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe("invalid_token");
+    });
+
+    it("AU-3: POST /mcp with wrong bearer returns 401", async () => {
+      const res = await request(app)
+        .post("/mcp")
+        .set("Content-Type", "application/json")
+        .set("Accept", "application/json, text/event-stream")
+        .set("Authorization", "Bearer WRONG-TOKEN")
+        .send(initBody);
+
+      expect(res.status).toBe(401);
+      expect(res.body.error).toBe("invalid_token");
+    });
+
+    it("AU-4: POST /mcp with correct bearer returns 200", async () => {
+      const res = await request(app)
+        .post("/mcp")
+        .set("Content-Type", "application/json")
+        .set("Accept", "application/json, text/event-stream")
+        .set("Authorization", AUTH_HEADER)
+        .send(initBody);
+
+      expect(res.status).toBe(200);
+    });
+
+    it("AU-5: GET /mcp without Authorization returns 401 (auth checked before session lookup)", async () => {
+      const res = await request(app).get("/mcp");
+      expect(res.status).toBe(401);
+    });
+
+    it("AU-6: DELETE /mcp without Authorization returns 401 (auth checked before session lookup)", async () => {
+      const res = await request(app).delete("/mcp");
+      expect(res.status).toBe(401);
+    });
+  });
+});
+
 describe("HTTP Transport — OAuth Mode Endpoints", () => {
   let app: express.Express;
 
@@ -189,6 +280,16 @@ describe("HTTP Transport — OAuth Mode Endpoints", () => {
       oauthClientSecret: "fake-client-secret",
       oauthRedirectUri: "http://localhost:3333/callback",
     });
+  });
+
+  it("AU-7: OAuth-mode createApp constructs without NOTION_MCP_BEARER", async () => {
+    await expect(
+      createApp({
+        oauthClientId: "fake-client-id",
+        oauthClientSecret: "fake-client-secret",
+        oauthRedirectUri: "http://localhost:3333/callback",
+      }),
+    ).resolves.toBeDefined();
   });
 
   it("GET /.well-known/oauth-authorization-server returns metadata", async () => {
@@ -206,7 +307,7 @@ describe("HTTP Transport — OAuth Mode Endpoints", () => {
     expect(res.body.resource).toBeDefined();
   });
 
-  it("POST /mcp without auth returns 401", async () => {
+  it("AU-8: POST /mcp without auth returns 401 (OAuth-mode regression guard)", async () => {
     const res = await request(app)
       .post("/mcp")
       .set("Content-Type", "application/json")
@@ -243,7 +344,6 @@ describe("HTTP Transport — OAuth Mode Endpoints", () => {
   });
 
   it("GET /authorize with required params redirects to Notion", async () => {
-    // First register a client
     const regRes = await request(app)
       .post("/register")
       .set("Content-Type", "application/json")
@@ -268,9 +368,67 @@ describe("HTTP Transport — OAuth Mode Endpoints", () => {
         state: "test-state-123",
       });
 
-    // Should redirect (302) to Notion OAuth
     expect(res.status).toBe(302);
     expect(res.headers.location).toContain("api.notion.com/v1/oauth/authorize");
     expect(res.headers.location).toContain("client_id=fake-client-id");
+  });
+});
+
+describe("HTTP Transport — bind host (BH-1)", () => {
+  async function startOnHost(host: string) {
+    const app = await createApp({
+      notionToken: "ntn_fake_token_for_testing",
+      bearer: BEARER,
+    });
+    return await new Promise<{ address: string; close: () => Promise<void> }>((resolve, reject) => {
+      const server = app.listen(0, host, () => {
+        const info = server.address();
+        if (info && typeof info !== "string") {
+          resolve({
+            address: (info as AddressInfo).address,
+            close: () =>
+              new Promise<void>((r) => {
+                server.close(() => r());
+              }),
+          });
+        } else {
+          server.close();
+          reject(new Error("listen returned unexpected address shape"));
+        }
+      });
+      server.on("error", reject);
+    });
+  }
+
+  it("BH-1a: default env (no NOTION_MCP_BIND_HOST) resolves to 127.0.0.1 and listen() binds it", async () => {
+    expect(getBindHost({})).toBe("127.0.0.1");
+    const { address, close } = await startOnHost(getBindHost({}));
+    try {
+      expect(address).toBe("127.0.0.1");
+    } finally {
+      await close();
+    }
+  });
+
+  it("BH-1b: NOTION_MCP_BIND_HOST=0.0.0.0 binds all interfaces", async () => {
+    const env = { NOTION_MCP_BIND_HOST: "0.0.0.0" };
+    expect(getBindHost(env)).toBe("0.0.0.0");
+    const { address, close } = await startOnHost(getBindHost(env));
+    try {
+      expect(address).toBe("0.0.0.0");
+    } finally {
+      await close();
+    }
+  });
+
+  it("BH-1c: NOTION_MCP_BIND_HOST=127.0.0.1 explicitly binds loopback", async () => {
+    const env = { NOTION_MCP_BIND_HOST: "127.0.0.1" };
+    expect(getBindHost(env)).toBe("127.0.0.1");
+    const { address, close } = await startOnHost(getBindHost(env));
+    try {
+      expect(address).toBe("127.0.0.1");
+    } finally {
+      await close();
+    }
   });
 });

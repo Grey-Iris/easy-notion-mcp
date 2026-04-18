@@ -67,14 +67,14 @@ describe("processFileUploads", () => {
   it("skips file URLs inside inline code spans", async () => {
     const markdown = "`![](file:///tmp/test.png)`";
 
-    await expect(processFileUploads({} as any, markdown)).resolves.toBe(markdown);
+    await expect(processFileUploads({} as any, markdown, "stdio")).resolves.toBe(markdown);
     expect(mockedUploadFile).not.toHaveBeenCalled();
   });
 
   it("skips file URLs inside fenced code blocks", async () => {
     const markdown = "```md\n![](file:///tmp/test.png)\n```";
 
-    await expect(processFileUploads({} as any, markdown)).resolves.toBe(markdown);
+    await expect(processFileUploads({} as any, markdown, "stdio")).resolves.toBe(markdown);
     expect(mockedUploadFile).not.toHaveBeenCalled();
   });
 
@@ -82,7 +82,7 @@ describe("processFileUploads", () => {
     mockedUploadFile.mockResolvedValue({ id: "upload-123", blockType: "image" });
     const markdown = "![photo](file:///tmp/real.png)";
 
-    await expect(processFileUploads({} as any, markdown)).resolves.toBe(
+    await expect(processFileUploads({} as any, markdown, "stdio")).resolves.toBe(
       "![photo](notion-upload:upload-123:image)",
     );
     expect(mockedUploadFile).toHaveBeenCalledTimes(1);
@@ -93,10 +93,26 @@ describe("processFileUploads", () => {
     mockedUploadFile.mockResolvedValue({ id: "upload-123", blockType: "image" });
     const markdown = "![photo](file:///tmp/real.png) and `![](file:///tmp/example.png)`";
 
-    await expect(processFileUploads({} as any, markdown)).resolves.toBe(
+    await expect(processFileUploads({} as any, markdown, "stdio")).resolves.toBe(
       "![photo](notion-upload:upload-123:image) and `![](file:///tmp/example.png)`",
     );
     expect(mockedUploadFile).toHaveBeenCalledTimes(1);
     expect(mockedUploadFile).toHaveBeenCalledWith({} as any, "file:///tmp/real.png");
+  });
+
+  it("throws when HTTP transport encounters a real file:// match", async () => {
+    const markdown = "![photo](file:///tmp/real.png)";
+
+    await expect(processFileUploads({} as any, markdown, "http")).rejects.toThrow(
+      /only supported in stdio transport/i,
+    );
+    expect(mockedUploadFile).not.toHaveBeenCalled();
+  });
+
+  it("does not throw under HTTP transport when file:// only appears inside code", async () => {
+    const markdown = "`![](file:///tmp/in-code.png)`";
+
+    await expect(processFileUploads({} as any, markdown, "http")).resolves.toBe(markdown);
+    expect(mockedUploadFile).not.toHaveBeenCalled();
   });
 });
