@@ -35,7 +35,7 @@ async function createPageWithUploads(
   markdown: string,
   icon?: string,
 ): Promise<any> {
-  const processed = await processFileUploads(client, markdown);
+  const processed = await processFileUploads(client, markdown, "stdio");
   const blocks: NotionBlock[] = markdownToBlocks(processed);
   return createPage(client, parentId, title, blocks, icon);
 }

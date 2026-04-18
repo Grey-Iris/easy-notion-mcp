@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
-import { processFileUploads } from "./file-upload.js";
+import { FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
 import { readMarkdownFile } from "./read-markdown-file.js";
 import {
@@ -961,7 +961,7 @@ export function createServer(
             notion,
             parent,
             title,
-            markdownToBlocks(await processFileUploads(notion, markdown)),
+            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
             icon,
             cover,
           ) as any;
@@ -1010,7 +1010,7 @@ export function createServer(
         case "append_content": {
           const notion = notionClientFactory();
           const { page_id, markdown } = args as { page_id: string; markdown: string };
-          const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown)));
+          const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
           return textResponse({ success: true, blocks_added: result.length });
         }
         case "replace_content": {
@@ -1020,7 +1020,7 @@ export function createServer(
           for (const block of existingBlocks) {
             await deleteBlock(notion, block.id);
           }
-          const appended = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown)));
+          const appended = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
           return textResponse({
             deleted: existingBlocks.length,
             appended: appended.length,
@@ -1071,7 +1071,7 @@ export function createServer(
           const appended = await appendBlocksAfter(
             notion,
             page_id,
-            markdownToBlocks(await processFileUploads(notion, markdown)),
+            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
             afterBlockId,
           );
           return textResponse({
@@ -1181,6 +1181,9 @@ export function createServer(
             icon?: string;
             cover?: string;
           };
+          if (cover?.startsWith("file://") && transport !== "stdio") {
+            return textResponse({ error: FILE_SCHEME_HTTP_ERROR });
+          }
           let coverValue: string | { type: string; file_upload: { id: string } } | undefined;
           if (cover?.startsWith("file://")) {
             const upload = await uploadFile(notion, cover);
