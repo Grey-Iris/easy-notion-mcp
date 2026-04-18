@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
-import { processFileUploads } from "./file-upload.js";
+import { FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
 import { readMarkdownFile } from "./read-markdown-file.js";
 import {
@@ -440,9 +440,9 @@ const tools = [
 - Equations: $$expression$$ or multi-line $$\\nexpression\\n$$ \u2192 equation block
 - Table of contents: [toc] \u2192 table of contents block
 - Embeds: [embed](url) \u2192 embed block
-- File uploads: ![alt](file:///path/to/image.png) \u2192 uploads and creates image block
+- File uploads (stdio transport only): ![alt](file:///path/to/image.png) \u2192 uploads and creates image block
   Link syntax: [name](file:///path/to/file.pdf) \u2192 uploads and creates file/audio/video block (by extension)
-  Max 20 MB per file.`,
+  Max 20 MB per file. In HTTP transport the file:// form is rejected \u2014 host the file at an HTTPS URL instead.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -578,7 +578,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "update_page",
-    description: "Update page title, icon, or cover. Cover accepts an image URL or a file:// path (which will be uploaded to Notion).",
+    description: "Update page title, icon, or cover. Cover accepts an image URL, or a file:// path (stdio transport only) which will be uploaded to Notion. In HTTP transport, the file:// form is rejected — use an HTTPS URL instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -961,7 +961,7 @@ export function createServer(
             notion,
             parent,
             title,
-            markdownToBlocks(await processFileUploads(notion, markdown)),
+            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
             icon,
             cover,
           ) as any;
@@ -1010,7 +1010,7 @@ export function createServer(
         case "append_content": {
           const notion = notionClientFactory();
           const { page_id, markdown } = args as { page_id: string; markdown: string };
-          const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown)));
+          const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
           return textResponse({ success: true, blocks_added: result.length });
         }
         case "replace_content": {
@@ -1020,7 +1020,7 @@ export function createServer(
           for (const block of existingBlocks) {
             await deleteBlock(notion, block.id);
           }
-          const appended = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown)));
+          const appended = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
           return textResponse({
             deleted: existingBlocks.length,
             appended: appended.length,
@@ -1071,7 +1071,7 @@ export function createServer(
           const appended = await appendBlocksAfter(
             notion,
             page_id,
-            markdownToBlocks(await processFileUploads(notion, markdown)),
+            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
             afterBlockId,
           );
           return textResponse({
@@ -1181,6 +1181,9 @@ export function createServer(
             icon?: string;
             cover?: string;
           };
+          if (cover?.startsWith("file://") && transport !== "stdio") {
+            return textResponse({ error: FILE_SCHEME_HTTP_ERROR });
+          }
           let coverValue: string | { type: string; file_upload: { id: string } } | undefined;
           if (cover?.startsWith("file://")) {
             const upload = await uploadFile(notion, cover);

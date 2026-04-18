@@ -1,6 +1,11 @@
 import type { Client } from "@notionhq/client";
 import { uploadFile } from "./notion-client.js";
 
+export type FileUploadTransport = "stdio" | "http";
+
+export const FILE_SCHEME_HTTP_ERROR =
+  "file:// URLs are only supported in stdio transport, where the server runs on your machine. In HTTP mode, host the file at an HTTPS URL and use that instead.";
+
 type CodeRange = { start: number; end: number };
 
 function isInRange(position: number, ranges: CodeRange[]): boolean {
@@ -59,6 +64,7 @@ export function getCodeRanges(markdown: string): CodeRange[] {
 export async function processFileUploads(
   client: Client,
   markdown: string,
+  transport: FileUploadTransport,
 ): Promise<string> {
   // Match file:// URLs in both ![alt](file://...) and [text](file://...) syntax
   const fileUrlRegex = /(?:!\[[^\]]*\]|(?<!\!)\[[^\]]*\])\((file:\/\/[^)]+)\)/g;
@@ -73,6 +79,10 @@ export async function processFileUploads(
   const codeRanges = getCodeRanges(markdown);
   const realMatches = matches.filter((m) => !isInRange(m.start, codeRanges));
   if (realMatches.length === 0) return markdown;
+
+  if (transport !== "stdio") {
+    throw new Error(FILE_SCHEME_HTTP_ERROR);
+  }
 
   // Upload all files in parallel
   const uploads = await Promise.all(
