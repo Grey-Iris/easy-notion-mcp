@@ -177,16 +177,23 @@ Replace the placeholder values with your real Notion integration token and (opti
 Run the HTTP server on your host machine:
 
 ```bash
-NOTION_TOKEN=ntn_your_integration_token npx easy-notion-mcp-http
+export NOTION_MCP_BEARER=$(openssl rand -hex 32)
+NOTION_TOKEN=ntn_your_integration_token \
+  NOTION_MCP_BIND_HOST=0.0.0.0 \
+  NOTION_MCP_BEARER=$NOTION_MCP_BEARER \
+  npx easy-notion-mcp-http
 ```
 
-In your platform's MCP server settings, use `host.docker.internal` instead of `localhost`:
+In your platform's MCP server settings, use `host.docker.internal` instead of `localhost`, and add the bearer to the request headers:
 
 ```
 http://host.docker.internal:3333/mcp
+Authorization: Bearer <your NOTION_MCP_BEARER value>
 ```
 
 > **Why not localhost?** These platforms typically run in Docker. `localhost` inside a container refers to the container itself, not your host machine. `host.docker.internal` bridges the gap.
+>
+> **v0.3.0 migration:** as of v0.3.0 the HTTP server binds `127.0.0.1` by default and static-token mode requires `NOTION_MCP_BEARER`. `host.docker.internal` reaches the host's bridge IP, so you need `NOTION_MCP_BIND_HOST=0.0.0.0` on the host and the bearer header on every client request. OAuth mode (which issues its own per-user bearers) is the recommended alternative for shared Docker deployments.
 
 easy-notion-mcp works with any MCP-compatible client. The server runs via stdio (API token mode) or HTTP (OAuth or API token mode).
 
@@ -378,14 +385,37 @@ Run `npx easy-notion-mcp-http` to start the HTTP server with OAuth support.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `NOTION_OAUTH_CLIENT_ID` | Yes | — | Notion public integration OAuth client ID |
-| `NOTION_OAUTH_CLIENT_SECRET` | Yes | — | Notion public integration OAuth client secret |
+| `NOTION_OAUTH_CLIENT_ID` | Yes (OAuth mode) | — | Notion public integration OAuth client ID |
+| `NOTION_OAUTH_CLIENT_SECRET` | Yes (OAuth mode) | — | Notion public integration OAuth client secret |
 | `PORT` | No | `3333` | HTTP server port |
 | `OAUTH_REDIRECT_URI` | No | `http://localhost:{PORT}/callback` | OAuth callback URL |
+| `NOTION_MCP_BIND_HOST` | No | `127.0.0.1` | Bind address. Default is loopback; set `0.0.0.0` for network-reachable, or a specific interface like `192.168.1.5`. |
+| `NOTION_MCP_BEARER` | Yes (static-token mode) | — | Shared-secret bearer required by clients in static-token HTTP mode. Server refuses to start without it. Not required in OAuth mode. |
 
 To get OAuth credentials, create a **public integration** at [notion.so/profile/integrations](https://www.notion.so/profile/integrations) and configure `http://localhost:3333/callback` as the redirect URI.
 
 In OAuth mode, `create_page` works without `NOTION_ROOT_PAGE_ID` — pages are created in the user's private workspace section by default.
+
+### HTTP mode security posture
+
+The HTTP transport in v0.3.0 is designed for **trusted networks** — single-operator self-hosting with a bearer secret, or OAuth for shared deployments. It is not hardened for direct exposure to the open internet; put a reverse proxy with TLS in front of it if you need remote access.
+
+**Static-token mode requires a bearer.** Starting `npx easy-notion-mcp-http` with only `NOTION_TOKEN` set will refuse to start in v0.3.0+. Set a shared-secret bearer in the server's environment, then configure your MCP client to send it as `Authorization: Bearer <secret>` on every `/mcp` request:
+
+```bash
+export NOTION_MCP_BEARER=$(openssl rand -hex 32)
+NOTION_TOKEN=ntn_your_integration_token npx easy-notion-mcp-http
+```
+
+The bearer is compared with `crypto.timingSafeEqual`. Missing or wrong bearers get `401 { "error": "invalid_token" }`. Rotate the secret by restarting the server with a new value.
+
+**Default bind is loopback.** The server binds `127.0.0.1` by default — local processes only. Set `NOTION_MCP_BIND_HOST=0.0.0.0` to expose all interfaces, or a specific IP like `192.168.1.5` to expose one. Bearer is required regardless of bind.
+
+**Known v0.3.0 limits (full fix in v0.3.1):** DNS-rebinding protection is not yet wired for the MCP endpoint, and CORS on the OAuth endpoints (`/register`, `/token`, `/revoke`) is permissive. Until v0.3.1, bearer-always is the trust boundary — don't remove it even for loopback-only deployments.
+
+**OAuth mode for multi-user / remote.** OAuth has its own per-user bearer enforcement; `NOTION_MCP_BEARER` is not required in OAuth mode. For shared deployments, OAuth's per-user identity model is the right shape — static-token + bearer is intended for single-operator self-hosting.
+
+**`file://` uploads are stdio-only.** Markdown passed to `create_page`, `append_content`, `replace_content`, `update_section`, or `update_page.cover` with `file://` URLs is rejected over HTTP. Use stdio mode for local-file workflows (`create_page_from_file` is also stdio-only), or host the file at an HTTPS URL and use that URL in the markdown.
 
 ## What about security and prompt injection?
 

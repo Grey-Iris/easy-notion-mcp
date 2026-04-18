@@ -440,9 +440,9 @@ const tools = [
 - Equations: $$expression$$ or multi-line $$\\nexpression\\n$$ \u2192 equation block
 - Table of contents: [toc] \u2192 table of contents block
 - Embeds: [embed](url) \u2192 embed block
-- File uploads: ![alt](file:///path/to/image.png) \u2192 uploads and creates image block
+- File uploads (stdio transport only): ![alt](file:///path/to/image.png) \u2192 uploads and creates image block
   Link syntax: [name](file:///path/to/file.pdf) \u2192 uploads and creates file/audio/video block (by extension)
-  Max 20 MB per file.`,
+  Max 20 MB per file. In HTTP transport the file:// form is rejected \u2014 host the file at an HTTPS URL instead.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -578,7 +578,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "update_page",
-    description: "Update page title, icon, or cover. Cover accepts an image URL or a file:// path (which will be uploaded to Notion).",
+    description: "Update page title, icon, or cover. Cover accepts an image URL, or a file:// path (stdio transport only) which will be uploaded to Notion. In HTTP transport, the file:// form is rejected — use an HTTPS URL instead.",
     inputSchema: {
       type: "object",
       properties: {
