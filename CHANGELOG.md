@@ -153,6 +153,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   created. If schema-build silently dropped an unsupported type,
   the response makes the mismatch visible to the agent.
 
+- **Silent null on relation reads + throw on relation writes (G-5).**
+  PR 2 shipped a forward-compat throw on relation writes with the
+  message "support is planned for a future release." PR 3 lifts that
+  throw: `add_database_entry`, `update_database_entry`, and the
+  per-entry step of `add_database_entries` now accept relation values
+  as either a single page-ID string or an array of page-ID strings.
+  Falsy values in the array are filtered out; an empty array clears
+  the relation. The shape is the same for one-way (`single_property`)
+  and two-way (`dual_property`) relations — Notion manages the
+  back-link via the schema, not the value payload. On the read side,
+  `query_database` now extracts relation IDs into a `string[]` instead
+  of returning `null` via `simplifyProperty`'s default case (`read_page`
+  does not surface DB-row properties and is unaffected). Migration:
+  callers who handled PR 2's throw path can now pass relation values
+  directly; the throw was only on dev-tip between the PR 2 and PR 3
+  merges and never in a released version.
+
 ### Known limits (deferred to v0.3.1)
 
 - DNS-rebinding protection is not wired on the MCP endpoint. Bearer
@@ -160,15 +177,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CORS on the OAuth endpoints (`/register`, `/token`, `/revoke`) is
   permissive.
 - OAuth orphan refresh records are not cleaned up.
-- `schemaToProperties` still silently drops unsupported types
-  during `create_database` schema-build; G-4c makes the drop
-  visible in the response but does not yet throw on the request
-  side. Planned for v0.3.1 alongside relation/people/files write
-  support.
+- **`create_database` does not yet accept relation-type columns in
+  the schema parameter.** Relation VALUES are writable on existing
+  columns (G-5), but creating the column itself requires passing
+  the target `data_source_id` — a shape the current schema-input
+  parameter does not support. Workaround available today: create
+  the database schema (without the relation column) via
+  `create_database`, then call `update_data_source` with a raw
+  Notion relation-config payload. Planned for v0.3.x as a typed
+  shortcut.
+- `schemaToProperties` still silently drops unsupported `people`
+  and `files` types during `create_database` schema-build; G-4c
+  (PR 2) makes the drop visible in the response but does not yet
+  throw on the request side. Planned for v0.3.1 alongside
+  people/files write support.
 - `simplifyProperty` read-side drops (`query_database` returning
-  `null` for unhandled property types) are not yet signaled.
-  Planned for v0.3.1, likely reusing the `warnings` schema with a
-  per-row code.
+  `null` for unhandled property types OTHER than relation) are
+  not yet signaled. Planned for v0.3.1, likely reusing the
+  `warnings` schema with a per-row code.
 - `update_section` is not heading-preserving. If the replacement
   markdown omits the leading heading, the anchor disappears and a
   retry fails with "heading not found." Planned for v0.3.1.
