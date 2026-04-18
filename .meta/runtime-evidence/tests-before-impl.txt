@@ -1,0 +1,69 @@
+
+> easy-notion-mcp@0.2.4 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/pr2-g3-g4-builder-2026-04-18[39m
+
+ [32m✓[39m tests/update-section.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m tests/relation-property.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m tests/file-upload.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m tests/token-store.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m tests/blocks-to-markdown.test.ts [2m([22m[2m39 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m tests/roundtrip.test.ts [2m([22m[2m31 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m tests/markdown-to-blocks.test.ts [2m([22m[2m68 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m tests/update-data-source.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m tests/list-databases.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m tests/http-file-upload-gate.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [31m❯[39m tests/destructive-edit-descriptions.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 12[2mms[22m[39m
+[31m     [31m×[31m G3a-1: replace_content description warns DESTRUCTIVE, no rollback, and names duplicate_page (or a non-destructive alternative) as recovery[39m[32m 10[2mms[22m[39m
+[31m     [31m×[31m G3a-2: update_section description warns DESTRUCTIVE, no rollback, names duplicate_page recovery, and mentions the heading-anchor retry-impossibility[39m[32m 2[2mms[22m[39m
+ [31m❯[39m tests/create-database-response.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[32m 16[2mms[22m[39m
+[31m     [31m×[31m G4c-1: response properties reflect Notion's actual result, not the requested schema (people silently dropped)[39m[32m 12[2mms[22m[39m
+     [32m✓[39m G4c-2: all-supported schema — response properties still derived from result (regression guard)[32m 2[2mms[22m[39m
+[31m     [31m×[31m G4c-3: requested schema with an unknown type — response omits it (reflects reality)[39m[32m 2[2mms[22m[39m
+ [31m❯[39m tests/block-warnings.test.ts [2m([22m[2m11 tests[22m[2m | [22m[31m10 failed[39m[2m)[22m[32m 34[2mms[22m[39m
+     [32m✓[39m G3b-1: read_page with only supported blocks — no warnings field[32m 12[2mms[22m[39m
+[31m     [31m×[31m G3b-2: read_page with one synced_block — warnings contains it[39m[32m 4[2mms[22m[39m
+[31m     [31m×[31m G3b-3: read_page with synced_block + link_to_page + child_database — all three omitted[39m[32m 3[2mms[22m[39m
+[31m     [31m×[31m G3b-4: read_page where recursive child fetch yields an unsupported type — ctx flows through recursion[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G3b-5: duplicate_page where source has a child_page — warnings include it; duplicate still lacks it[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G3b-6: max_blocks=5, 6th raw is synced_block but cap fires first — no warning (not examined)[39m[32m 2[2mms[22m[39m
+[31m     [31m×[31m G3b-7: max_blocks=5, 2nd raw is synced_block within the examined window — warning includes it[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G3b-8: malformed image + synced_block — warnings EXCLUDE the malformed image (not a type-gap)[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G3b-9: read_page description documents the new warnings contract and round-trip caveat[39m[32m 3[2mms[22m[39m
+[31m     [31m×[31m G3b-10: duplicate_page description documents warnings + deep-duplication limit[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G3b-11: SUPPORTED_BLOCK_TYPES drift-invariant — every entry yields no warning when read[39m[32m 2[2mms[22m[39m
+ [31m❯[39m tests/database-write-strictness.test.ts [2m([22m[2m21 tests[22m[2m | [22m[31m20 failed[39m[2m)[22m[32m 43[2mms[22m[39m
+[31m     [31m×[31m G4a-1: single unknown key — response contains rejected key, valid keys, and pages.create is not called[39m[32m 12[2mms[22m[39m
+[31m     [31m×[31m G4a-2: two unknown keys — both named in error[39m[32m 2[2mms[22m[39m
+     [32m✓[39m G4a-3: all-valid keys — success (regression guard)[32m 2[2mms[22m[39m
+[31m     [31m×[31m G4a-4: update_database_entry with unknown key — error names key, lists valid keys, pages.update NOT called[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4a-5: add_database_entries sandwich [good, bad, good] — loop continues past throw[39m[32m 4[2mms[22m[39m
+[31m     [31m×[31m G4a-6: stale-cache bust — user adds a property in Notion UI, next call succeeds after refetch[39m[32m 2[2mms[22m[39m
+[31m     [31m×[31m G4a-7: genuine unknown still throws after bust — both retrieves return same stale schema[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-1: relation property — error contains name, 'relation', 'future release', and an immediate-fix clause[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-2: people property — 'does not support', NO future-release promise[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-3: files property — 'does not support', NO future-release promise[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-4: formula property — 'computed by Notion'[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-5: rollup property — 'computed by Notion'[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-6: created_time property — 'computed by Notion'[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-6: last_edited_time property — 'computed by Notion'[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-6: created_by property — 'computed by Notion'[39m[32m 3[2mms[22m[39m
+[31m     [31m×[31m G4b-6: last_edited_by property — 'computed by Notion'[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-6: unique_id property — 'computed by Notion'[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-6: verification property — 'computed by Notion'[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-7: update_database_entry with relation property — error, pages.update NOT called[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-8: add_database_entries sandwich [good, bad(relation), good] — loop continues[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m G4b-9: mixed payload — throw-before-write on add_database_entry (no partial state)[39m[32m 1[2mms[22m[39m
+ [32m✓[39m tests/create-page-from-file.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 160[2mms[22m[39m
+ [32m✓[39m tests/parent-resolution.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m tests/stdio-startup.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4080[2mms[22m[39m
+     [33m[2m✓[22m[39m prints guidance for HTTP clients on stderr [33m 4079[2mms[22m[39m
+ [32m✓[39m tests/http-transport.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 1023[2mms[22m[39m
+
+[2m Test Files [22m [1m[31m4 failed[39m[22m[2m | [22m[1m[32m14 passed[39m[22m[90m (18)[39m
+[2m      Tests [22m [1m[31m34 failed[39m[22m[2m | [22m[1m[32m254 passed[39m[22m[90m (288)[39m
+[2m   Start at [22m 14:10:39
+[2m   Duration [22m 9.90s[2m (transform 4.64s, setup 0ms, import 34.68s, tests 5.55s, environment 1ms)[22m
+
