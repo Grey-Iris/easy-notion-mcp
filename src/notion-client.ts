@@ -142,7 +142,7 @@ export async function buildTextFilter(client: Client, dbId: string, text: string
   return { or: textProps };
 }
 
-function schemaToProperties(schema: Array<{ name: string; type: string }>) {
+export function schemaToProperties(schema: Array<{ name: string; type: string }>) {
   const props: Record<string, any> = {};
 
   for (const { name, type } of schema) {
@@ -193,14 +193,32 @@ async function convertPropertyValues(
   dbId: string,
   values: Record<string, unknown>,
 ) {
-  const ds = (await getCachedSchema(client, dbId)) as any;
+  let ds = (await getCachedSchema(client, dbId)) as any;
+  const quoted = (ks: string[]) => ks.map((k) => `'${k}'`).join(", ");
+
+  let unknownKeys = Object.keys(values).filter((k) => !(k in (ds.properties ?? {})));
+  if (unknownKeys.length > 0) {
+    // Cache may be stale (5-minute TTL); a user who just added a property in
+    // the Notion UI would otherwise be told their new key is unknown. Bust
+    // and refetch ONCE before throwing so the error reflects reality.
+    schemaCache.delete(dbId);
+    ds = (await getCachedSchema(client, dbId)) as any;
+    unknownKeys = Object.keys(values).filter((k) => !(k in (ds.properties ?? {})));
+  }
+
+  if (unknownKeys.length > 0) {
+    const validKeys = Object.keys(ds.properties ?? {});
+    throw new Error(
+      `Unknown property name(s): ${quoted(unknownKeys)}. ` +
+        `Valid property names for this database: ${quoted(validKeys)}. ` +
+        `Property names are case-sensitive.`,
+    );
+  }
+
   const result: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(values)) {
     const propConfig = ds.properties[key];
-    if (!propConfig) {
-      continue;
-    }
 
     switch (propConfig.type) {
       case "title":
@@ -240,8 +258,38 @@ async function convertPropertyValues(
       case "status":
         result[key] = { status: { name: String(value) } };
         break;
+      case "relation":
+        throw new Error(
+          `Property '${key}' has type 'relation'. ` +
+            `This server does not yet support writing relation properties — support is planned for a future release. ` +
+            `Remove '${key}' from this payload if you want the rest of the row to succeed, then set the relation in the Notion UI.`,
+        );
+      case "people":
+      case "files":
+        throw new Error(
+          `Property '${key}' has type '${propConfig.type}'. ` +
+            `easy-notion-mcp does not support writing '${propConfig.type}' properties. ` +
+            `Remove '${key}' from the payload, or set this field in the Notion UI.`,
+        );
+      case "formula":
+      case "rollup":
+      case "created_time":
+      case "last_edited_time":
+      case "created_by":
+      case "last_edited_by":
+      case "unique_id":
+      case "verification":
+        throw new Error(
+          `Property '${key}' has type '${propConfig.type}'. ` +
+            `This type is computed by Notion and cannot be set via API. ` +
+            `Remove '${key}' from the payload; Notion populates the value automatically.`,
+        );
       default:
-        break;
+        throw new Error(
+          `Property '${key}' has type '${propConfig.type}', which this server does not recognize. ` +
+            `Remove '${key}' from the payload for now, or set it in the Notion UI. ` +
+            `If this is a new Notion property type, file an issue at the easy-notion-mcp repository.`,
+        );
     }
   }
 

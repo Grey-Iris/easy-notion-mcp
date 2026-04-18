@@ -30,6 +30,7 @@ import {
   movePage,
   queryDatabase,
   restorePage,
+  schemaToProperties,
   searchNotion,
   uploadFile,
   updateDataSource,
@@ -119,6 +120,23 @@ function getHeadingLevel(type: string): number {
   return 0;
 }
 
+export type OmittedBlock = { id: string; type: string };
+type FetchContext = { omitted: OmittedBlock[] };
+
+/**
+ * Block types that `normalizeBlock` can map to a `NotionBlock`. Must stay in
+ * sync with the switch in `normalizeBlock` below — exported so the test suite
+ * can guard against drift (a type added here but not implemented below would
+ * surface as an `omitted_block_types` warning on read).
+ */
+export const SUPPORTED_BLOCK_TYPES = new Set<string>([
+  "heading_1", "heading_2", "heading_3", "paragraph", "toggle",
+  "bulleted_list_item", "numbered_list_item", "quote", "callout",
+  "equation", "table", "table_row", "column_list", "column", "code",
+  "divider", "to_do", "table_of_contents", "bookmark", "embed",
+  "image", "file", "audio", "video",
+]);
+
 function normalizeBlock(block: any): NotionBlock | null {
   switch (block.type) {
     case "heading_1":
@@ -183,6 +201,11 @@ function normalizeBlock(block: any): NotionBlock | null {
           table_width: block.table.table_width,
           has_column_header: block.table.has_column_header ?? true,
           has_row_header: block.table.has_row_header ?? false,
+          // SUPPORTED_BLOCK_TYPES invariant: Notion guarantees table.children
+          // are always table_row, which is in the supported set. No ctx
+          // threading needed here — if a new child type ever appears we'd
+          // drop it silently, but the outer recursive fetch will also see it
+          // (has_children) and capture it there.
           children: (block.table.children ?? [])
             .map((child: any) => normalizeBlock(child))
             .filter((child: any): child is NotionBlock => child !== null),
@@ -315,6 +338,7 @@ function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
 async function fetchBlocksRecursive(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
+  ctx?: FetchContext,
 ): Promise<NotionBlock[]> {
   const rawBlocks = await listChildren(client, blockId);
   const results: NotionBlock[] = [];
@@ -322,11 +346,14 @@ async function fetchBlocksRecursive(
   for (const raw of rawBlocks) {
     const normalized = normalizeBlock(raw);
     if (!normalized) {
+      if (ctx && !SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+        ctx.omitted.push({ id: raw.id, type: raw.type });
+      }
       continue;
     }
 
     if (raw.has_children) {
-      const children = await fetchBlocksRecursive(client, raw.id);
+      const children = await fetchBlocksRecursive(client, raw.id, ctx);
       if (children.length > 0) {
         attachChildren(normalized, children);
       }
@@ -342,6 +369,7 @@ async function fetchBlocksWithLimit(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
   maxBlocks: number,
+  ctx?: FetchContext,
 ): Promise<{ blocks: NotionBlock[]; hasMore: boolean }> {
   const results: NotionBlock[] = [];
   let hasMore = false;
@@ -363,11 +391,14 @@ async function fetchBlocksWithLimit(
 
       const normalized = normalizeBlock(raw);
       if (!normalized) {
+        if (ctx && !SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+          ctx.omitted.push({ id: raw.id, type: raw.type });
+        }
         continue;
       }
 
       if (raw.has_children) {
-        const children = await fetchBlocksRecursive(client, raw.id);
+        const children = await fetchBlocksRecursive(client, raw.id, ctx);
         if (children.length > 0) {
           attachChildren(normalized, children);
         }
@@ -504,7 +535,9 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "replace_content",
-    description: "Replace all page content with the provided markdown. Deletes existing blocks and writes new ones. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).",
+    description: `DESTRUCTIVE — no rollback: this tool deletes every block on the page, then writes new blocks. If the write fails mid-call (invalid markdown, rate limit, network error, Notion rejection of any single block), the page is left partially or fully emptied and there is no automatic recovery. For irreplaceable content, duplicate_page the target first so you have a restore point, or use find_replace / append_content which are non-destructive.
+
+Replaces all page content with the provided markdown. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).`,
     inputSchema: {
       type: "object",
       properties: {
@@ -516,7 +549,9 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "update_section",
-    description: "Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.",
+    description: `DESTRUCTIVE — no rollback: this tool deletes the heading block and every block in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied AND the heading anchor is gone, so a retry will fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
+
+Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -543,7 +578,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "read_page",
-    description: "Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. The markdown round-trips cleanly \u2014 read a page, modify the markdown, replace_content to update.",
+    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -562,7 +597,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "duplicate_page",
-    description: "Duplicate a page. Reads all blocks from the source and creates a new page with the same content.",
+    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a \`warnings\` field. Deep-duplication of subpages is not yet supported.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1114,13 +1149,14 @@ export function createServer(
 
           let blocks: NotionBlock[];
           let hasMore = false;
+          const ctx: FetchContext = { omitted: [] };
 
           if (max_blocks !== undefined && max_blocks > 0) {
-            const result = await fetchBlocksWithLimit(notion, page_id, max_blocks);
+            const result = await fetchBlocksWithLimit(notion, page_id, max_blocks, ctx);
             blocks = result.blocks;
             hasMore = result.hasMore;
           } else {
-            blocks = await fetchBlocksRecursive(notion, page_id);
+            blocks = await fetchBlocksRecursive(notion, page_id, ctx);
           }
 
           const response: Record<string, unknown> = {
@@ -1132,6 +1168,10 @@ export function createServer(
 
           if (hasMore) {
             response.has_more = true;
+          }
+
+          if (ctx.omitted.length > 0) {
+            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
           }
 
           if (include_metadata) {
@@ -1157,7 +1197,8 @@ export function createServer(
           const explicitParent = parent_page_id ?? sourcePage.parent?.page_id;
           const parent = await resolveParent(notion, explicitParent);
 
-          const sourceBlocks = await fetchBlocksRecursive(notion, page_id);
+          const ctx: FetchContext = { omitted: [] };
+          const sourceBlocks = await fetchBlocksRecursive(notion, page_id, ctx);
           const sourceIcon =
             sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
           const newPage = await createPage(notion, parent, newTitle, sourceBlocks, sourceIcon);
@@ -1170,6 +1211,9 @@ export function createServer(
           };
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          if (ctx.omitted.length > 0) {
+            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
           }
           return textResponse(response);
         }
@@ -1256,11 +1300,18 @@ export function createServer(
             schema,
             is_inline === undefined ? undefined : { is_inline },
           ) as any;
+          // Derive the response's properties list from what we actually sent
+          // to Notion (schemaToProperties silently drops unsupported types).
+          // databases.create under API 2025-09-03 does not populate
+          // result.properties on the response — properties live on the data
+          // source, not the database — so reading from `result` would always
+          // return []. Mirroring schemaToProperties' output gives the truthful
+          // "what Notion created" shape without an extra round-trip (G-4c).
           return textResponse({
             id: result.id,
             title,
             url: result.url,
-            properties: schema.map(s => s.name),
+            properties: Object.keys(schemaToProperties(schema)),
           });
         }
         case "update_data_source": {

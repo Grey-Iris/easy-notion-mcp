@@ -258,8 +258,8 @@ easy-notion-mcp includes 26 individually-named tools across 5 categories. Each t
 | `create_page` | Create a page from markdown |
 | `read_page` | Read a page as markdown |
 | `append_content` | Append markdown to a page |
-| `replace_content` | Replace all content on a page |
-| `update_section` | Update a section by heading name |
+| `replace_content` | Replace all page content (destructive; duplicate_page first for irreplaceable content) |
+| `update_section` | Update a section by heading name (destructive; duplicate_page first for irreplaceable content) |
 | `find_replace` | Find and replace text, preserving files |
 | `update_page` | Update title, icon, or cover |
 | `duplicate_page` | Copy a page and its content |
@@ -287,6 +287,8 @@ easy-notion-mcp includes 26 individually-named tools across 5 categories. Each t
 | `add_database_entries` | Add multiple rows in one call |
 | `update_database_entry` | Update a row using simple key-value pairs |
 | `delete_database_entry` | Delete (archive) a database entry |
+
+> **As of v0.3.0, database write tools reject unknown property names and unsupported property types with a clear error instead of silently dropping them.** Call `get_database` first to confirm property names and types. Supported property types for writes: `title`, `rich_text`, `number`, `select`, `multi_select`, `date`, `checkbox`, `url`, `email`, `phone`, `status`. Other types (`relation`, `people`, `files`, `formula`, `rollup`, and computed types like `created_time` / `unique_id`) are rejected; support for `relation` / `people` / `files` is planned for future releases.
 
 easy-notion-mcp fetches the database schema, maps values to Notion's property format, and handles type conversion automatically when agents pass simple key-value pairs like `{ "Status": "Done" }`. Schema is cached for 5 minutes to avoid redundant API calls during batch operations.
 
