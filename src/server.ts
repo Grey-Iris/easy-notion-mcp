@@ -119,6 +119,23 @@ function getHeadingLevel(type: string): number {
   return 0;
 }
 
+export type OmittedBlock = { id: string; type: string };
+type FetchContext = { omitted: OmittedBlock[] };
+
+/**
+ * Block types that `normalizeBlock` can map to a `NotionBlock`. Must stay in
+ * sync with the switch in `normalizeBlock` below — exported so the test suite
+ * can guard against drift (a type added here but not implemented below would
+ * surface as an `omitted_block_types` warning on read).
+ */
+export const SUPPORTED_BLOCK_TYPES = new Set<string>([
+  "heading_1", "heading_2", "heading_3", "paragraph", "toggle",
+  "bulleted_list_item", "numbered_list_item", "quote", "callout",
+  "equation", "table", "table_row", "column_list", "column", "code",
+  "divider", "to_do", "table_of_contents", "bookmark", "embed",
+  "image", "file", "audio", "video",
+]);
+
 function normalizeBlock(block: any): NotionBlock | null {
   switch (block.type) {
     case "heading_1":
@@ -183,6 +200,11 @@ function normalizeBlock(block: any): NotionBlock | null {
           table_width: block.table.table_width,
           has_column_header: block.table.has_column_header ?? true,
           has_row_header: block.table.has_row_header ?? false,
+          // SUPPORTED_BLOCK_TYPES invariant: Notion guarantees table.children
+          // are always table_row, which is in the supported set. No ctx
+          // threading needed here — if a new child type ever appears we'd
+          // drop it silently, but the outer recursive fetch will also see it
+          // (has_children) and capture it there.
           children: (block.table.children ?? [])
             .map((child: any) => normalizeBlock(child))
             .filter((child: any): child is NotionBlock => child !== null),
@@ -315,6 +337,7 @@ function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
 async function fetchBlocksRecursive(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
+  ctx?: FetchContext,
 ): Promise<NotionBlock[]> {
   const rawBlocks = await listChildren(client, blockId);
   const results: NotionBlock[] = [];
@@ -322,11 +345,14 @@ async function fetchBlocksRecursive(
   for (const raw of rawBlocks) {
     const normalized = normalizeBlock(raw);
     if (!normalized) {
+      if (ctx && !SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+        ctx.omitted.push({ id: raw.id, type: raw.type });
+      }
       continue;
     }
 
     if (raw.has_children) {
-      const children = await fetchBlocksRecursive(client, raw.id);
+      const children = await fetchBlocksRecursive(client, raw.id, ctx);
       if (children.length > 0) {
         attachChildren(normalized, children);
       }
@@ -342,6 +368,7 @@ async function fetchBlocksWithLimit(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
   maxBlocks: number,
+  ctx?: FetchContext,
 ): Promise<{ blocks: NotionBlock[]; hasMore: boolean }> {
   const results: NotionBlock[] = [];
   let hasMore = false;
@@ -363,11 +390,14 @@ async function fetchBlocksWithLimit(
 
       const normalized = normalizeBlock(raw);
       if (!normalized) {
+        if (ctx && !SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+          ctx.omitted.push({ id: raw.id, type: raw.type });
+        }
         continue;
       }
 
       if (raw.has_children) {
-        const children = await fetchBlocksRecursive(client, raw.id);
+        const children = await fetchBlocksRecursive(client, raw.id, ctx);
         if (children.length > 0) {
           attachChildren(normalized, children);
         }
@@ -1114,13 +1144,14 @@ export function createServer(
 
           let blocks: NotionBlock[];
           let hasMore = false;
+          const ctx: FetchContext = { omitted: [] };
 
           if (max_blocks !== undefined && max_blocks > 0) {
-            const result = await fetchBlocksWithLimit(notion, page_id, max_blocks);
+            const result = await fetchBlocksWithLimit(notion, page_id, max_blocks, ctx);
             blocks = result.blocks;
             hasMore = result.hasMore;
           } else {
-            blocks = await fetchBlocksRecursive(notion, page_id);
+            blocks = await fetchBlocksRecursive(notion, page_id, ctx);
           }
 
           const response: Record<string, unknown> = {
@@ -1132,6 +1163,10 @@ export function createServer(
 
           if (hasMore) {
             response.has_more = true;
+          }
+
+          if (ctx.omitted.length > 0) {
+            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
           }
 
           if (include_metadata) {
@@ -1157,7 +1192,8 @@ export function createServer(
           const explicitParent = parent_page_id ?? sourcePage.parent?.page_id;
           const parent = await resolveParent(notion, explicitParent);
 
-          const sourceBlocks = await fetchBlocksRecursive(notion, page_id);
+          const ctx: FetchContext = { omitted: [] };
+          const sourceBlocks = await fetchBlocksRecursive(notion, page_id, ctx);
           const sourceIcon =
             sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
           const newPage = await createPage(notion, parent, newTitle, sourceBlocks, sourceIcon);
@@ -1170,6 +1206,9 @@ export function createServer(
           };
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          if (ctx.omitted.length > 0) {
+            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
           }
           return textResponse(response);
         }

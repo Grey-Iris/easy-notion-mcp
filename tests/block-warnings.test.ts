@@ -72,14 +72,14 @@ async function connect(notion: any) {
 
 // --- raw-block builders ----------------------------------------------------
 
-function para(id: string, text: string = "p"): Raw {
-  return { id, type: "paragraph", paragraph: { rich_text: [{ plain_text: text }] }, has_children: false };
+function para(id: string): Raw {
+  return { id, type: "paragraph", paragraph: { rich_text: [] }, has_children: false };
 }
-function heading1(id: string, text: string = "H1"): Raw {
-  return { id, type: "heading_1", heading_1: { rich_text: [{ plain_text: text }] }, has_children: false };
+function heading1(id: string): Raw {
+  return { id, type: "heading_1", heading_1: { rich_text: [] }, has_children: false };
 }
 function bulleted(id: string): Raw {
-  return { id, type: "bulleted_list_item", bulleted_list_item: { rich_text: [{ plain_text: "b" }] }, has_children: false };
+  return { id, type: "bulleted_list_item", bulleted_list_item: { rich_text: [] }, has_children: false };
 }
 function syncedBlock(id: string): Raw {
   return { id, type: "synced_block", synced_block: { synced_from: null }, has_children: false };
@@ -97,7 +97,7 @@ function malformedImage(id: string): Raw {
   return { id, type: "image", image: {}, has_children: false };
 }
 function paraWithChildren(id: string): Raw {
-  return { id, type: "paragraph", paragraph: { rich_text: [{ plain_text: "parent" }] }, has_children: true };
+  return { id, type: "paragraph", paragraph: { rich_text: [] }, has_children: true };
 }
 
 function extractResponse(text: string): any {
