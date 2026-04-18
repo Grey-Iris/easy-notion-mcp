@@ -1299,7 +1299,7 @@ export function createServer(
             id: result.id,
             title,
             url: result.url,
-            properties: schema.map(s => s.name),
+            properties: Object.keys(result.properties ?? {}),
           });
         }
         case "update_data_source": {
