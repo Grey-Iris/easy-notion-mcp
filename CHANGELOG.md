@@ -48,6 +48,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously passed `{ notionToken }` alone now throw at construction
   with an actionable error.
 
+- **Database writes reject unknown property names (G-4a).**
+  `add_database_entry`, `update_database_entry`, and the per-entry
+  step of `add_database_entries` now throw with the rejected key
+  names and the full valid-key list when a property name is not in
+  the database schema — previously silently dropped. When the cache
+  is the culprit (user added a property in the Notion UI within
+  the 5-minute TTL), the schema is busted and refetched once before
+  the error fires, so newly-added properties work on the next call
+  without waiting for TTL expiry. Migration: call `get_database`
+  first to confirm property names.
+
+- **Database writes reject unsupported property types (G-4b).**
+  The same write surface now throws instead of silently dropping
+  when a property in the payload has a type the server can't write.
+  Error messaging is split: `relation` names the future-release
+  roadmap; `people` and `files` state "this server does not support"
+  without a future-release promise; computed types (`formula`,
+  `rollup`, `created_time`, `last_edited_time`, `created_by`,
+  `last_edited_by`, `unique_id`, `verification`) are tagged as
+  "computed by Notion and cannot be set via API." Migration: remove
+  the unsupported key from the payload, or edit in the Notion UI.
+
+- **`create_database` response reports what Notion actually created
+  (G-4c).** The `properties` field in the response is now derived
+  from Notion's API result rather than the requested schema. If
+  the server silently dropped an unsupported type during
+  schema-build, the response now makes the mismatch visible instead
+  of echoing back the request. Migration: treat `response.properties`
+  as a subset-of check against the request.
+
 ### Added
 
 - `NOTION_MCP_BEARER` env var — shared-secret bearer required in
@@ -66,6 +96,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   call out the `file://` form as stdio-only, so HTTP clients reading
   `tools/list` don't advertise-then-fail.
 
+- Optional `warnings: Array<{code, ...detail}>` field on tool
+  responses, omitted when empty. Used by `read_page` and
+  `duplicate_page` to signal non-fatal data-fidelity concerns.
+  PR 2 ships one code: `omitted_block_types` with
+  `blocks: Array<{id, type}>`, emitted when the source page
+  contains block types the server does not yet represent
+  (e.g., `synced_block`, `child_page`, `child_database`,
+  `link_to_page`). Codes are part of the contract once shipped.
+
+- Exported `SUPPORTED_BLOCK_TYPES` set from `src/server.ts` as a
+  test-facing invariant consumer. Documents which types
+  `normalizeBlock` is expected to handle; a drift test guards
+  against additions to the set that aren't backed by a case in
+  the switch.
+
 ### Fixed
 
 - **Remote arbitrary local-file-read in HTTP transport (G-1).** An
@@ -76,6 +121,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bind, (b) a transport-aware gate inside `processFileUploads` plus
   the `update_page.cover` path that rejects `file://` in HTTP mode.
 
+- **Silent block-type drops on read (G-3b).** `read_page` and
+  `duplicate_page` previously dropped unsupported block types
+  (`synced_block`, `child_page`, `child_database`, `link_to_page`,
+  etc.) with no signal. Combined with `replace_content`, this
+  created a permanent data-loss path: read (lossy) → edit →
+  replace (destructive). The new `warnings` field surfaces each
+  omitted block's id and type so agents know not to round-trip
+  the markdown, and can use `duplicate_page` first as a restore
+  point when editing pages with unsupported blocks.
+
+- **Silent success on destructive edits (G-3a).** `replace_content`
+  and `update_section` tool descriptions now open with a
+  **DESTRUCTIVE — no rollback** callout naming the specific
+  failure modes (invalid markdown, rate limit, network, per-block
+  Notion rejection) and directing agents to `duplicate_page` as a
+  recovery pattern. The handlers' behavior is unchanged — Notion
+  has no transactional primitive, so atomic replace is not
+  implementable. The fix is user-visible mitigation through clear
+  descriptions.
+
+- **Silent success on DB write value drops (G-4a, G-4b).** Both
+  failure modes previously returned `{id, url}` success while
+  skipping the offending property. The `Fixed` entries for these
+  G-4 items are captured under `Breaking changes` above because
+  they change the tool's success/failure contract.
+
+- **`create_database` response echoed the requested schema (G-4c).**
+  `properties` in the response now reflects what Notion actually
+  created. If schema-build silently dropped an unsupported type,
+  the response makes the mismatch visible to the agent.
+
 ### Known limits (deferred to v0.3.1)
 
 - DNS-rebinding protection is not wired on the MCP endpoint. Bearer
@@ -83,3 +159,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CORS on the OAuth endpoints (`/register`, `/token`, `/revoke`) is
   permissive.
 - OAuth orphan refresh records are not cleaned up.
+- `schemaToProperties` still silently drops unsupported types
+  during `create_database` schema-build; G-4c makes the drop
+  visible in the response but does not yet throw on the request
+  side. Planned for v0.3.1 alongside relation/people/files write
+  support.
+- `simplifyProperty` read-side drops (`query_database` returning
+  `null` for unhandled property types) are not yet signaled.
+  Planned for v0.3.1, likely reusing the `warnings` schema with a
+  per-row code.
+- `update_section` is not heading-preserving. If the replacement
+  markdown omits the leading heading, the anchor disappears and a
+  retry fails with "heading not found." Planned for v0.3.1.
+- `duplicate_page` is not deep: nested `child_page` subpages are
+  not duplicated. G-3b surfaces the drop via `warnings`; full
+  deep-copy is not committed to a specific release.

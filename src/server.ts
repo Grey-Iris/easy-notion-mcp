@@ -534,7 +534,9 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "replace_content",
-    description: "Replace all page content with the provided markdown. Deletes existing blocks and writes new ones. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).",
+    description: `DESTRUCTIVE — no rollback: this tool deletes every block on the page, then writes new blocks. If the write fails mid-call (invalid markdown, rate limit, network error, Notion rejection of any single block), the page is left partially or fully emptied and there is no automatic recovery. For irreplaceable content, duplicate_page the target first so you have a restore point, or use find_replace / append_content which are non-destructive.
+
+Replaces all page content with the provided markdown. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).`,
     inputSchema: {
       type: "object",
       properties: {
@@ -546,7 +548,9 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "update_section",
-    description: "Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.",
+    description: `DESTRUCTIVE — no rollback: this tool deletes the heading block and every block in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied AND the heading anchor is gone, so a retry will fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
+
+Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -573,7 +577,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "read_page",
-    description: "Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. The markdown round-trips cleanly \u2014 read a page, modify the markdown, replace_content to update.",
+    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -592,7 +596,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "duplicate_page",
-    description: "Duplicate a page. Reads all blocks from the source and creates a new page with the same content.",
+    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a \`warnings\` field. Deep-duplication of subpages is not yet supported.`,
     inputSchema: {
       type: "object",
       properties: {
