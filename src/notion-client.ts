@@ -188,6 +188,74 @@ export function schemaToProperties(schema: Array<{ name: string; type: string }>
   return props;
 }
 
+/** @internal Exported for test seams; not part of the public API contract. */
+export function convertPropertyValue(
+  type: string,
+  key: string,
+  value: unknown,
+): Record<string, unknown> {
+  switch (type) {
+    case "title":
+      return { title: titleRichText(String(value)) };
+    case "rich_text":
+      return { rich_text: titleRichText(String(value)) };
+    case "number":
+      return { number: Number(value) };
+    case "select":
+      return { select: { name: String(value) } };
+    case "multi_select":
+      return {
+        multi_select: (Array.isArray(value) ? value : [value]).map((item) => ({
+          name: String(item),
+        })),
+      };
+    case "date":
+      return { date: { start: String(value) } };
+    case "checkbox":
+      return { checkbox: Boolean(value) };
+    case "url":
+      return { url: String(value) };
+    case "email":
+      return { email: String(value) };
+    case "phone_number":
+      return { phone_number: String(value) };
+    case "status":
+      return { status: { name: String(value) } };
+    case "relation":
+      throw new Error(
+        `Property '${key}' has type 'relation'. ` +
+          `This server does not yet support writing relation properties — support is planned for a future release. ` +
+          `Remove '${key}' from this payload if you want the rest of the row to succeed, then set the relation in the Notion UI.`,
+      );
+    case "people":
+    case "files":
+      throw new Error(
+        `Property '${key}' has type '${type}'. ` +
+          `easy-notion-mcp does not support writing '${type}' properties. ` +
+          `Remove '${key}' from the payload, or set this field in the Notion UI.`,
+      );
+    case "formula":
+    case "rollup":
+    case "created_time":
+    case "last_edited_time":
+    case "created_by":
+    case "last_edited_by":
+    case "unique_id":
+    case "verification":
+      throw new Error(
+        `Property '${key}' has type '${type}'. ` +
+          `This type is computed by Notion and cannot be set via API. ` +
+          `Remove '${key}' from the payload; Notion populates the value automatically.`,
+      );
+    default:
+      throw new Error(
+        `Property '${key}' has type '${type}', which this server does not recognize. ` +
+          `Remove '${key}' from the payload for now, or set it in the Notion UI. ` +
+          `If this is a new Notion property type, file an issue at the easy-notion-mcp repository.`,
+      );
+  }
+}
+
 async function convertPropertyValues(
   client: Client,
   dbId: string,
@@ -219,78 +287,7 @@ async function convertPropertyValues(
 
   for (const [key, value] of Object.entries(values)) {
     const propConfig = ds.properties[key];
-
-    switch (propConfig.type) {
-      case "title":
-        result[key] = { title: titleRichText(String(value)) };
-        break;
-      case "rich_text":
-        result[key] = { rich_text: titleRichText(String(value)) };
-        break;
-      case "number":
-        result[key] = { number: Number(value) };
-        break;
-      case "select":
-        result[key] = { select: { name: String(value) } };
-        break;
-      case "multi_select":
-        result[key] = {
-          multi_select: (Array.isArray(value) ? value : [value]).map((item) => ({
-            name: String(item),
-          })),
-        };
-        break;
-      case "date":
-        result[key] = { date: { start: String(value) } };
-        break;
-      case "checkbox":
-        result[key] = { checkbox: Boolean(value) };
-        break;
-      case "url":
-        result[key] = { url: String(value) };
-        break;
-      case "email":
-        result[key] = { email: String(value) };
-        break;
-      case "phone_number":
-        result[key] = { phone_number: String(value) };
-        break;
-      case "status":
-        result[key] = { status: { name: String(value) } };
-        break;
-      case "relation":
-        throw new Error(
-          `Property '${key}' has type 'relation'. ` +
-            `This server does not yet support writing relation properties — support is planned for a future release. ` +
-            `Remove '${key}' from this payload if you want the rest of the row to succeed, then set the relation in the Notion UI.`,
-        );
-      case "people":
-      case "files":
-        throw new Error(
-          `Property '${key}' has type '${propConfig.type}'. ` +
-            `easy-notion-mcp does not support writing '${propConfig.type}' properties. ` +
-            `Remove '${key}' from the payload, or set this field in the Notion UI.`,
-        );
-      case "formula":
-      case "rollup":
-      case "created_time":
-      case "last_edited_time":
-      case "created_by":
-      case "last_edited_by":
-      case "unique_id":
-      case "verification":
-        throw new Error(
-          `Property '${key}' has type '${propConfig.type}'. ` +
-            `This type is computed by Notion and cannot be set via API. ` +
-            `Remove '${key}' from the payload; Notion populates the value automatically.`,
-        );
-      default:
-        throw new Error(
-          `Property '${key}' has type '${propConfig.type}', which this server does not recognize. ` +
-            `Remove '${key}' from the payload for now, or set it in the Notion UI. ` +
-            `If this is a new Notion property type, file an issue at the easy-notion-mcp repository.`,
-        );
-    }
+    result[key] = convertPropertyValue(propConfig.type, key, value);
   }
 
   return result;

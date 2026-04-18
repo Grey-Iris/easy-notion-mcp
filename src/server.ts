@@ -46,7 +46,8 @@ function wrapUntrusted(markdown: string, trustContent: boolean): string {
   return trustContent ? markdown : CONTENT_NOTICE + markdown;
 }
 
-function simplifyProperty(prop: any): unknown {
+/** @internal Exported for test seams; not part of the public API contract. */
+export function simplifyProperty(prop: any): unknown {
   switch (prop?.type) {
     case "title":
       return prop.title?.map((t: any) => t.plain_text).join("") ?? "";
