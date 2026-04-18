@@ -72,11 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`create_database` response reports what Notion actually created
   (G-4c).** The `properties` field in the response is now derived
-  from Notion's API result rather than the requested schema. If
-  the server silently dropped an unsupported type during
-  schema-build, the response now makes the mismatch visible instead
-  of echoing back the request. Migration: treat `response.properties`
-  as a subset-of check against the request.
+  from the property payload the server sent to Notion (after
+  `schemaToProperties` filtering), rather than echoing the
+  requested schema. If the server silently dropped an unsupported
+  type during schema-build, the response now makes the mismatch
+  visible instead of echoing back the request. Migration: treat
+  `response.properties` as a subset-of check against the request.
 
 ### Added
 

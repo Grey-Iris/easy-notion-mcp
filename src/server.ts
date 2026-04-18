@@ -30,6 +30,7 @@ import {
   movePage,
   queryDatabase,
   restorePage,
+  schemaToProperties,
   searchNotion,
   uploadFile,
   updateDataSource,
@@ -1299,11 +1300,18 @@ export function createServer(
             schema,
             is_inline === undefined ? undefined : { is_inline },
           ) as any;
+          // Derive the response's properties list from what we actually sent
+          // to Notion (schemaToProperties silently drops unsupported types).
+          // databases.create under API 2025-09-03 does not populate
+          // result.properties on the response — properties live on the data
+          // source, not the database — so reading from `result` would always
+          // return []. Mirroring schemaToProperties' output gives the truthful
+          // "what Notion created" shape without an extra round-trip (G-4c).
           return textResponse({
             id: result.id,
             title,
             url: result.url,
-            properties: Object.keys(result.properties ?? {}),
+            properties: Object.keys(schemaToProperties(schema)),
           });
         }
         case "update_data_source": {

@@ -142,7 +142,7 @@ export async function buildTextFilter(client: Client, dbId: string, text: string
   return { or: textProps };
 }
 
-function schemaToProperties(schema: Array<{ name: string; type: string }>) {
+export function schemaToProperties(schema: Array<{ name: string; type: string }>) {
   const props: Record<string, any> = {};
 
   for (const { name, type } of schema) {
