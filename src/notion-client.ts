@@ -1,4 +1,5 @@
 import { Client } from "@notionhq/client";
+import type { UpdateDataSourceParameters } from "@notionhq/client/build/src/api-endpoints.js";
 import { readFile, stat } from "fs/promises";
 import { basename, extname } from "path";
 import { fileURLToPath } from "url";
@@ -35,6 +36,8 @@ function getMimeType(filePath: string): string {
 function titleRichText(content: string) {
   return [{ type: "text" as const, text: { content } }];
 }
+
+type PropertiesUpdate = UpdateDataSourceParameters["properties"];
 
 const schemaCache = new Map<string, { schema: any; expires: number }>();
 const dataSourceIdCache = new Map<string, { dsId: string; expires: number }>();
@@ -139,7 +142,7 @@ export async function buildTextFilter(client: Client, dbId: string, text: string
   return { or: textProps };
 }
 
-function schemaToProperties(schema: Array<{ name: string; type: string }>) {
+export function schemaToProperties(schema: Array<{ name: string; type: string }>) {
   const props: Record<string, any> = {};
 
   for (const { name, type } of schema) {
@@ -185,70 +188,106 @@ function schemaToProperties(schema: Array<{ name: string; type: string }>) {
   return props;
 }
 
+/** @internal Exported for test seams; not part of the public API contract. */
+export function convertPropertyValue(
+  type: string,
+  key: string,
+  value: unknown,
+): Record<string, unknown> {
+  switch (type) {
+    case "title":
+      return { title: titleRichText(String(value)) };
+    case "rich_text":
+      return { rich_text: titleRichText(String(value)) };
+    case "number":
+      return { number: Number(value) };
+    case "select":
+      return { select: { name: String(value) } };
+    case "multi_select":
+      return {
+        multi_select: (Array.isArray(value) ? value : [value]).map((item) => ({
+          name: String(item),
+        })),
+      };
+    case "date":
+      return { date: { start: String(value) } };
+    case "checkbox":
+      return { checkbox: Boolean(value) };
+    case "url":
+      return { url: String(value) };
+    case "email":
+      return { email: String(value) };
+    case "phone_number":
+      return { phone_number: String(value) };
+    case "status":
+      return { status: { name: String(value) } };
+    case "relation":
+      return {
+        relation: (Array.isArray(value) ? value : [value])
+          .filter((id) => id)
+          .map((id) => ({ id: String(id) })),
+      };
+    case "people":
+    case "files":
+      throw new Error(
+        `Property '${key}' has type '${type}'. ` +
+          `easy-notion-mcp does not support writing '${type}' properties. ` +
+          `Remove '${key}' from the payload, or set this field in the Notion UI.`,
+      );
+    case "formula":
+    case "rollup":
+    case "created_time":
+    case "last_edited_time":
+    case "created_by":
+    case "last_edited_by":
+    case "unique_id":
+    case "verification":
+      throw new Error(
+        `Property '${key}' has type '${type}'. ` +
+          `This type is computed by Notion and cannot be set via API. ` +
+          `Remove '${key}' from the payload; Notion populates the value automatically.`,
+      );
+    default:
+      throw new Error(
+        `Property '${key}' has type '${type}', which this server does not recognize. ` +
+          `Remove '${key}' from the payload for now, or set it in the Notion UI. ` +
+          `If this is a new Notion property type, file an issue at the easy-notion-mcp repository.`,
+      );
+  }
+}
+
 async function convertPropertyValues(
   client: Client,
   dbId: string,
   values: Record<string, unknown>,
 ) {
-  const ds = (await getCachedSchema(client, dbId)) as any;
+  let ds = (await getCachedSchema(client, dbId)) as any;
+  const quoted = (ks: string[]) => ks.map((k) => `'${k}'`).join(", ");
+
+  let unknownKeys = Object.keys(values).filter((k) => !(k in (ds.properties ?? {})));
+  if (unknownKeys.length > 0) {
+    // Cache may be stale (5-minute TTL); a user who just added a property in
+    // the Notion UI would otherwise be told their new key is unknown. Bust
+    // and refetch ONCE before throwing so the error reflects reality.
+    schemaCache.delete(dbId);
+    ds = (await getCachedSchema(client, dbId)) as any;
+    unknownKeys = Object.keys(values).filter((k) => !(k in (ds.properties ?? {})));
+  }
+
+  if (unknownKeys.length > 0) {
+    const validKeys = Object.keys(ds.properties ?? {});
+    throw new Error(
+      `Unknown property name(s): ${quoted(unknownKeys)}. ` +
+        `Valid property names for this database: ${quoted(validKeys)}. ` +
+        `Property names are case-sensitive.`,
+    );
+  }
+
   const result: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(values)) {
     const propConfig = ds.properties[key];
-    if (!propConfig) {
-      continue;
-    }
-
-    switch (propConfig.type) {
-      case "title":
-        result[key] = { title: titleRichText(String(value)) };
-        break;
-      case "rich_text":
-        result[key] = { rich_text: titleRichText(String(value)) };
-        break;
-      case "number":
-        result[key] = { number: Number(value) };
-        break;
-      case "select":
-        result[key] = { select: { name: String(value) } };
-        break;
-      case "multi_select":
-        result[key] = {
-          multi_select: (Array.isArray(value) ? value : [value]).map((item) => ({
-            name: String(item),
-          })),
-        };
-        break;
-      case "date":
-        result[key] = { date: { start: String(value) } };
-        break;
-      case "checkbox":
-        result[key] = { checkbox: Boolean(value) };
-        break;
-      case "url":
-        result[key] = { url: String(value) };
-        break;
-      case "email":
-        result[key] = { email: String(value) };
-        break;
-      case "phone_number":
-        result[key] = { phone_number: String(value) };
-        break;
-      case "status":
-        result[key] = { status: { name: String(value) } };
-        break;
-      case "relation":
-        result[key] = {
-          relation: (Array.isArray(value) ? value : [value])
-              .filter((id) => id)
-              .map((id) => ({
-                id: String(id),
-              })),
-        };
-        break;
-      default:
-        break;
-    }
+    result[key] = convertPropertyValue(propConfig.type, key, value);
   }
 
   return result;
@@ -466,12 +505,45 @@ export async function createDatabase(
   parentId: string,
   title: string,
   schema: Array<{ name: string; type: string }>,
+  options?: { is_inline?: boolean },
 ) {
   return client.databases.create({
     parent: { type: "page_id", page_id: parentId },
     title: titleRichText(title),
     initial_data_source: { properties: schemaToProperties(schema) },
+    ...(options?.is_inline !== undefined ? { is_inline: options.is_inline } : {}),
   } as any);
+}
+
+export async function updateDataSource(
+  client: Client,
+  databaseId: string,
+  updates: {
+    title?: string;
+    properties?: PropertiesUpdate;
+    in_trash?: boolean;
+  },
+) {
+  if (
+    updates.title === undefined &&
+    updates.properties === undefined &&
+    updates.in_trash === undefined
+  ) {
+    throw new Error(
+      "updateDataSource: at least one of `title`, `properties`, or `in_trash` must be provided",
+    );
+  }
+
+  const dataSourceId = await getDataSourceId(client, databaseId);
+
+  const body: Record<string, unknown> = { data_source_id: dataSourceId };
+  if (updates.title !== undefined) body.title = titleRichText(updates.title);
+  if (updates.properties !== undefined) body.properties = updates.properties;
+  if (updates.in_trash !== undefined) body.in_trash = updates.in_trash;
+
+  const result = await client.dataSources.update(body as any);
+  schemaCache.delete(databaseId);
+  return result;
 }
 
 export async function queryDatabase(

@@ -81,6 +81,7 @@ src/
 - `NOTION_TOKEN` (required) — Notion internal integration token
 - `NOTION_ROOT_PAGE_ID` (optional) — default parent page
 - `NOTION_TRUST_CONTENT` (optional) — skip content notice prefix
+- `NOTION_MCP_WORKSPACE_ROOT` (optional, stdio only) — absolute path that bounds file_path inputs for the `create_page_from_file` tool. Defaults to the server's process.cwd(). Has no effect in HTTP mode.
 
 ### HTTP mode
 - `NOTION_OAUTH_CLIENT_ID` + `NOTION_OAUTH_CLIENT_SECRET` — enables OAuth mode
@@ -131,3 +132,5 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 - **Schema caching** — database schemas are cached in-memory with a 5-minute TTL to avoid redundant API calls during batch operations
 - **`createServer` factory pattern** — decouples server setup from transport; in stdio mode the factory always returns the same client; in HTTP OAuth mode it returns a per-user client based on auth token
 - **OAuth relay** — the server acts as an MCP OAuth Authorization Server, redirects to Notion's OAuth consent screen, exchanges codes, and issues its own bearer tokens backed by encrypted file-based storage (AES-256-GCM)
+- **Transport-conditional tools** — tools can declare a `transports: ['stdio' | 'http']` list to restrict where they appear. Tools without the field are available in all transports. File-reading tools (e.g. `create_page_from_file`) are stdio-only because HTTP-mode callers don't share the server's filesystem.
+- **Non-fatal `warnings` field on tool responses** — tools may return an optional `warnings: Array<{code: string, ...detail}>` for non-fatal data-fidelity concerns (e.g., `omitted_block_types` on `read_page`). Omitted when empty. Codes are part of the contract once shipped — new tools should reuse existing codes or add specific descriptive names.

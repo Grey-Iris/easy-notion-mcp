@@ -49,7 +49,7 @@ async function main() {
 Regular text after uploads.`;
 
     console.log("Processing file uploads...");
-    const processed = await processFileUploads(client, markdown);
+    const processed = await processFileUploads(client, markdown, "stdio");
     console.log("Processed markdown:", processed);
 
     console.log("Creating page...");

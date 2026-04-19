@@ -28,17 +28,35 @@ jobs:
       - name: Security audit
         if: matrix.node-version == 20
         run: |
-          # path-to-regexp ReDoS (GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7)
-          # Not exploitable — static routes only. Remove once >=8.4.0 is published.
+          # Known non-exploitable advisories — each grounded in actual code path analysis:
+          #
+          # hono JSX SSR injection (GHSA-458j-xx4x-4375):
+          #   The MCP SDK uses hono for HTTP routing only. Neither the SDK
+          #   (verified: grep -r "hono/jsx" node_modules/@modelcontextprotocol/sdk/dist/ = 0 hits)
+          #   nor this server imports hono/jsx. The vulnerable SSR code path is never reached.
+          #   Fix requires downgrading @modelcontextprotocol/sdk to <1.25.0 (breaking).
+          #   Remove this allowlist once the SDK ships a hono bump.
+          #
+          # @hono/node-server, @modelcontextprotocol/sdk: transitive via hono, same advisory.
+          KNOWN_ALLOWLIST="hono @hono/node-server @modelcontextprotocol/sdk"
           AUDIT=$(npm audit --omit=dev --json 2>/dev/null) || true
           VULN_KEYS=$(echo "$AUDIT" | jq -r '.vulnerabilities | keys[]' 2>/dev/null)
           if [ -z "$VULN_KEYS" ]; then
             echo "No vulnerabilities found"
-          elif [ "$VULN_KEYS" = "path-to-regexp" ]; then
-            echo "::warning::Known path-to-regexp advisory (not exploitable) — skipping"
           else
-            echo "$AUDIT" | jq .
-            exit 1
+            UNKNOWN=""
+            for key in $VULN_KEYS; do
+              if ! echo "$KNOWN_ALLOWLIST" | grep -qw "$key"; then
+                UNKNOWN="$UNKNOWN $key"
+              fi
+            done
+            if [ -z "$UNKNOWN" ]; then
+              echo "::warning::Only known non-exploitable advisories present — skipping"
+            else
+              echo "Unknown vulnerabilities found:$UNKNOWN"
+              echo "$AUDIT" | jq .
+              exit 1
+            fi
           fi
 
   dependency-review:

@@ -5,8 +5,9 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
-import { processFileUploads } from "./file-upload.js";
+import { FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
+import { readMarkdownFile } from "./read-markdown-file.js";
 import {
   addComment,
   appendBlocks,
@@ -29,8 +30,10 @@ import {
   movePage,
   queryDatabase,
   restorePage,
+  schemaToProperties,
   searchNotion,
   uploadFile,
+  updateDataSource,
   updateDatabaseEntry,
   updatePage,
   type PageParent,
@@ -43,7 +46,8 @@ function wrapUntrusted(markdown: string, trustContent: boolean): string {
   return trustContent ? markdown : CONTENT_NOTICE + markdown;
 }
 
-function simplifyProperty(prop: any): unknown {
+/** @internal Exported for test seams; not part of the public API contract. */
+export function simplifyProperty(prop: any): unknown {
   switch (prop?.type) {
     case "title":
       return prop.title?.map((t: any) => t.plain_text).join("") ?? "";
@@ -69,13 +73,13 @@ function simplifyProperty(prop: any): unknown {
       return prop.status?.name ?? null;
     case "people":
       return prop.people?.map((p: any) => p.name ?? p.id) ?? [];
+    case "relation":
+      return prop.relation?.map((r: any) => r.id) ?? [];
     case "unique_id":
       if (!prop.unique_id) return null;
       return prop.unique_id.prefix
         ? `${prop.unique_id.prefix}-${prop.unique_id.number}`
         : String(prop.unique_id.number);
-    case "relation":
-      return prop.relation?.map((r: any) => r.id) ?? [];
     default:
       return null;
   }
@@ -118,6 +122,23 @@ function getHeadingLevel(type: string): number {
   if (type === "heading_3") return 3;
   return 0;
 }
+
+export type OmittedBlock = { id: string; type: string };
+type FetchContext = { omitted: OmittedBlock[] };
+
+/**
+ * Block types that `normalizeBlock` can map to a `NotionBlock`. Must stay in
+ * sync with the switch in `normalizeBlock` below — exported so the test suite
+ * can guard against drift (a type added here but not implemented below would
+ * surface as an `omitted_block_types` warning on read).
+ */
+export const SUPPORTED_BLOCK_TYPES = new Set<string>([
+  "heading_1", "heading_2", "heading_3", "paragraph", "toggle",
+  "bulleted_list_item", "numbered_list_item", "quote", "callout",
+  "equation", "table", "table_row", "column_list", "column", "code",
+  "divider", "to_do", "table_of_contents", "bookmark", "embed",
+  "image", "file", "audio", "video",
+]);
 
 function normalizeBlock(block: any): NotionBlock | null {
   switch (block.type) {
@@ -183,6 +204,11 @@ function normalizeBlock(block: any): NotionBlock | null {
           table_width: block.table.table_width,
           has_column_header: block.table.has_column_header ?? true,
           has_row_header: block.table.has_row_header ?? false,
+          // SUPPORTED_BLOCK_TYPES invariant: Notion guarantees table.children
+          // are always table_row, which is in the supported set. No ctx
+          // threading needed here — if a new child type ever appears we'd
+          // drop it silently, but the outer recursive fetch will also see it
+          // (has_children) and capture it there.
           children: (block.table.children ?? [])
             .map((child: any) => normalizeBlock(child))
             .filter((child: any): child is NotionBlock => child !== null),
@@ -315,6 +341,7 @@ function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
 async function fetchBlocksRecursive(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
+  ctx?: FetchContext,
 ): Promise<NotionBlock[]> {
   const rawBlocks = await listChildren(client, blockId);
   const results: NotionBlock[] = [];
@@ -322,11 +349,14 @@ async function fetchBlocksRecursive(
   for (const raw of rawBlocks) {
     const normalized = normalizeBlock(raw);
     if (!normalized) {
+      if (ctx && !SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+        ctx.omitted.push({ id: raw.id, type: raw.type });
+      }
       continue;
     }
 
     if (raw.has_children) {
-      const children = await fetchBlocksRecursive(client, raw.id);
+      const children = await fetchBlocksRecursive(client, raw.id, ctx);
       if (children.length > 0) {
         attachChildren(normalized, children);
       }
@@ -342,6 +372,7 @@ async function fetchBlocksWithLimit(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
   maxBlocks: number,
+  ctx?: FetchContext,
 ): Promise<{ blocks: NotionBlock[]; hasMore: boolean }> {
   const results: NotionBlock[] = [];
   let hasMore = false;
@@ -363,11 +394,14 @@ async function fetchBlocksWithLimit(
 
       const normalized = normalizeBlock(raw);
       if (!normalized) {
+        if (ctx && !SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+          ctx.omitted.push({ id: raw.id, type: raw.type });
+        }
         continue;
       }
 
       if (raw.has_children) {
-        const children = await fetchBlocksRecursive(client, raw.id);
+        const children = await fetchBlocksRecursive(client, raw.id, ctx);
         if (children.length > 0) {
           attachChildren(normalized, children);
         }
@@ -414,6 +448,13 @@ function enhanceError(error: unknown, toolName: string, args: Record<string, unk
   return message;
 }
 
+type ToolDefinition = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  transports?: readonly [ServerTransport, ...ServerTransport[]];
+};
+
 const tools = [
   {
     name: "create_page",
@@ -433,9 +474,9 @@ const tools = [
 - Equations: $$expression$$ or multi-line $$\\nexpression\\n$$ \u2192 equation block
 - Table of contents: [toc] \u2192 table of contents block
 - Embeds: [embed](url) \u2192 embed block
-- File uploads: ![alt](file:///path/to/image.png) \u2192 uploads and creates image block
+- File uploads (stdio transport only): ![alt](file:///path/to/image.png) \u2192 uploads and creates image block
   Link syntax: [name](file:///path/to/file.pdf) \u2192 uploads and creates file/audio/video block (by extension)
-  Max 20 MB per file.`,
+  Max 20 MB per file. In HTTP transport the file:// form is rejected \u2014 host the file at an HTTPS URL instead.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -452,6 +493,38 @@ const tools = [
     },
   },
   {
+    name: "create_page_from_file",
+    description: `Create a Notion page from a local markdown file. The server reads the file, validates it, and creates the page — identical result to calling create_page, without shipping the file's content through the agent's context window.
+
+STDIO MODE ONLY. This tool is not available when the server runs over HTTP, because in HTTP mode the server's filesystem belongs to the server host, not the caller.
+
+Restrictions:
+- file_path must be an ABSOLUTE path (no relative paths, no ~ expansion)
+- File must be inside the configured workspace root (defaults to the server's process.cwd(); override via the NOTION_MCP_WORKSPACE_ROOT env var)
+- File extension must be .md or .markdown
+- File size must be ≤ 1 MB (1,048,576 bytes)
+- File must be valid UTF-8
+- Symlinks are resolved and the resolved path must still be inside the workspace root
+
+Same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, task lists, etc.).`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Page title" },
+        file_path: {
+          type: "string",
+          description: "Absolute path to a local .md or .markdown file (≤ 1 MB, UTF-8, inside the configured workspace root)",
+        },
+        parent_page_id: {
+          type: "string",
+          description: "Parent page ID. Same resolution rules as create_page.",
+        },
+      },
+      required: ["title", "file_path"],
+    },
+    transports: ["stdio"] as const,
+  },
+  {
     name: "append_content",
     description: "Append markdown content to an existing page. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).",
     inputSchema: {
@@ -465,7 +538,9 @@ const tools = [
   },
   {
     name: "replace_content",
-    description: "Replace all page content with the provided markdown. Deletes existing blocks and writes new ones. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).",
+    description: `DESTRUCTIVE — no rollback: this tool deletes every block on the page, then writes new blocks. If the write fails mid-call (invalid markdown, rate limit, network error, Notion rejection of any single block), the page is left partially or fully emptied and there is no automatic recovery. For irreplaceable content, duplicate_page the target first so you have a restore point, or use find_replace / append_content which are non-destructive.
+
+Replaces all page content with the provided markdown. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).`,
     inputSchema: {
       type: "object",
       properties: {
@@ -477,7 +552,9 @@ const tools = [
   },
   {
     name: "update_section",
-    description: "Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.",
+    description: `DESTRUCTIVE — no rollback: this tool deletes the heading block and every block in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied AND the heading anchor is gone, so a retry will fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
+
+Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -504,7 +581,7 @@ const tools = [
   },
   {
     name: "read_page",
-    description: "Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. The markdown round-trips cleanly \u2014 read a page, modify the markdown, replace_content to update.",
+    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -523,7 +600,7 @@ const tools = [
   },
   {
     name: "duplicate_page",
-    description: "Duplicate a page. Reads all blocks from the source and creates a new page with the same content.",
+    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a \`warnings\` field. Deep-duplication of subpages is not yet supported.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -539,7 +616,7 @@ const tools = [
   },
   {
     name: "update_page",
-    description: "Update page title, icon, or cover. Cover accepts an image URL or a file:// path (which will be uploaded to Notion).",
+    description: "Update page title, icon, or cover. Cover accepts an image URL, or a file:// path (stdio transport only) which will be uploaded to Notion. In HTTP transport, the file:// form is rejected — use an HTTPS URL instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -620,8 +697,43 @@ const tools = [
             required: ["name", "type"],
           },
         },
+        is_inline: { type: "boolean", description: "Create the database inline within the parent page" },
       },
       required: ["title", "parent_page_id", "schema"],
+    },
+  },
+  {
+    name: "update_data_source",
+    description: `CRITICAL — full-list semantics: when you update a select or status property's \`options\` array, you MUST send the FULL desired list. ANY existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. Rows that currently reference a removed option are SILENTLY REASSIGNED to the default group's first option (e.g. 'Not started' for status properties) — not cleared, not errored, not left dangling. NO SIGNAL IS RAISED. If you want to preserve the meaning of existing rows when removing an option, reclassify those rows to another explicit option BEFORE removing the option from the schema. To ADD one option, first call get_database, then resend the full current list with your addition appended.
+
+Cannot toggle \`is_inline\` on existing databases — \`is_inline\` is a database-level field, not a data-source field. A separate \`update_database\` tool will be added in a future PR.
+
+Updates a database's schema: rename existing properties, add/update/remove select or status options, change the database title, or move it to/from trash. Use this AFTER get_database tells you the current schema. Pass the same \`database_id\` you passed to get_database — the server resolves the underlying data source internally.
+
+The \`properties\` field uses the raw Notion API shape. The server does NO merging, normalization, or validation of property payloads — whatever you send is forwarded as-is. In particular: sending \`null\` as a property value permanently DELETES that property (and any row data in it).
+
+Status property notes:
+- As of Notion's 2026-03-19 changelog, status properties are updatable via API (https://developers.notion.com/page/changelog). The legacy \`update-a-database\` and \`update-property-schema-object\` reference pages still claim status is non-updatable — ignore those; the changelog is authoritative.
+- Status property GROUPS (default: "To-do" / "In progress" / "Complete") CANNOT be reconfigured via API. Group structure must be edited in the Notion UI. New status options added via API are assigned to the default group and cannot be reassigned programmatically.
+- Known upstream issue: Notion's API may return a stale schema where options assigned to the \`in_progress\` group appear as an empty array, causing validation errors on writes (makenotion/notion-mcp-server#232). If writes to in_progress-group options fail unexpectedly, this is the likely cause.
+
+Property payload examples (raw Notion shape):
+- Rename a property:         { "Old Name": { "name": "New Name" } }
+- Replace status options:    { "Status": { "status": { "options": [{ "name": "Backlog" }, { "name": "Doing" }, { "name": "Done" }] } } }
+- Permanently delete a property and its data: { "Unused": null }
+
+This tool CANNOT update row/page data — use page update tools for that.
+
+At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided; empty updates are rejected.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        database_id: { type: "string", description: "Database ID" },
+        title: { type: "string", description: "New database title" },
+        properties: { type: "object", description: "Raw Notion property update map" },
+        in_trash: { type: "boolean", description: "True to trash, false to restore" },
+      },
+      required: ["database_id"],
     },
   },
   {
@@ -789,19 +901,29 @@ Call get_database first to see available properties and valid options.`,
       properties: {},
     },
   },
-] as const;
+] as const satisfies readonly ToolDefinition[];
+
+export type ServerTransport = "stdio" | "http";
 
 export interface CreateServerConfig {
   rootPageId?: string;
   trustContent?: boolean;
   allowWorkspaceParent?: boolean;
+  transport?: ServerTransport;
+  workspaceRoot?: string;
 }
 
 export function createServer(
   notionClientFactory: () => ReturnType<typeof createNotionClient>,
   config: CreateServerConfig = {},
 ): Server {
-  const { rootPageId, trustContent = false, allowWorkspaceParent = false } = config;
+  const {
+    rootPageId,
+    trustContent = false,
+    allowWorkspaceParent = false,
+    transport = "stdio",
+    workspaceRoot,
+  } = config;
   let stickyParentPageId: string | undefined;
 
   const server = new Server(
@@ -840,11 +962,25 @@ export function createServer(
   }
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: [...tools] };
+    const visible = (tools as readonly ToolDefinition[])
+      .filter((tool) => !tool.transports || tool.transports.includes(transport))
+      .map(({ name, description, inputSchema }) => ({
+        name,
+        description,
+        inputSchema,
+      }));
+    return { tools: visible };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
+
+    const toolDef = (tools as readonly ToolDefinition[]).find((tool) => tool.name === name);
+    if (toolDef?.transports && !toolDef.transports.includes(transport)) {
+      return textResponse({
+        error: `Tool '${name}' is not available in '${transport}' transport mode.`,
+      });
+    }
 
     try {
       switch (name) {
@@ -863,7 +999,7 @@ export function createServer(
             notion,
             parent,
             title,
-            markdownToBlocks(await processFileUploads(notion, markdown)),
+            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
             icon,
             cover,
           ) as any;
@@ -877,10 +1013,42 @@ export function createServer(
           }
           return textResponse(response);
         }
+        case "create_page_from_file": {
+          if (!workspaceRoot) {
+            return textResponse({
+              error: "create_page_from_file requires workspaceRoot to be configured on the server. This tool is stdio-only.",
+            });
+          }
+          const notion = notionClientFactory();
+          const { title, file_path, parent_page_id } = args as {
+            title: string;
+            file_path: string;
+            parent_page_id?: string;
+          };
+
+          const parent = await resolveParent(notion, parent_page_id);
+          const markdown = await readMarkdownFile(file_path, workspaceRoot);
+          const page = await createPage(
+            notion,
+            parent,
+            title,
+            markdownToBlocks(markdown),
+          ) as any;
+
+          const response: Record<string, unknown> = {
+            id: page.id,
+            title,
+            url: page.url,
+          };
+          if (parent.type === "workspace") {
+            response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          return textResponse(response);
+        }
         case "append_content": {
           const notion = notionClientFactory();
           const { page_id, markdown } = args as { page_id: string; markdown: string };
-          const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown)));
+          const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
           return textResponse({ success: true, blocks_added: result.length });
         }
         case "replace_content": {
@@ -890,7 +1058,7 @@ export function createServer(
           for (const block of existingBlocks) {
             await deleteBlock(notion, block.id);
           }
-          const appended = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown)));
+          const appended = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
           return textResponse({
             deleted: existingBlocks.length,
             appended: appended.length,
@@ -941,7 +1109,7 @@ export function createServer(
           const appended = await appendBlocksAfter(
             notion,
             page_id,
-            markdownToBlocks(await processFileUploads(notion, markdown)),
+            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
             afterBlockId,
           );
           return textResponse({
@@ -984,13 +1152,14 @@ export function createServer(
 
           let blocks: NotionBlock[];
           let hasMore = false;
+          const ctx: FetchContext = { omitted: [] };
 
           if (max_blocks !== undefined && max_blocks > 0) {
-            const result = await fetchBlocksWithLimit(notion, page_id, max_blocks);
+            const result = await fetchBlocksWithLimit(notion, page_id, max_blocks, ctx);
             blocks = result.blocks;
             hasMore = result.hasMore;
           } else {
-            blocks = await fetchBlocksRecursive(notion, page_id);
+            blocks = await fetchBlocksRecursive(notion, page_id, ctx);
           }
 
           const response: Record<string, unknown> = {
@@ -1002,6 +1171,10 @@ export function createServer(
 
           if (hasMore) {
             response.has_more = true;
+          }
+
+          if (ctx.omitted.length > 0) {
+            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
           }
 
           if (include_metadata) {
@@ -1027,7 +1200,8 @@ export function createServer(
           const explicitParent = parent_page_id ?? sourcePage.parent?.page_id;
           const parent = await resolveParent(notion, explicitParent);
 
-          const sourceBlocks = await fetchBlocksRecursive(notion, page_id);
+          const ctx: FetchContext = { omitted: [] };
+          const sourceBlocks = await fetchBlocksRecursive(notion, page_id, ctx);
           const sourceIcon =
             sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
           const newPage = await createPage(notion, parent, newTitle, sourceBlocks, sourceIcon);
@@ -1041,6 +1215,9 @@ export function createServer(
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
           }
+          if (ctx.omitted.length > 0) {
+            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
+          }
           return textResponse(response);
         }
         case "update_page": {
@@ -1051,6 +1228,9 @@ export function createServer(
             icon?: string;
             cover?: string;
           };
+          if (cover?.startsWith("file://") && transport !== "stdio") {
+            return textResponse({ error: FILE_SCHEME_HTTP_ERROR });
+          }
           let coverValue: string | { type: string; file_upload: { id: string } } | undefined;
           if (cover?.startsWith("file://")) {
             const upload = await uploadFile(notion, cover);
@@ -1110,17 +1290,54 @@ export function createServer(
         }
         case "create_database": {
           const notion = notionClientFactory();
-          const { title, parent_page_id, schema } = args as {
+          const { title, parent_page_id, schema, is_inline } = args as {
             title: string;
             parent_page_id: string;
             schema: Array<{ name: string; type: string }>;
+            is_inline?: boolean;
           };
-          const result = await createDatabase(notion, parent_page_id, title, schema) as any;
+          const result = await createDatabase(
+            notion,
+            parent_page_id,
+            title,
+            schema,
+            is_inline === undefined ? undefined : { is_inline },
+          ) as any;
+          // Derive the response's properties list from what we actually sent
+          // to Notion (schemaToProperties silently drops unsupported types).
+          // databases.create under API 2025-09-03 does not populate
+          // result.properties on the response — properties live on the data
+          // source, not the database — so reading from `result` would always
+          // return []. Mirroring schemaToProperties' output gives the truthful
+          // "what Notion created" shape without an extra round-trip (G-4c).
           return textResponse({
             id: result.id,
             title,
             url: result.url,
-            properties: schema.map(s => s.name),
+            properties: Object.keys(schemaToProperties(schema)),
+          });
+        }
+        case "update_data_source": {
+          const notion = notionClientFactory();
+          const { database_id, title, properties, in_trash } = args as {
+            database_id: unknown;
+            title?: string;
+            properties?: Parameters<typeof updateDataSource>[2]["properties"];
+            in_trash?: boolean;
+          };
+          if (typeof database_id !== "string") {
+            throw new Error("update_data_source: `database_id` must be a string");
+          }
+          const result = await updateDataSource(notion, database_id, {
+            title,
+            properties,
+            in_trash,
+          }) as any;
+          return textResponse({
+            id: database_id,
+            title: title ?? result.title?.[0]?.plain_text ?? "",
+            url: result.url,
+            properties: Object.keys(result.properties ?? {}),
           });
         }
         case "get_database": {

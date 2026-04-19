@@ -4,7 +4,7 @@ import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createNotionClient } from "./notion-client.js";
 import { createServer } from "./server.js";
-import { randomUUID } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 
 const PORT = parseInt(process.env.PORT ?? "3333", 10);
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
@@ -15,6 +15,13 @@ const OAUTH_REDIRECT_URI =
 
 const oauthEnabled = !!(NOTION_OAUTH_CLIENT_ID && NOTION_OAUTH_CLIENT_SECRET);
 
+const BEARER_MISSING_ERROR =
+  "NOTION_MCP_BEARER is required to start easy-notion-mcp in static-token HTTP mode (since v0.3.0). " +
+  "Generate a secret and set it in the server's environment, for example:\n" +
+  "  export NOTION_MCP_BEARER=$(openssl rand -hex 32)\n" +
+  "Then configure your MCP client to send `Authorization: Bearer <token>` on every /mcp request. " +
+  "See the \"HTTP mode security posture\" section in README.md for the full setup.";
+
 export interface CreateAppOptions {
   notionToken?: string;
   oauthClientId?: string;
@@ -22,6 +29,59 @@ export interface CreateAppOptions {
   oauthRedirectUri?: string;
   rootPageId?: string;
   trustContent?: boolean;
+  /**
+   * Shared-secret bearer required on every /mcp request in static-token HTTP mode.
+   * Required when neither oauthClientId nor oauthClientSecret is set.
+   * Not used in OAuth mode (OAuth issues its own bearers).
+   */
+  bearer?: string;
+}
+
+/**
+ * Resolve the bind host for the HTTP server.
+ * Default is `127.0.0.1` (loopback only); set `NOTION_MCP_BIND_HOST` to change it
+ * (e.g. `0.0.0.0` for all interfaces, or a specific interface IP).
+ */
+export function getBindHost(env: NodeJS.ProcessEnv): string {
+  return env.NOTION_MCP_BIND_HOST ?? "127.0.0.1";
+}
+
+function bearerAuthMiddleware(expectedBearer: string): express.RequestHandler {
+  const expectedBuf = Buffer.from(expectedBearer, "utf8");
+  const challenge = `Bearer realm="easy-notion-mcp"`;
+  const reject = (
+    res: express.Response,
+    description: string,
+  ) => {
+    res.set(
+      "WWW-Authenticate",
+      `${challenge}, error="invalid_token", error_description="${description}"`,
+    );
+    res.status(401).json({ error: "invalid_token", error_description: description });
+  };
+
+  return (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      reject(res, "Missing Authorization header");
+      return;
+    }
+    const parts = authHeader.split(" ");
+    if (parts.length !== 2 || parts[0].toLowerCase() !== "bearer" || !parts[1]) {
+      reject(res, "Invalid Authorization header format, expected 'Bearer <token>'");
+      return;
+    }
+    const providedBuf = Buffer.from(parts[1], "utf8");
+    if (providedBuf.length !== expectedBuf.length) {
+      reject(res, "Invalid bearer token");
+      return;
+    }
+    if (!timingSafeEqual(providedBuf, expectedBuf)) {
+      reject(res, "Invalid bearer token");
+      return;
+    }
+    next();
+  };
 }
 
 /**
@@ -29,12 +89,16 @@ export interface CreateAppOptions {
  * Exported so integration tests can use it without starting a real server.
  */
 export async function createApp(options: CreateAppOptions = {}): Promise<express.Express> {
+  const useOAuth = !!(options.oauthClientId && options.oauthClientSecret);
+
+  if (!useOAuth && !options.bearer) {
+    throw new Error(BEARER_MISSING_ERROR);
+  }
+
   const app = express();
   app.use(express.json());
 
   const transports = new Map<string, StreamableHTTPServerTransport>();
-
-  const useOAuth = !!(options.oauthClientId && options.oauthClientSecret);
 
   /**
    * Create a session handler for the POST /mcp endpoint.
@@ -80,6 +144,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
           rootPageId: options.rootPageId,
           trustContent: options.trustContent ?? false,
           allowWorkspaceParent,
+          transport: "http",
         });
 
         await server.connect(transport);
@@ -188,12 +253,13 @@ export async function createApp(options: CreateAppOptions = {}): Promise<express
     // Static token mode
     const staticToken = options.notionToken;
     const getStaticToken = () => staticToken;
+    const authMiddleware = bearerAuthMiddleware(options.bearer!);
 
-    app.post("/mcp", createSessionHandler(getStaticToken, false));
-    app.get("/mcp", createGetHandler());
-    app.delete("/mcp", createDeleteHandler());
+    app.post("/mcp", authMiddleware, createSessionHandler(getStaticToken, false));
+    app.get("/mcp", authMiddleware, createGetHandler());
+    app.delete("/mcp", authMiddleware, createDeleteHandler());
 
-    console.error("Static token mode (NOTION_TOKEN)");
+    console.error("Static token mode (NOTION_TOKEN + NOTION_MCP_BEARER)");
   }
 
   return app;
@@ -207,6 +273,8 @@ async function startServer() {
     process.exit(1);
   }
 
+  const bindHost = getBindHost(process.env);
+
   const app = await createApp({
     notionToken: NOTION_TOKEN,
     oauthClientId: NOTION_OAUTH_CLIENT_ID,
@@ -214,10 +282,11 @@ async function startServer() {
     oauthRedirectUri: OAUTH_REDIRECT_URI,
     rootPageId: process.env.NOTION_ROOT_PAGE_ID,
     trustContent: process.env.NOTION_TRUST_CONTENT === "true",
+    bearer: process.env.NOTION_MCP_BEARER,
   });
 
-  app.listen(PORT, () => {
-    console.error(`easy-notion-mcp HTTP server listening on port ${PORT}`);
+  app.listen(PORT, bindHost, () => {
+    console.error(`easy-notion-mcp HTTP server listening on ${bindHost}:${PORT}`);
   });
 }
 
