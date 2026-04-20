@@ -1,5 +1,6 @@
 # Publishes to npm when a version tag (v*) is pushed.
-# Requires NPM_TOKEN secret configured in repo settings.
+# Uses npm Trusted Publishing via OIDC — no NPM_TOKEN secret required.
+# Configured on the npm side at https://www.npmjs.com/package/easy-notion-mcp/access.
 name: Release
 
 on:
@@ -12,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,9 +25,7 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm test
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --provenance --access public
       - name: Create GitHub release
         run: gh release create "${{ github.ref_name }}" --generate-notes
         env:
