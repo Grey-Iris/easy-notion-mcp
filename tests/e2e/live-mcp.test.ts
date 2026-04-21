@@ -8,6 +8,13 @@ import type { NotionBlock } from "../../src/types.js";
 import { checkE2eEnv } from "./helpers/env-gate.js";
 import { McpStdioClient } from "./helpers/mcp-stdio-client.js";
 import { callTool } from "./helpers/call-tool.js";
+import {
+  callToolHttp,
+  mintBearer,
+  pickEphemeralPort,
+  spawnHttpServer,
+  type HttpHandle,
+} from "./helpers/http-server.js";
 import { createSandbox, archivePageIds } from "./helpers/sandbox.js";
 import { buildRunContext, type RunContext } from "./helpers/run-context.js";
 import {
@@ -80,10 +87,29 @@ type ReadPageResponse = {
   in_trash?: boolean;
 };
 
+type HttpJsonRpcResponse = {
+  jsonrpc: "2.0";
+  id: number | string | null;
+  result?: {
+    serverInfo?: {
+      name: string;
+      version?: string;
+    };
+    protocolVersion?: string;
+  };
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+};
+
 const PIXEL_PATH = resolve(process.cwd(), "tests/e2e/fixtures/pixel.png");
 const GOLDEN_PATH_FIXTURE = resolve(process.cwd(), "tests/e2e/fixtures/golden-path.md");
 const MULTI_SECTION_FIXTURE = resolve(process.cwd(), "tests/e2e/fixtures/multi-section.md");
 const IMAGE_URL_RE = /!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/;
+const HTTP_ACCEPT = "application/json, text/event-stream";
+const HTTP_PROTOCOL_VERSION = "2024-11-05";
 const F2_OVERSIZE_ERROR =
   "body failed validation: body.children[0].code.rich_text[0].text.content.length should be ≤ `2000`, instead was `2050`. Check property names and types with get_database.";
 
@@ -153,6 +179,81 @@ function parseH2Sections(markdown: string): Array<{ heading: string; body: strin
       heading: match[1].trim(),
       body: normalized.slice(bodyStart, bodyEnd),
     };
+  });
+}
+
+function parseSseJsonRpc(bodyText: string): HttpJsonRpcResponse {
+  const events: string[] = [];
+  const currentData: string[] = [];
+
+  const flush = () => {
+    if (currentData.length === 0) {
+      return;
+    }
+    events.push(currentData.join("\n"));
+    currentData.length = 0;
+  };
+
+  for (const rawLine of bodyText.split(/\r?\n/)) {
+    if (rawLine === "") {
+      flush();
+      continue;
+    }
+
+    if (rawLine.startsWith("data:")) {
+      currentData.push(rawLine.slice(5).trimStart());
+    }
+  }
+
+  flush();
+
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    try {
+      return JSON.parse(events[index]) as HttpJsonRpcResponse;
+    } catch {
+      // Ignore non-JSON SSE payloads and continue.
+    }
+  }
+
+  throw new Error(`Missing JSON-RPC payload in SSE body: ${bodyText}`);
+}
+
+async function parseHttpJsonRpcResponse(response: Response): Promise<HttpJsonRpcResponse> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const bodyText = await response.text();
+
+  if (contentType.includes("text/event-stream")) {
+    return parseSseJsonRpc(bodyText);
+  }
+
+  if (contentType.includes("application/json")) {
+    return JSON.parse(bodyText) as HttpJsonRpcResponse;
+  }
+
+  throw new Error(`Unsupported HTTP response content-type: ${contentType || "<missing>"}`);
+}
+
+async function postHttpInitialize(
+  handle: HttpHandle,
+  authorization?: string,
+): Promise<Response> {
+  return fetch(`${handle.url}/mcp`, {
+    method: "POST",
+    headers: {
+      Accept: HTTP_ACCEPT,
+      "Content-Type": "application/json",
+      ...(authorization ? { Authorization: authorization } : {}),
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: HTTP_PROTOCOL_VERSION,
+        capabilities: {},
+        clientInfo: { name: "e2e-h2", version: "0.0.1" },
+      },
+    }),
   });
 }
 
@@ -556,6 +657,127 @@ describe.skipIf(!env.shouldRun)(
       expect(child.id).toBe(scratchChild.id);
       expect(child.in_trash).not.toBe(true);
       expectContentNoticePresent(child.markdown);
+    });
+
+    describe("HTTP parity", () => {
+      let httpHandle: HttpHandle;
+
+      beforeAll(async () => {
+        const port = await pickEphemeralPort();
+        const bearer = mintBearer();
+        httpHandle = await spawnHttpServer({
+          notionToken: env.token!,
+          port,
+          bearer,
+        });
+
+        console.error(`[e2e] HTTP server ready: ${httpHandle.url}`);
+      }, 15_000);
+
+      afterAll(async () => {
+        try {
+          await httpHandle?.kill();
+        } catch (err) {
+          console.error(`[e2e] HTTP server kill failed: ${err}`);
+        }
+      }, 10_000);
+
+      it("H1: health endpoint returns the canonical shape", async () => {
+        const response = await fetch(`${httpHandle.url}/`);
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("application/json");
+        await expect(response.json()).resolves.toEqual({
+          status: "ok",
+          server: "easy-notion-mcp",
+          transport: "streamable-http",
+          endpoint: "/mcp",
+        });
+      });
+
+      it("H2: bearer-required security posture", async () => {
+        const noAuth = await postHttpInitialize(httpHandle);
+        expect(noAuth.status).toBe(401);
+        expect(noAuth.headers.get("www-authenticate")).toBeTruthy();
+        await expect(noAuth.json()).resolves.toEqual(
+          expect.objectContaining({ error: "invalid_token" }),
+        );
+
+        const emptyBearer = await postHttpInitialize(httpHandle, "Bearer ");
+        expect(emptyBearer.status).toBe(401);
+        await expect(emptyBearer.json()).resolves.toEqual(
+          expect.objectContaining({ error: "invalid_token" }),
+        );
+
+        const wrongSameLength = await postHttpInitialize(httpHandle, `Bearer ${"a".repeat(64)}`);
+        expect(wrongSameLength.status).toBe(401);
+        await expect(wrongSameLength.json()).resolves.toEqual(
+          expect.objectContaining({ error: "invalid_token" }),
+        );
+
+        const wrongLength = await postHttpInitialize(httpHandle, "Bearer too-short");
+        expect(wrongLength.status).toBe(401);
+        await expect(wrongLength.json()).resolves.toEqual(
+          expect.objectContaining({ error: "invalid_token" }),
+        );
+
+        const correctBearer = await postHttpInitialize(
+          httpHandle,
+          `Bearer ${httpHandle.bearer}`,
+        );
+        expect(correctBearer.status).toBeGreaterThanOrEqual(200);
+        expect(correctBearer.status).toBeLessThan(300);
+
+        const correctBody = await parseHttpJsonRpcResponse(correctBearer);
+        expect(correctBody.error).toBeUndefined();
+        expect(correctBody.result?.serverInfo?.name).toBe("easy-notion-mcp");
+
+        const sessionId = correctBearer.headers.get("mcp-session-id");
+        expect(sessionId).toBeTruthy();
+
+        const unauthGet = await fetch(`${httpHandle.url}/mcp`);
+        expect(unauthGet.status).toBe(401);
+        await expect(unauthGet.json()).resolves.toEqual(
+          expect.objectContaining({ error: "invalid_token" }),
+        );
+
+        const unauthDelete = await fetch(`${httpHandle.url}/mcp`, {
+          method: "DELETE",
+        });
+        expect(unauthDelete.status).toBe(401);
+        await expect(unauthDelete.json()).resolves.toEqual(
+          expect.objectContaining({ error: "invalid_token" }),
+        );
+
+        const cleanup = await fetch(`${httpHandle.url}/mcp`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${httpHandle.bearer}`,
+            Accept: "application/json",
+            "mcp-session-id": sessionId!,
+            "mcp-protocol-version": correctBody.result?.protocolVersion ?? HTTP_PROTOCOL_VERSION,
+          },
+        });
+        expect(cleanup.status).toBe(200);
+      });
+
+      it("H3: transport parity — stdio and HTTP return the same get_me result", async () => {
+        const stdioMe = await callTool<GetMeResponse>(client, "get_me", {});
+        const httpMe = await callToolHttp<GetMeResponse>(httpHandle, "get_me", {});
+
+        expect(stdioMe).toEqual(httpMe);
+      });
+
+      it("H4: HTTP mode rejects file:// URLs in create_page", async () => {
+        const response = await callToolHttp<CreatePageResponse>(httpHandle, "create_page", {
+          parent_page_id: ctx.sandboxId!,
+          title: "H4 file scheme",
+          markdown: "![x](file:///etc/passwd)",
+        });
+
+        expect(response.error).not.toMatch(/invalid_token/i);
+        expect(response.error).toMatch(/file:\/\/.*only supported in stdio/i);
+      });
     });
   },
 );
