@@ -1,7 +1,10 @@
 import "dotenv/config";
 
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { markdownToBlocks } from "../../src/markdown-to-blocks.js";
+import type { NotionBlock } from "../../src/types.js";
 import { checkE2eEnv } from "./helpers/env-gate.js";
 import { McpStdioClient } from "./helpers/mcp-stdio-client.js";
 import { callTool } from "./helpers/call-tool.js";
@@ -44,7 +47,37 @@ type ReadPageResponse = {
 };
 
 const PIXEL_PATH = resolve(process.cwd(), "tests/e2e/fixtures/pixel.png");
+const GOLDEN_PATH_FIXTURE = resolve(process.cwd(), "tests/e2e/fixtures/golden-path.md");
 const IMAGE_URL_RE = /!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/;
+
+function getChildBlocks(block: NotionBlock): NotionBlock[] {
+  switch (block.type) {
+    case "heading_1":
+      return block.heading_1.children ?? [];
+    case "heading_2":
+      return block.heading_2.children ?? [];
+    case "heading_3":
+      return block.heading_3.children ?? [];
+    case "toggle":
+      return block.toggle.children ?? [];
+    case "bulleted_list_item":
+      return block.bulleted_list_item.children ?? [];
+    case "numbered_list_item":
+      return block.numbered_list_item.children ?? [];
+    case "table":
+      return block.table.children ?? [];
+    case "column_list":
+      return block.column_list.children ?? [];
+    case "column":
+      return block.column.children ?? [];
+    default:
+      return [];
+  }
+}
+
+function countBlocksDeep(blocks: NotionBlock[]): number {
+  return blocks.reduce((total, block) => total + 1 + countBlocksDeep(getChildBlocks(block)), 0);
+}
 
 function isAllowedNotionFileHost(hostname: string): boolean {
   return (
@@ -106,6 +139,56 @@ describe.skipIf(!env.shouldRun)(
       expect(me.id.length).toBeGreaterThan(0);
       expect(me.name).toEqual(expect.any(String));
       expect(me.type).toBe("bot");
+    });
+
+    it("B1: round-trip fidelity", async () => {
+      const fixture = readFileSync(GOLDEN_PATH_FIXTURE, "utf8");
+      const expectedBlockCount = countBlocksDeep(markdownToBlocks(fixture));
+
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "B1 round-trip fidelity",
+        markdown: fixture,
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const readBack = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+        max_blocks: 100,
+      });
+
+      expect(readBack.error).toBeUndefined();
+      assertNoWarnings(readBack);
+
+      const body = stripContentNotice(readBack.markdown);
+      expect(body).toContain("ROUND-TRIP-SENTINEL-B1");
+
+      // `read_page` does not expose a block count, so compare the parser-visible
+      // block tree on both sides. This is less brittle than raw paragraph splits
+      // and still catches dropped representable block types.
+      const actualBlockCount = countBlocksDeep(markdownToBlocks(body));
+      expect(actualBlockCount).toBe(expectedBlockCount);
+
+      expect(body).toContain("# heading_1 H1 line");
+      expect(body).toContain("## heading_2 H2 line");
+      expect(body).toContain("### heading_3 H3 line");
+      expect(body).toContain("[link](https://example.com/b1)");
+      expect(body).toContain("+++ Toggle block title");
+      expect(body).toContain("- Bullet item one");
+      expect(body).toContain("1. Numbered item one");
+      expect(body).toContain("> Quote block line for B1.");
+      expect(body).toContain("> [!NOTE]");
+      expect(body).toContain("$$E=mc^2$$");
+      expect(body).toContain("| Header A | Header B |");
+      expect(body).toContain("```typescript");
+      expect(body).toMatch(/(?:^|\n)---(?:\n|$)/);
+      expect(body).toMatch(/(?:^|\n)- \[x\] Checked task(?:\n|$)/);
+      expect(body).toMatch(/(?:^|\n)- \[ \] Unchecked task(?:\n|$)/);
+      expect(body).toContain("[toc]");
+      expect(body).toContain("https://example.com/b1-bookmark");
+      expect(body).toContain("[embed](https://example.com/b1-embed)");
     });
 
     it("B2: content-notice sentinel", async () => {
