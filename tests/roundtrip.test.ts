@@ -77,6 +77,18 @@ describe("round-trip fidelity", () => {
     expect(roundTrip(input)).toBe(input);
   });
 
+  it("round-trips a multi-paragraph blockquote", () => {
+    const input = ["> First paragraph", "> ", "> Second paragraph"].join("\n");
+
+    expect(roundTrip(input)).toBe(input);
+  });
+
+  it("round-trips a multi-paragraph callout", () => {
+    const input = ["> [!NOTE]", "> First line", "> ", "> Second line"].join("\n");
+
+    expect(roundTrip(input)).toBe(input);
+  });
+
   it.each([
     ["NOTE", "Remember to check the logs"],
     ["TIP", "Use keyboard shortcuts for speed"],
