@@ -1,9 +1,12 @@
+import { createRequire } from "node:module";
 import type { Client } from "@notionhq/client";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+
+const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
 import { FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
@@ -927,7 +930,7 @@ export function createServer(
   let stickyParentPageId: string | undefined;
 
   const server = new Server(
-    { name: "easy-notion-mcp", version: "0.2.0" },
+    { name: "easy-notion-mcp", version: PACKAGE_VERSION },
     { capabilities: { tools: {} } },
   );
 
