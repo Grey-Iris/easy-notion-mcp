@@ -1,10 +1,44 @@
 import { callTool } from "./call-tool.js";
+import {
+  classifyArchiveError,
+  isToleratedArchiveClass,
+  type ClassifiedArchiveError,
+} from "./archive-errors.js";
 import type { McpStdioClient } from "./mcp-stdio-client.js";
 
 type ToolError = { error: string };
 
+interface ArchivePageIdsSummary {
+  archived: number;
+  already_archived: number;
+  archived_ancestor: number;
+  not_found: number;
+  unexpected: number;
+}
+
+export interface ArchivePageIdsResult {
+  archived: string[];
+  tolerated: ClassifiedArchiveError[];
+  unexpected: ClassifiedArchiveError[];
+  summary: ArchivePageIdsSummary;
+}
+
 function isToolError(value: unknown): value is ToolError {
   return typeof value === "object" && value !== null && typeof (value as ToolError).error === "string";
+}
+
+function buildSummary(
+  archived: string[],
+  tolerated: ClassifiedArchiveError[],
+  unexpected: ClassifiedArchiveError[],
+): ArchivePageIdsSummary {
+  return {
+    archived: archived.length,
+    already_archived: tolerated.filter((entry) => entry.class === "already_archived").length,
+    archived_ancestor: tolerated.filter((entry) => entry.class === "archived_ancestor").length,
+    not_found: tolerated.filter((entry) => entry.class === "not_found").length,
+    unexpected: unexpected.length,
+  };
 }
 
 export async function createSandbox(
@@ -54,11 +88,14 @@ export async function archiveSandbox(
 export async function archivePageIds(
   client: McpStdioClient,
   ids: string[],
-): Promise<{ archived: string[]; failed: Array<{ id: string; error: string }> }> {
+): Promise<ArchivePageIdsResult> {
   const archived: string[] = [];
-  const failed: Array<{ id: string; error: string }> = [];
+  const tolerated: ClassifiedArchiveError[] = [];
+  const unexpected: ClassifiedArchiveError[] = [];
 
   for (const id of [...ids].reverse()) {
+    let rawError: string | null = null;
+
     try {
       const response = await callTool<Record<string, unknown> | ToolError>(
         client,
@@ -67,18 +104,35 @@ export async function archivePageIds(
       );
 
       if (isToolError(response)) {
-        failed.push({ id, error: response.error });
-        console.error(`[e2e] archive_page failed for ${id}: ${response.error}`);
-        continue;
+        rawError = response.error;
+      } else {
+        archived.push(id);
       }
-
-      archived.push(id);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      failed.push({ id, error: message });
-      console.error(`[e2e] archive_page failed for ${id}: ${message}`);
+      rawError = error instanceof Error ? error.message : String(error);
+    }
+
+    if (rawError === null) {
+      continue;
+    }
+
+    const classified = classifyArchiveError(id, rawError);
+    if (isToleratedArchiveClass(classified.class)) {
+      tolerated.push(classified);
+    } else {
+      unexpected.push(classified);
+      console.error(`[e2e][teardown] UNEXPECTED archive_page failure for ${id}: ${rawError}`);
     }
   }
 
-  return { archived, failed };
+  const summary = buildSummary(archived, tolerated, unexpected);
+  console.warn(
+    `[e2e][teardown] cleanup summary: archived=${summary.archived} ` +
+      `already_archived=${summary.already_archived} ` +
+      `archived_ancestor=${summary.archived_ancestor} ` +
+      `not_found=${summary.not_found} ` +
+      `unexpected=${summary.unexpected}`,
+  );
+
+  return { archived, tolerated, unexpected, summary };
 }

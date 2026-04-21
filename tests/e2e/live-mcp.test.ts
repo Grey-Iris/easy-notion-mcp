@@ -281,9 +281,9 @@ describe.skipIf(!env.shouldRun)(
       try {
         if (client && ctx?.createdPageIds.length) {
           const cleanup = await archivePageIds(client, ctx.createdPageIds);
-          if (cleanup.failed.length > 0) {
+          if (cleanup.unexpected.length > 0) {
             console.error(
-              `[e2e] cleanup failures: ${JSON.stringify(cleanup.failed)}`,
+              `[e2e] cleanup UNEXPECTED failures: ${JSON.stringify(cleanup.unexpected)}`,
             );
           }
         }
