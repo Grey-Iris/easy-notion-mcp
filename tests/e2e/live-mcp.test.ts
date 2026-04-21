@@ -36,6 +36,40 @@ type CreatePageResponse = {
   error?: string;
 };
 
+type CreateDatabaseResponse = {
+  id: string;
+  title: string;
+  url: string;
+  properties: string[] | Record<string, unknown>;
+  error?: string;
+};
+
+type UpdateDataSourceResponse = {
+  id: string;
+  title: string;
+  url: string;
+  properties: string[];
+  error?: string;
+};
+
+type GetDatabaseResponse = {
+  id: string;
+  title: string;
+  url: string;
+  properties: Array<{
+    name: string;
+    type: string;
+    options?: string[];
+  }>;
+  error?: string;
+};
+
+type AddDatabaseEntryResponse = {
+  id: string;
+  url: string;
+  error?: string;
+};
+
 type ReadPageResponse = {
   id: string;
   title: string | null;
@@ -211,6 +245,103 @@ describe.skipIf(!env.shouldRun)(
       expectContentNoticePresent(page.markdown);
     });
 
+    it("KNOWN GAP: create_database silently drops formula-type columns", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C1 formula drop",
+        schema: [
+          { name: "Task", type: "title" },
+          { name: "Count", type: "number" },
+          { name: "Score", type: "formula" },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      expect(Array.isArray(created.properties)).toBe(true);
+      expect(created.properties).toEqual(["Task", "Count"]);
+      expect(created.properties).toContain("Task");
+      expect(created.properties).toContain("Count");
+      expect(created.properties).not.toContain("Score");
+
+      const database = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+
+      expect(database.error).toBeUndefined();
+      expect(database.properties).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Task", type: "title" }),
+          expect.objectContaining({ name: "Count", type: "number" }),
+        ]),
+      );
+      expect(database.properties).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ name: "Score" })]),
+      );
+      expect(database.properties.some((property) => property.type === "formula")).toBe(false);
+    });
+
+    it("KNOWN GAP: unsupported property types return null without warning", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C2 unsupported property null fallback",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Count", type: "number" },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const updated = await callTool<UpdateDataSourceResponse>(client, "update_data_source", {
+        database_id: created.id,
+        properties: {
+          Formula: {
+            formula: {
+              expression: 'prop("Count")',
+            },
+          },
+        },
+      });
+
+      expect(updated.error).toBeUndefined();
+      expect(updated.properties).toContain("Formula");
+
+      const database = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+
+      expect(database.properties).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Formula", type: "formula" }),
+        ]),
+      );
+
+      const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Title: "row1",
+          Count: 5,
+        },
+      });
+
+      expect(entry.error).toBeUndefined();
+      ctx.createdPageIds.push(entry.id);
+
+      const rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+        database_id: created.id,
+      });
+
+      expect(Array.isArray(rows)).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(rows, "warnings")).toBe(false);
+
+      const row = rows.find((candidate) => candidate.Title === "row1");
+      expect(row).toBeDefined();
+      expect(row).toEqual(expect.objectContaining({ Title: "row1", Count: 5, Formula: null }));
+    });
+
     it("E1: stdio file upload", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
         parent_page_id: ctx.sandboxId!,
@@ -237,7 +368,7 @@ describe.skipIf(!env.shouldRun)(
 
       const host = new URL(imageUrl!).hostname;
       expect(isAllowedNotionFileHost(host)).toBe(true);
-    });
+    }, 20_000);
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {
       const scratchParent = await callTool<CreatePageResponse>(client, "create_page", {
