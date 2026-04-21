@@ -82,7 +82,10 @@ type ReadPageResponse = {
 
 const PIXEL_PATH = resolve(process.cwd(), "tests/e2e/fixtures/pixel.png");
 const GOLDEN_PATH_FIXTURE = resolve(process.cwd(), "tests/e2e/fixtures/golden-path.md");
+const MULTI_SECTION_FIXTURE = resolve(process.cwd(), "tests/e2e/fixtures/multi-section.md");
 const IMAGE_URL_RE = /!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/;
+const F2_OVERSIZE_ERROR =
+  "body failed validation: body.children[0].code.rich_text[0].text.content.length should be ≤ `2000`, instead was `2050`. Check property names and types with get_database.";
 
 function getChildBlocks(block: NotionBlock): NotionBlock[] {
   switch (block.type) {
@@ -122,6 +125,35 @@ function isAllowedNotionFileHost(hostname: string): boolean {
     /(^|\.)notion\.so$/i.test(hostname) ||
     /.+\.amazonaws\.com$/i.test(hostname)
   );
+}
+
+function normalizeSectionBody(body: string): string {
+  return body
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+$/g, ""))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function parseH2Sections(markdown: string): Array<{ heading: string; body: string }> {
+  const normalized = markdown.replace(/\r\n/g, "\n");
+  const headings = Array.from(normalized.matchAll(/^## (.+)$/gm));
+
+  return headings.map((match, index) => {
+    const headingLine = match[0];
+    const headingStart = match.index ?? 0;
+    const bodyStart = headingStart + headingLine.length + 1;
+    const bodyEnd = index + 1 < headings.length
+      ? (headings[index + 1].index ?? normalized.length)
+      : normalized.length;
+
+    return {
+      heading: match[1].trim(),
+      body: normalized.slice(bodyStart, bodyEnd),
+    };
+  });
 }
 
 describe.skipIf(!env.shouldRun)(
@@ -369,6 +401,125 @@ describe.skipIf(!env.shouldRun)(
       const host = new URL(imageUrl!).hostname;
       expect(isAllowedNotionFileHost(host)).toBe(true);
     }, 20_000);
+
+    it("F1: update_section edits one section, leaves siblings untouched", async () => {
+      const fixture = readFileSync(MULTI_SECTION_FIXTURE, "utf8");
+      const expectedSections = parseH2Sections(fixture);
+
+      expect(expectedSections.map((section) => section.heading)).toEqual(["Alpha", "Beta", "Gamma"]);
+
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "F1 update_section",
+        markdown: fixture,
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const updated = await callTool<{ deleted?: number; appended?: number; error?: string }>(
+        client,
+        "update_section",
+        {
+          page_id: created.id,
+          heading: "Beta",
+          markdown: [
+            "## Beta",
+            "",
+            "Updated Beta paragraph.",
+            "",
+            "- Beta bullet new 1",
+            "- Beta bullet new 2",
+          ].join("\n"),
+        },
+      );
+
+      expect(updated.error).toBeUndefined();
+      expect(updated.deleted).toBeGreaterThanOrEqual(1);
+      expect(updated.appended).toBeGreaterThanOrEqual(1);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      });
+
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+
+      const actualSections = parseH2Sections(stripContentNotice(page.markdown));
+      expect(actualSections).toHaveLength(3);
+      expect(actualSections.map((section) => section.heading)).toEqual(["Alpha", "Beta", "Gamma"]);
+
+      const [alpha, beta, gamma] = actualSections;
+      expect(normalizeSectionBody(alpha.body)).toBe(normalizeSectionBody(expectedSections[0].body));
+      expect(normalizeSectionBody(gamma.body)).toBe(normalizeSectionBody(expectedSections[2].body));
+      expect(normalizeSectionBody(beta.body)).toContain("Updated Beta paragraph.");
+      expect(normalizeSectionBody(beta.body)).toContain("- Beta bullet new 1");
+      expect(normalizeSectionBody(beta.body)).toContain("- Beta bullet new 2");
+      expect(normalizeSectionBody(beta.body)).not.toContain("Beta bullet 1");
+      expect(normalizeSectionBody(beta.body)).not.toContain("Beta bullet 2");
+    });
+
+    it("F2: replace_content with oversize payload — current destructive behavior", async () => {
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "F2 replace_content",
+        markdown: "**before-replace** sentinel",
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const validReplace = await callTool<{ deleted?: number; appended?: number; error?: string }>(
+        client,
+        "replace_content",
+        {
+          page_id: created.id,
+          markdown: "Valid replacement content with [link](https://example.com/f2)",
+        },
+      );
+
+      expect(validReplace.error).toBeUndefined();
+      expect(validReplace.deleted).toBeGreaterThanOrEqual(1);
+      expect(validReplace.appended).toBeGreaterThanOrEqual(1);
+
+      const pageAfterValidReplace = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      });
+
+      expect(pageAfterValidReplace.error).toBeUndefined();
+      assertNoWarnings(pageAfterValidReplace);
+      expect(stripContentNotice(pageAfterValidReplace.markdown)).toContain(
+        "Valid replacement content with [link](https://example.com/f2)",
+      );
+
+      const bigLine = "x".repeat(2050);
+      const oversizePayload = `\`\`\`\n${bigLine}\n\`\`\``;
+
+      const oversizeReplace = await callTool<{ error?: string; deleted?: number; appended?: number }>(
+        client,
+        "replace_content",
+        {
+          page_id: created.id,
+          markdown: oversizePayload,
+        },
+      );
+
+      expect(oversizeReplace).toEqual({
+        error: F2_OVERSIZE_ERROR,
+      });
+
+      const pageAfterOversizeReplace = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      });
+
+      expect(pageAfterOversizeReplace.error).toBeUndefined();
+      assertNoWarnings(pageAfterOversizeReplace);
+
+      const strippedAfterOversize = stripContentNotice(pageAfterOversizeReplace.markdown);
+      expect(strippedAfterOversize.trim()).toBe("");
+      expect(strippedAfterOversize).not.toContain("Valid replacement content");
+      expect(strippedAfterOversize).not.toContain("before-replace");
+    });
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {
       const scratchParent = await callTool<CreatePageResponse>(client, "create_page", {
