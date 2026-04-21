@@ -186,8 +186,15 @@ function listTokenToBlocks(token: any): NotionBlock[] {
 }
 
 function blockquoteToBlock(token: any): NotionBlock {
-  const paragraphText = token.tokens?.[0]?.text ?? token.text ?? "";
-  const calloutMatch = paragraphText.match(
+  const paragraphTexts: string[] = Array.isArray(token.tokens)
+    ? token.tokens
+        .filter((child: any) => child?.type === "paragraph")
+        .map((child: any) => child.text ?? "")
+    : [];
+  const combinedText =
+    paragraphTexts.length > 0 ? paragraphTexts.join("\n\n") : token.text ?? "";
+
+  const calloutMatch = combinedText.match(
     /^\[!(NOTE|TIP|WARNING|IMPORTANT|INFO|SUCCESS|ERROR)\]\s*(?:\n?([\s\S]*))?$/i,
   );
 
@@ -217,7 +224,7 @@ function blockquoteToBlock(token: any): NotionBlock {
   return {
     type: "quote",
     quote: {
-      rich_text: blockTextToRichText(paragraphText.replace(/\n/g, "\n")),
+      rich_text: blockTextToRichText(combinedText),
     },
   };
 }
