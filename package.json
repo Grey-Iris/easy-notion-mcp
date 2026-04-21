@@ -16,6 +16,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "E2E_ENFORCE=1 vitest run tests/e2e/",
     "test:watch": "vitest",
     "start:http": "node dist/http.js"
   },
