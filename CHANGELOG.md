@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-20
+
+### Fixed
+
+- **Multi-paragraph blockquotes and callouts no longer lose content.**
+  `create_page`, `append_content`, `replace_content`, and
+  `update_section` previously read only the first paragraph token of
+  a blockquote, silently dropping every paragraph after it on
+  markdown-to-blocks conversion. A blockquote or callout body spanning
+  multiple paragraphs now preserves all of them on the round-trip.
+- **MCP handshake advertises the correct server version.** `serverInfo.version`
+  at the MCP protocol layer was hardcoded to `0.2.0` and never updated
+  during the 0.3.0 bump. Clients branching on version were getting the
+  wrong answer. Version is now read from `package.json` so future
+  bumps track automatically.
+
 ## [0.3.0] - 2026-04-19
 
 ### Breaking changes
