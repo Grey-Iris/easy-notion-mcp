@@ -376,7 +376,7 @@ describe.skipIf(!env.shouldRun)(
       assertNoWarnings(page);
       expect(page.markdown.startsWith(CONTENT_NOTICE)).toBe(true);
       expectContentNoticePresent(page.markdown);
-    });
+    }, 20_000);
 
     it("KNOWN GAP: create_database silently drops formula-type columns", async () => {
       const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
@@ -413,7 +413,7 @@ describe.skipIf(!env.shouldRun)(
         expect.arrayContaining([expect.objectContaining({ name: "Score" })]),
       );
       expect(database.properties.some((property) => property.type === "formula")).toBe(false);
-    });
+    }, 20_000);
 
     it("KNOWN GAP: unsupported property types return null without warning", async () => {
       const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
@@ -473,7 +473,7 @@ describe.skipIf(!env.shouldRun)(
       const row = rows.find((candidate) => candidate.Title === "row1");
       expect(row).toBeDefined();
       expect(row).toEqual(expect.objectContaining({ Title: "row1", Count: 5, Formula: null }));
-    });
+    }, 30_000);
 
     it("E1: stdio file upload", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
@@ -558,7 +558,7 @@ describe.skipIf(!env.shouldRun)(
       expect(normalizeSectionBody(beta.body)).toContain("- Beta bullet new 2");
       expect(normalizeSectionBody(beta.body)).not.toContain("Beta bullet 1");
       expect(normalizeSectionBody(beta.body)).not.toContain("Beta bullet 2");
-    });
+    }, 30_000);
 
     it("F2: replace_content with oversize payload — current destructive behavior", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
@@ -620,7 +620,7 @@ describe.skipIf(!env.shouldRun)(
       expect(strippedAfterOversize.trim()).toBe("");
       expect(strippedAfterOversize).not.toContain("Valid replacement content");
       expect(strippedAfterOversize).not.toContain("before-replace");
-    });
+    }, 30_000);
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {
       const scratchParent = await callTool<CreatePageResponse>(client, "create_page", {
