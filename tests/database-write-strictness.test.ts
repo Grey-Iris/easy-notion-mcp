@@ -271,7 +271,7 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
     }
   });
 
-  it("G4b-2: people property — 'does not support', NO future-release promise", async () => {
+  it("G4b-2: people property write succeeds", async () => {
     const dbId = freshDbId("b2");
     const notion = makeNotion({
       dbId,
@@ -283,12 +283,11 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
         name: "add_database_entry",
         arguments: { database_id: dbId, properties: { Name: "x", Owner: "uid" } },
       });
-      const text = parseToolText(result);
-      expect(text).toContain("'Owner'");
-      expect(text).toContain("people");
-      expect(text).toMatch(/does not support/i);
-      expect(text).not.toMatch(/future release/i);
-      expect(notion.pages.create).not.toHaveBeenCalled();
+      const response = JSON.parse(parseToolText(result));
+      expect(response.id).toBe("created-page");
+      expect(notion.pages.create).toHaveBeenCalledTimes(1);
+      const callArgs = notion.pages.create.mock.calls[0][0];
+      expect(callArgs.properties.Owner).toEqual({ people: [{ id: "uid" }] });
     } finally {
       await close();
     }
@@ -367,8 +366,7 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
     "created_by",
     "last_edited_by",
     "unique_id",
-    "verification",
-  ])("G4b-6: %s property — 'computed by Notion'", async (typeName) => {
+  ])("G4b-6: %s property is computed by Notion", async (typeName) => {
     const dbId = freshDbId(`b6-${typeName}`);
     const notion = makeNotion({
       dbId,
@@ -384,6 +382,28 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
       expect(text).toContain("'Field'");
       expect(text).toContain(typeName);
       expect(text).toMatch(/computed by Notion/i);
+      expect(notion.pages.create).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("G4b-6b: verification property points to the deferred write task", async () => {
+    const dbId = freshDbId("b6-verification");
+    const notion = makeNotion({
+      dbId,
+      schemaProvider: () => ({ Name: { type: "title" }, Field: { type: "verification" } }),
+    });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "add_database_entry",
+        arguments: { database_id: dbId, properties: { Name: "x", Field: "v" } },
+      });
+      const text = parseToolText(result);
+      expect(text).toContain("'Field'");
+      expect(text).toContain("verification");
+      expect(text).toContain("notion-verification-value-write");
       expect(notion.pages.create).not.toHaveBeenCalled();
     } finally {
       await close();
@@ -412,7 +432,7 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
     }
   });
 
-  it("G4b-8: add_database_entries sandwich [good, bad(people), good] — loop continues after throw", async () => {
+  it("G4b-8: add_database_entries sandwich [good, people, good] succeeds for all three", async () => {
     const dbId = freshDbId("b8");
     const notion = makeNotion({
       dbId,
@@ -432,11 +452,8 @@ describe("Database write strictness — unsupported property types (G-4b)", () =
         },
       });
       const response = JSON.parse(parseToolText(result));
-      expect(response.succeeded).toHaveLength(2);
-      expect(response.failed).toHaveLength(1);
-      expect(response.failed[0].index).toBe(1);
-      expect(response.failed[0].error).toMatch(/people/);
-      expect(response.failed[0].error).toMatch(/does not support/i);
+      expect(response.succeeded).toHaveLength(3);
+      expect(response.failed).toHaveLength(0);
     } finally {
       await close();
     }

@@ -40,6 +40,7 @@ import {
   updateDatabaseEntry,
   updatePage,
   type PageParent,
+  type SchemaEntry,
 } from "./notion-client.js";
 import type { NotionBlock, RichText } from "./types.js";
 
@@ -74,6 +75,41 @@ export function simplifyProperty(prop: any): unknown {
       return prop.phone_number;
     case "status":
       return prop.status?.name ?? null;
+    case "formula":
+      if (!prop.formula) return null;
+      switch (prop.formula.type) {
+        case "number":
+          return prop.formula.number ?? null;
+        case "string":
+          return prop.formula.string ?? null;
+        case "boolean":
+          return prop.formula.boolean ?? null;
+        case "date":
+          return prop.formula.date ?? null;
+        default:
+          return null;
+      }
+    case "rollup":
+      if (!prop.rollup) return null;
+      switch (prop.rollup.type) {
+        case "number":
+          return prop.rollup.number ?? null;
+        case "date":
+          return prop.rollup.date ?? null;
+        case "array":
+          return prop.rollup.array?.map((item: any) => simplifyProperty(item)) ?? [];
+        case "unsupported":
+        case "incomplete":
+          return null;
+        default:
+          return null;
+      }
+    case "files":
+      return prop.files?.map((file: any) => ({
+        type: file.type,
+        url: file.type === "external" ? file.external?.url : file.file?.url,
+        name: file.name,
+      })) ?? [];
     case "people":
       return prop.people?.map((p: any) => p.name ?? p.id) ?? [];
     case "relation":
@@ -83,6 +119,24 @@ export function simplifyProperty(prop: any): unknown {
       return prop.unique_id.prefix
         ? `${prop.unique_id.prefix}-${prop.unique_id.number}`
         : String(prop.unique_id.number);
+    case "created_time":
+      return prop.created_time ?? null;
+    case "last_edited_time":
+      return prop.last_edited_time ?? null;
+    case "created_by":
+      return prop.created_by?.name ?? prop.created_by?.id ?? null;
+    case "last_edited_by":
+      return prop.last_edited_by?.name ?? prop.last_edited_by?.id ?? null;
+    case "verification":
+      return {
+        state: prop.verification?.state ?? "unverified",
+        verified_by: prop.verification?.verified_by?.name ?? prop.verification?.verified_by?.id ?? null,
+        date: prop.verification?.date ?? null,
+      };
+    case "place":
+      return prop.place ?? null;
+    case "button":
+      return null;
     default:
       return null;
   }
@@ -682,7 +736,23 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
   },
   {
     name: "create_database",
-    description: "Create a database under a parent page. Supported property types: title, text, number, select, multi_select, date, checkbox, url, email, phone, status.",
+    description: `Create a database under a parent page.
+
+Supported property types and extras:
+- title
+- rich_text (alias: text)
+- number (optional: format, for example "dollar", "percent", "number_with_commas")
+- select, multi_select, status (optional: options array of strings or {name, color, description})
+- date, checkbox, url, email, phone
+- formula (required: expression, for example "prop(\\"Count\\") * 2")
+- rollup (required: function, relation_property, rollup_property)
+- relation (required: data_source_id; optional: relation_type "single_property" or "dual_property", synced_property_name)
+- unique_id (optional: prefix, for example "ENG")
+- people, files
+- created_time, last_edited_time, created_by, last_edited_by
+- verification, place, location, button
+
+Unknown property types fail with an explicit error. No silent drops.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -707,27 +777,31 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
   },
   {
     name: "update_data_source",
-    description: `CRITICAL — full-list semantics: when you update a select or status property's \`options\` array, you MUST send the FULL desired list. ANY existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. Rows that currently reference a removed option are SILENTLY REASSIGNED to the default group's first option (e.g. 'Not started' for status properties) — not cleared, not errored, not left dangling. NO SIGNAL IS RAISED. If you want to preserve the meaning of existing rows when removing an option, reclassify those rows to another explicit option BEFORE removing the option from the schema. To ADD one option, first call get_database, then resend the full current list with your addition appended.
+    description: `CRITICAL: full-list semantics. When you update a select or status property's \`options\` array, you MUST send the full desired list. Any existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. Rows that currently reference a removed option are silently reassigned to the default group's first option (for example "Not started" for status properties). No signal is raised. If you want to preserve the meaning of existing rows when removing an option, reclassify those rows to another explicit option before removing the option from the schema. To add one option, first call get_database, then resend the full current list with your addition appended.
 
-Cannot toggle \`is_inline\` on existing databases — \`is_inline\` is a database-level field, not a data-source field. A separate \`update_database\` tool will be added in a future PR.
+Cannot toggle \`is_inline\` on existing databases. \`is_inline\` is a database-level field, not a data-source field. A separate \`update_database\` tool may be added later.
 
-Updates a database's schema: rename existing properties, add/update/remove select or status options, change the database title, or move it to/from trash. Use this AFTER get_database tells you the current schema. Pass the same \`database_id\` you passed to get_database — the server resolves the underlying data source internally.
+Updates a database's schema: rename existing properties, add or update many property types, remove properties, change the database title, or move it to or from trash. Use this after get_database tells you the current schema. Pass the same \`database_id\` you passed to get_database. The server resolves the underlying data source internally.
 
-The \`properties\` field uses the raw Notion API shape. The server does NO merging, normalization, or validation of property payloads — whatever you send is forwarded as-is. In particular: sending \`null\` as a property value permanently DELETES that property (and any row data in it).
+The \`properties\` field supports two modes:
+- Raw Notion API shape: the server forwards your payload as-is. This preserves advanced and back-compat flows such as rename payloads, raw formula objects, and deletes via \`null\`.
+- Schema helper shape: if every property entry has a top-level \`type\` plus helper fields and none of the raw Notion keys, the server validates and converts it for you. Example: { "Score": { "type": "formula", "expression": "1+1" } }.
+
+The routing rule is all-or-nothing per call. If any property entry looks raw, the whole payload is treated as raw pass-through.
 
 Status property notes:
-- As of Notion's 2026-03-19 changelog, status properties are updatable via API (https://developers.notion.com/page/changelog). The legacy \`update-a-database\` and \`update-property-schema-object\` reference pages still claim status is non-updatable — ignore those; the changelog is authoritative.
-- Status property GROUPS (default: "To-do" / "In progress" / "Complete") CANNOT be reconfigured via API. Group structure must be edited in the Notion UI. New status options added via API are assigned to the default group and cannot be reassigned programmatically.
+- As of Notion's 2026-03-19 changelog, status properties are updatable via API (https://developers.notion.com/page/changelog). The legacy \`update-a-database\` and \`update-property-schema-object\` reference pages still say otherwise. The changelog is authoritative.
+- Status property groups (default: "To-do" / "In progress" / "Complete") cannot be reconfigured via API. Group structure must be edited in the Notion UI. New status options added via API are assigned to the default group and cannot be reassigned programmatically.
 - Known upstream issue: Notion's API may return a stale schema where options assigned to the \`in_progress\` group appear as an empty array, causing validation errors on writes (makenotion/notion-mcp-server#232). If writes to in_progress-group options fail unexpectedly, this is the likely cause.
 
 Property payload examples (raw Notion shape):
-- Rename a property:         { "Old Name": { "name": "New Name" } }
-- Replace status options:    { "Status": { "status": { "options": [{ "name": "Backlog" }, { "name": "Doing" }, { "name": "Done" }] } } }
+- Rename a property: { "Old Name": { "name": "New Name" } }
+- Replace status options: { "Status": { "status": { "options": [{ "name": "Backlog" }, { "name": "Doing" }, { "name": "Done" }] } } }
 - Permanently delete a property and its data: { "Unused": null }
 
-This tool CANNOT update row/page data — use page update tools for that.
+This tool cannot update row or page data. Use page update tools for that.
 
-At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided; empty updates are rejected.`,
+At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided. Empty updates are rejected.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -787,7 +861,25 @@ Call get_database first to see available properties and valid options.`,
   },
   {
     name: "add_database_entry",
-    description: `Create a new entry in a database. Pass properties as simple key-value pairs \u2014 the server converts using the database schema. Example: { "Name": "Buy groceries", "Status": "Todo", "Priority": "High", "Due": "2025-03-20", "Tags": ["Personal"] }. Call get_database to see available property names and valid select/status options.`,
+    description: `Create a new entry in a database.
+
+Writable property values use simple inputs:
+- title, rich_text: string
+- number: number
+- select, status: option name string
+- multi_select: array of option name strings
+- date: ISO date string (start only)
+- checkbox: boolean
+- url, email, phone: string
+- relation: string or array of page IDs
+- people: string or array of user IDs
+
+Not writable from this tool:
+- formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion
+- files, verification, place, location, button: not supported for value writes here
+
+Example: { "Name": "Buy groceries", "Status": "Todo", "Priority": "High", "Due": "2025-03-20", "Tags": ["Personal"] }.
+Call get_database to see available property names and valid select or status options.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -818,7 +910,24 @@ Call get_database first to see available properties and valid options.`,
   },
   {
     name: "update_database_entry",
-    description: "Update an existing database entry. Pass only the properties you want to change \u2014 omitted properties are left unchanged. Uses the same simple key-value format as add_database_entry. Call get_database to see valid property names and options.",
+    description: `Update an existing database entry. Pass only the properties you want to change; omitted properties are left unchanged.
+
+Writable property values use the same simple inputs as add_database_entry:
+- title, rich_text: string
+- number: number
+- select, status: option name string
+- multi_select: array of option name strings
+- date: ISO date string (start only)
+- checkbox: boolean
+- url, email, phone: string
+- relation: string or array of page IDs
+- people: string or array of user IDs
+
+Not writable from this tool:
+- formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion
+- files, verification, place, location, button: not supported for value writes here
+
+Call get_database to see valid property names and options.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1296,7 +1405,7 @@ export function createServer(
           const { title, parent_page_id, schema, is_inline } = args as {
             title: string;
             parent_page_id: string;
-            schema: Array<{ name: string; type: string }>;
+            schema: SchemaEntry[];
             is_inline?: boolean;
           };
           const result = await createDatabase(

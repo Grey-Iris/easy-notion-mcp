@@ -67,6 +67,13 @@ type GetDatabaseResponse = {
     name: string;
     type: string;
     options?: string[];
+    expression?: string;
+    function?: string;
+    prefix?: string | null;
+    data_source_id?: string;
+    relation_type?: string;
+    relation_property?: string;
+    rollup_property?: string;
   }>;
   error?: string;
 };
@@ -378,14 +385,14 @@ describe.skipIf(!env.shouldRun)(
       expectContentNoticePresent(page.markdown);
     }, 20_000);
 
-    it("KNOWN GAP: create_database silently drops formula-type columns", async () => {
+    it("C1: create_database creates formula columns", async () => {
       const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
         parent_page_id: ctx.sandboxId!,
-        title: "C1 formula drop",
+        title: "C1 formula create",
         schema: [
           { name: "Task", type: "title" },
           { name: "Count", type: "number" },
-          { name: "Score", type: "formula" },
+          { name: "Score", type: "formula", expression: 'prop("Count") * 2' },
         ],
       });
 
@@ -393,10 +400,9 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(created.id);
 
       expect(Array.isArray(created.properties)).toBe(true);
-      expect(created.properties).toEqual(["Task", "Count"]);
       expect(created.properties).toContain("Task");
       expect(created.properties).toContain("Count");
-      expect(created.properties).not.toContain("Score");
+      expect(created.properties).toContain("Score");
 
       const database = await callTool<GetDatabaseResponse>(client, "get_database", {
         database_id: created.id,
@@ -407,18 +413,42 @@ describe.skipIf(!env.shouldRun)(
         expect.arrayContaining([
           expect.objectContaining({ name: "Task", type: "title" }),
           expect.objectContaining({ name: "Count", type: "number" }),
+          expect.objectContaining({ name: "Score", type: "formula" }),
         ]),
       );
-      expect(database.properties).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ name: "Score" })]),
-      );
-      expect(database.properties.some((property) => property.type === "formula")).toBe(false);
-    }, 20_000);
 
-    it("KNOWN GAP: unsupported property types return null without warning", async () => {
+      const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Task: "row1",
+          Count: 5,
+        },
+      });
+
+      expect(entry.error).toBeUndefined();
+      ctx.createdPageIds.push(entry.id);
+
+      // Notion evaluates formulas asynchronously; poll a few times before asserting.
+      let row: Record<string, unknown> | undefined;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+          database_id: created.id,
+        });
+        row = rows.find((candidate) => candidate.Task === "row1");
+        if (row && row.Score !== null && row.Score !== undefined) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      }
+
+      expect(row).toBeDefined();
+      expect(row?.Score).not.toBeNull();
+    }, 45_000);
+
+    it("C2: formula property values read back non-null", async () => {
       const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
         parent_page_id: ctx.sandboxId!,
-        title: "C2 unsupported property null fallback",
+        title: "C2 formula read non-null",
         schema: [
           { name: "Title", type: "title" },
           { name: "Count", type: "number" },
@@ -463,16 +493,187 @@ describe.skipIf(!env.shouldRun)(
       expect(entry.error).toBeUndefined();
       ctx.createdPageIds.push(entry.id);
 
+      // Notion evaluates formulas asynchronously; poll a few times before asserting.
+      let rows: Array<Record<string, unknown>> = [];
+      let row: Record<string, unknown> | undefined;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+          database_id: created.id,
+        });
+        row = rows.find((candidate) => candidate.Title === "row1");
+        if (row && row.Formula !== null && row.Formula !== undefined) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      }
+
+      expect(Array.isArray(rows)).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(rows, "warnings")).toBe(false);
+      expect(row).toBeDefined();
+      expect(row).toEqual(expect.objectContaining({ Title: "row1", Count: 5 }));
+      expect(row?.Formula).not.toBeNull();
+    }, 45_000);
+
+    it("C3: relation schema create", async () => {
+      const source = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C3 relation source",
+        schema: [
+          { name: "Title", type: "title" },
+        ],
+      });
+      expect(source.error).toBeUndefined();
+      ctx.createdPageIds.push(source.id);
+
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C3 relation target",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Ref", type: "relation", data_source_id: source.id },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const database = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+
+      expect(database.error).toBeUndefined();
+      expect(database.properties).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Ref", type: "relation" }),
+        ]),
+      );
+    }, 30_000);
+
+    it("C4: rollup schema create", async () => {
+      const linked = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C4 rollup linked",
+        schema: [
+          { name: "Title", type: "title" },
+        ],
+      });
+      expect(linked.error).toBeUndefined();
+      ctx.createdPageIds.push(linked.id);
+
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C4 rollup target",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Ref", type: "relation", data_source_id: linked.id },
+          {
+            name: "RefCount",
+            type: "rollup",
+            function: "count",
+            relation_property: "Ref",
+            rollup_property: "Title",
+          },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const database = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+
+      expect(database.error).toBeUndefined();
+      expect(database.properties).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "RefCount", type: "rollup", function: "count" }),
+        ]),
+      );
+    }, 30_000);
+
+    it("C5: people schema + value write", async () => {
+      const users = await callTool<Array<{ id: string; name?: string | null; type: string }>>(
+        client,
+        "list_users",
+        {},
+      );
+      const owner = users.find((candidate) => candidate.type === "bot" || candidate.type === "person");
+      expect(owner).toBeDefined();
+
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C5 people",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Owner", type: "people" },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Title: "r1",
+          Owner: owner!.id,
+        },
+      });
+
+      expect(entry.error).toBeUndefined();
+      ctx.createdPageIds.push(entry.id);
+
       const rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
         database_id: created.id,
       });
 
-      expect(Array.isArray(rows)).toBe(true);
-      expect(Object.prototype.hasOwnProperty.call(rows, "warnings")).toBe(false);
+      const row = rows.find((candidate) => candidate.Title === "r1");
+      expect(row).toBeDefined();
+      expect(Array.isArray(row?.Owner)).toBe(true);
+      expect((row?.Owner as unknown[]).length).toBeGreaterThan(0);
+    }, 30_000);
+
+    it("C6: unique_id schema with prefix", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "C6 unique id",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Ticket", type: "unique_id", prefix: "ENG" },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const database = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+
+      expect(database.error).toBeUndefined();
+      expect(database.properties).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Ticket", type: "unique_id", prefix: "ENG" }),
+        ]),
+      );
+
+      const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Title: "row1",
+        },
+      });
+
+      expect(entry.error).toBeUndefined();
+      ctx.createdPageIds.push(entry.id);
+
+      const rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+        database_id: created.id,
+      });
 
       const row = rows.find((candidate) => candidate.Title === "row1");
       expect(row).toBeDefined();
-      expect(row).toEqual(expect.objectContaining({ Title: "row1", Count: 5, Formula: null }));
+      expect(String(row?.Ticket)).toMatch(/^ENG-\d+$/);
     }, 30_000);
 
     it("E1: stdio file upload", async () => {
