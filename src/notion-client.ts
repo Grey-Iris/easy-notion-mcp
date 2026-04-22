@@ -39,6 +39,70 @@ function titleRichText(content: string) {
 
 type PropertiesUpdate = UpdateDataSourceParameters["properties"];
 
+export type SchemaEntry = {
+  name: string;
+  type: string;
+  [extra: string]: unknown;
+};
+
+const VALID_SCHEMA_TYPES = [
+  "title",
+  "rich_text",
+  "text",
+  "number",
+  "select",
+  "multi_select",
+  "status",
+  "date",
+  "checkbox",
+  "url",
+  "email",
+  "phone",
+  "formula",
+  "rollup",
+  "relation",
+  "unique_id",
+  "people",
+  "files",
+  "verification",
+  "place",
+  "location",
+  "button",
+  "created_time",
+  "last_edited_time",
+  "created_by",
+  "last_edited_by",
+] as const;
+const VALID_SCHEMA_TYPES_SET = new Set<string>(VALID_SCHEMA_TYPES);
+const RAW_PROPERTY_SHAPE_KEYS = new Set([
+  "title",
+  "rich_text",
+  "number",
+  "select",
+  "multi_select",
+  "status",
+  "date",
+  "checkbox",
+  "url",
+  "email",
+  "phone_number",
+  "formula",
+  "rollup",
+  "relation",
+  "people",
+  "files",
+  "unique_id",
+  "verification",
+  "place",
+  "button",
+  "location",
+  "created_time",
+  "last_edited_time",
+  "created_by",
+  "last_edited_by",
+  "name",
+]);
+
 const schemaCache = new Map<string, { schema: any; expires: number }>();
 const dataSourceIdCache = new Map<string, { dsId: string; expires: number }>();
 const SCHEMA_CACHE_TTL = 5 * 60 * 1000;
@@ -118,6 +182,31 @@ export async function getDatabase(client: Client, dbId: string) {
       prop.options = config.multi_select.options.map((o: any) => o.name);
     } else if (config.type === "status" && config.status?.options) {
       prop.options = config.status.options.map((o: any) => o.name);
+    } else if (config.type === "formula" && config.formula?.expression !== undefined) {
+      prop.expression = config.formula.expression;
+    } else if (config.type === "relation") {
+      if (config.relation?.data_source_id !== undefined) {
+        prop.data_source_id = config.relation.data_source_id;
+      }
+      if (config.relation?.type !== undefined) {
+        prop.relation_type = config.relation.type;
+      }
+    } else if (config.type === "rollup") {
+      if (config.rollup?.function !== undefined) {
+        prop.function = config.rollup.function;
+      }
+      if (config.rollup?.relation_property_name ?? config.rollup?.relation_property_id) {
+        prop.relation_property =
+          config.rollup.relation_property_name ?? config.rollup.relation_property_id;
+      }
+      if (config.rollup?.rollup_property_name ?? config.rollup?.rollup_property_id) {
+        prop.rollup_property =
+          config.rollup.rollup_property_name ?? config.rollup.rollup_property_id;
+      }
+    } else if (config.type === "unique_id" && config.unique_id?.prefix !== undefined) {
+      prop.prefix = config.unique_id.prefix;
+    } else if (config.type === "number" && config.number?.format !== undefined) {
+      prop.format = config.number.format;
     }
     return prop;
   });
@@ -142,26 +231,110 @@ export async function buildTextFilter(client: Client, dbId: string, text: string
   return { or: textProps };
 }
 
-export function schemaToProperties(schema: Array<{ name: string; type: string }>) {
+function validTypeList() {
+  return VALID_SCHEMA_TYPES.join(", ");
+}
+
+function invalidSchemaTypeError(name: string, type: string) {
+  return new Error(
+    `Property "${name}" has type "${type}", which is not a valid Notion property type. ` +
+      `Valid types: ${validTypeList()}.`,
+  );
+}
+
+function normalizeSchemaOptions(name: string, options: unknown) {
+  if (options === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(options)) {
+    throw new Error(`Property "${name}" must provide options as an array.`);
+  }
+
+  return options.map((option) => {
+    if (typeof option === "string") {
+      return { name: option };
+    }
+    if (option && typeof option === "object" && !Array.isArray(option)) {
+      const { name: optionName, color, description } = option as Record<string, unknown>;
+      if (typeof optionName !== "string" || optionName.length === 0) {
+        throw new Error(`Property "${name}" has an option without a valid name.`);
+      }
+      const normalized: Record<string, unknown> = { name: optionName };
+      if (color !== undefined) normalized.color = color;
+      if (description !== undefined) normalized.description = description;
+      return normalized;
+    }
+    throw new Error(`Property "${name}" has an invalid option. Use a string or {name, color, description}.`);
+  });
+}
+
+async function maybeResolveSchemaDataSourceId(client: Client, value: string) {
+  try {
+    return await getDataSourceId(client, value);
+  } catch {
+    return value;
+  }
+}
+
+async function resolveRelationDataSourceIds(client: Client, schema: SchemaEntry[], props: Record<string, any>) {
+  for (const entry of schema) {
+    if (entry.type !== "relation") {
+      continue;
+    }
+    const dataSourceId = entry.data_source_id;
+    if (typeof dataSourceId === "string" && props[entry.name]?.relation) {
+      props[entry.name].relation.data_source_id = await maybeResolveSchemaDataSourceId(client, dataSourceId);
+    }
+  }
+  return props;
+}
+
+function isSchemaShapePropertiesMap(properties: Record<string, unknown>) {
+  return Object.values(properties).every((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return false;
+    }
+    const record = value as Record<string, unknown>;
+    if (typeof record.type !== "string" || !VALID_SCHEMA_TYPES_SET.has(record.type)) {
+      return false;
+    }
+    return !Object.keys(record).some((key) => key !== "type" && RAW_PROPERTY_SHAPE_KEYS.has(key));
+  });
+}
+
+export function schemaToProperties(schema: SchemaEntry[]) {
   const props: Record<string, any> = {};
 
-  for (const { name, type } of schema) {
+  for (const entry of schema) {
+    const { name, type } = entry;
     switch (type) {
       case "title":
         props[name] = { title: {} };
         break;
+      case "rich_text":
       case "text":
         props[name] = { rich_text: {} };
         break;
-      case "number":
-        props[name] = { number: {} };
+      case "number": {
+        const format = entry.format;
+        props[name] = { number: format !== undefined ? { format } : {} };
         break;
-      case "select":
-        props[name] = { select: {} };
+      }
+      case "select": {
+        const options = normalizeSchemaOptions(name, entry.options);
+        props[name] = { select: options ? { options } : {} };
         break;
-      case "multi_select":
-        props[name] = { multi_select: {} };
+      }
+      case "multi_select": {
+        const options = normalizeSchemaOptions(name, entry.options);
+        props[name] = { multi_select: options ? { options } : {} };
         break;
+      }
+      case "status": {
+        const options = normalizeSchemaOptions(name, entry.options);
+        props[name] = { status: options ? { options } : {} };
+        break;
+      }
       case "date":
         props[name] = { date: {} };
         break;
@@ -177,11 +350,90 @@ export function schemaToProperties(schema: Array<{ name: string; type: string }>
       case "phone":
         props[name] = { phone_number: {} };
         break;
-      case "status":
-        props[name] = { status: {} };
+      case "formula":
+        if (typeof entry.expression !== "string" || entry.expression.trim().length === 0) {
+          throw new Error(`Property "${name}" is a formula and requires a non-empty expression.`);
+        }
+        props[name] = { formula: { expression: entry.expression } };
+        break;
+      case "rollup":
+        if (typeof entry.function !== "string" || entry.function.length === 0) {
+          throw new Error(`Property "${name}" is a rollup and requires a function.`);
+        }
+        if (typeof entry.relation_property !== "string" || entry.relation_property.length === 0) {
+          throw new Error(`Property "${name}" is a rollup and requires relation_property.`);
+        }
+        if (typeof entry.rollup_property !== "string" || entry.rollup_property.length === 0) {
+          throw new Error(`Property "${name}" is a rollup and requires rollup_property.`);
+        }
+        props[name] = {
+          rollup: {
+            function: entry.function,
+            relation_property_name: entry.relation_property,
+            rollup_property_name: entry.rollup_property,
+          },
+        };
+        break;
+      case "relation": {
+        if (typeof entry.data_source_id !== "string" || entry.data_source_id.length === 0) {
+          throw new Error(`Property "${name}" is a relation and requires data_source_id.`);
+        }
+        const relationType =
+          entry.relation_type === "dual_property" ? "dual_property" : "single_property";
+        props[name] = relationType === "dual_property"
+          ? {
+              relation: {
+                data_source_id: entry.data_source_id,
+                type: "dual_property",
+                dual_property: entry.synced_property_name !== undefined
+                  ? { synced_property_name: entry.synced_property_name }
+                  : {},
+              },
+            }
+          : {
+              relation: {
+                data_source_id: entry.data_source_id,
+                type: "single_property",
+                single_property: {},
+              },
+            };
+        break;
+      }
+      case "unique_id":
+        props[name] = { unique_id: entry.prefix !== undefined ? { prefix: entry.prefix } : {} };
+        break;
+      case "people":
+        props[name] = { people: {} };
+        break;
+      case "files":
+        props[name] = { files: {} };
+        break;
+      case "verification":
+        props[name] = { verification: {} };
+        break;
+      case "place":
+        props[name] = { place: {} };
+        break;
+      case "location":
+        props[name] = { location: {} };
+        break;
+      case "button":
+        props[name] = { button: {} };
+        break;
+      case "created_time":
+        props[name] = { created_time: {} };
+        break;
+      case "last_edited_time":
+        props[name] = { last_edited_time: {} };
+        break;
+      case "created_by":
+        props[name] = { created_by: {} };
+        break;
+      case "last_edited_by":
+        props[name] = { last_edited_by: {} };
         break;
       default:
-        break;
+        throw invalidSchemaTypeError(name, type);
     }
   }
 
@@ -228,10 +480,16 @@ export function convertPropertyValue(
           .map((id) => ({ id: String(id) })),
       };
     case "people":
+      return {
+        people: (Array.isArray(value) ? value : [value])
+          .filter((id) => id)
+          .map((id) => ({ id: String(id) })),
+      };
     case "files":
       throw new Error(
         `Property '${key}' has type '${type}'. ` +
-          `easy-notion-mcp does not support writing '${type}' properties. ` +
+          `easy-notion-mcp does not support writing '${type}' properties yet. ` +
+          `Tracked task: notion-files-value-write. Only external URL writes are planned. ` +
           `Remove '${key}' from the payload, or set this field in the Notion UI.`,
       );
     case "formula":
@@ -241,11 +499,30 @@ export function convertPropertyValue(
     case "created_by":
     case "last_edited_by":
     case "unique_id":
-    case "verification":
       throw new Error(
         `Property '${key}' has type '${type}'. ` +
           `This type is computed by Notion and cannot be set via API. ` +
           `Remove '${key}' from the payload; Notion populates the value automatically.`,
+      );
+    case "verification":
+      throw new Error(
+        `Property '${key}' has type '${type}'. ` +
+          `easy-notion-mcp does not support writing '${type}' properties yet. ` +
+          `Tracked task: notion-verification-value-write. ` +
+          `Remove '${key}' from the payload, or set this field in the Notion UI.`,
+      );
+    case "place":
+    case "location":
+      throw new Error(
+        `Property '${key}' has type '${type}'. ` +
+          `This type is computed by Notion or not yet supported for writes. ` +
+          `Remove '${key}' from the payload for now.`,
+      );
+    case "button":
+      throw new Error(
+        `Property '${key}' has type '${type}'. ` +
+          `This type is trigger-only; buttons have no write value. ` +
+          `Remove '${key}' from the payload for now.`,
       );
     default:
       throw new Error(
@@ -504,13 +781,14 @@ export async function createDatabase(
   client: Client,
   parentId: string,
   title: string,
-  schema: Array<{ name: string; type: string }>,
+  schema: SchemaEntry[],
   options?: { is_inline?: boolean },
 ) {
+  const properties = await resolveRelationDataSourceIds(client, schema, schemaToProperties(schema));
   return client.databases.create({
     parent: { type: "page_id", page_id: parentId },
     title: titleRichText(title),
-    initial_data_source: { properties: schemaToProperties(schema) },
+    initial_data_source: { properties },
     ...(options?.is_inline !== undefined ? { is_inline: options.is_inline } : {}),
   } as any);
 }
@@ -538,7 +816,19 @@ export async function updateDataSource(
 
   const body: Record<string, unknown> = { data_source_id: dataSourceId };
   if (updates.title !== undefined) body.title = titleRichText(updates.title);
-  if (updates.properties !== undefined) body.properties = updates.properties;
+  if (updates.properties !== undefined) {
+    const rawProperties = updates.properties as Record<string, unknown>;
+    const schemaEntries = Object.entries(rawProperties).map(([name, value]) => (
+      { name, ...(value as Record<string, unknown>) }
+    )) as SchemaEntry[];
+    body.properties = isSchemaShapePropertiesMap(rawProperties)
+      ? await resolveRelationDataSourceIds(
+          client,
+          schemaEntries,
+          schemaToProperties(schemaEntries),
+        )
+      : updates.properties;
+  }
   if (updates.in_trash !== undefined) body.in_trash = updates.in_trash;
 
   const result = await client.dataSources.update(body as any);
