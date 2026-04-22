@@ -43,12 +43,13 @@ async function connect(notion: any) {
 }
 
 describe("create_database response fidelity (G-4c)", () => {
-  it("G4c-1: response properties reflect Notion's actual result, not the requested schema (people silently dropped)", async () => {
+  it("G4c-1: people schema now succeeds and the response includes Owner", async () => {
     const createResult = {
       id: "db-1",
       url: "https://notion.so/db-1",
       properties: {
         Title: { id: "title", type: "title", title: {} },
+        Owner: { id: "owner", type: "people", people: {} },
       },
     };
     const notion = makeNotion(createResult);
@@ -66,8 +67,7 @@ describe("create_database response fidelity (G-4c)", () => {
         },
       });
       const response = JSON.parse(parseToolText(result));
-      expect(response.properties).toEqual(["Title"]);
-      expect(response.properties).not.toContain("Owner");
+      expect(response.properties.sort()).toEqual(["Owner", "Title"]);
     } finally {
       await close();
     }
@@ -105,7 +105,7 @@ describe("create_database response fidelity (G-4c)", () => {
     }
   });
 
-  it("G4c-3: requested schema with an unknown type — response omits it (reflects reality)", async () => {
+  it("G4c-3: unknown schema types fail validation before Notion is called", async () => {
     const createResult = {
       id: "db-3",
       url: "https://notion.so/db-3",
@@ -123,13 +123,13 @@ describe("create_database response fidelity (G-4c)", () => {
           parent_page_id: "parent-1",
           schema: [
             { name: "Title", type: "title" },
-            { name: "Wut", type: "nonexistent_type" },
+            { name: "Wut", type: "this_is_not_a_real_type" },
           ],
         },
       });
       const response = JSON.parse(parseToolText(result));
-      expect(response.properties).toEqual(["Title"]);
-      expect(response.properties).not.toContain("Wut");
+      expect(response.error).toMatch(/this_is_not_a_real_type|title|formula|relation|status/);
+      expect(notion.databases.create).not.toHaveBeenCalled();
     } finally {
       await close();
     }

@@ -41,6 +41,89 @@ function getUpdateDataSource() {
 }
 
 describe("updateDataSource", () => {
+  it("routes schema-shape property payloads through the schema helper", async () => {
+    const client = makeMockClient({
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-schema-shape", data_sources: [{ id: "ds-schema-shape" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+
+    await getUpdateDataSource()(client as any, "db-schema-shape", {
+      properties: {
+        NewProp: { type: "formula", expression: "1+1" } as any,
+      } as any,
+    });
+
+    expect(client.dataSources.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data_source_id: "ds-schema-shape",
+        properties: {
+          NewProp: { formula: { expression: "1+1" } },
+        },
+      }),
+    );
+  });
+
+  it("passes raw formula payloads through unchanged", async () => {
+    const client = makeMockClient({
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-raw-formula", data_sources: [{ id: "ds-raw-formula" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+    const properties = {
+      Score: {
+        type: "formula",
+        formula: { expression: "1" },
+      },
+    };
+
+    await getUpdateDataSource()(client as any, "db-raw-formula", { properties: properties as any });
+
+    expect(client.dataSources.update.mock.calls[0]?.[0]?.properties).toBe(properties);
+  });
+
+  it("passes rename payloads through unchanged", async () => {
+    const client = makeMockClient({
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-rename-heuristic", data_sources: [{ id: "ds-rename-heuristic" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+    const properties = { Old: { name: "New" } };
+
+    await getUpdateDataSource()(client as any, "db-rename-heuristic", { properties: properties as any });
+
+    expect(client.dataSources.update.mock.calls[0]?.[0]?.properties).toBe(properties);
+  });
+
+  it("passes delete payloads through unchanged", async () => {
+    const client = makeMockClient({
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-delete-heuristic", data_sources: [{ id: "ds-delete-heuristic" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+    const properties = { Unused: null };
+
+    await getUpdateDataSource()(client as any, "db-delete-heuristic", { properties: properties as any });
+
+    expect(client.dataSources.update.mock.calls[0]?.[0]?.properties).toBe(properties);
+  });
+
+  it("treats mixed payloads as raw pass-through", async () => {
+    const client = makeMockClient({
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-mixed-heuristic", data_sources: [{ id: "ds-mixed-heuristic" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+    const properties = {
+      New: { type: "formula", expression: 'prop("Count")' },
+      Rename: { name: "Renamed" },
+    };
+
+    await getUpdateDataSource()(client as any, "db-mixed-heuristic", { properties: properties as any });
+
+    expect(client.dataSources.update.mock.calls[0]?.[0]?.properties).toBe(properties);
+  });
+
   it("forwards a raw properties map unchanged", async () => {
     const client = makeMockClient({
       databases: {
