@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-22
+
+### Added
+
+- **Schema creation covers every Notion property type (2025-09-03).**
+  `create_database` and `update_data_source` now accept schema specs for
+  `formula` (required `expression`), `rollup` (required `function`,
+  `relation_property`, `rollup_property`), `relation` (single_property
+  default; optional `dual_property` with `synced_property_name`; accepts
+  either `data_source_id` or `database_id`, resolved internally),
+  `unique_id` (optional `prefix`), `people`, `files`, `verification`,
+  `place`, `location`, `button`, `created_time`, `last_edited_time`,
+  `created_by`, `last_edited_by`. `select` / `multi_select` / `status`
+  accept an `options` array; `number` accepts a `format` string.
+
+- **Read decoders (`simplifyProperty`) cover the expanded type set.**
+  `formula` decodes polymorphically (number, string, boolean, date);
+  `rollup` decodes polymorphically (number, date, array with recursive
+  decode, unsupported, incomplete). New decoders for `files`,
+  `verification`, `place`, `button`, `created_time`, `last_edited_time`,
+  `created_by`, `last_edited_by`. `query_database` rows now return
+  structured values for these types instead of `null`.
+
+- **`get_database` response surfaces per-type extras.** `expression`,
+  `function`, `relation_property`, `rollup_property`, `data_source_id`,
+  `relation_type`, `prefix`, `format` are included where relevant, so
+  callers can introspect schema details without a second round-trip.
+
+- **`update_data_source` accepts the schema-helper shape in addition to
+  raw Notion payloads.** If every property entry has a top-level `type`
+  string from the supported set and no reserved raw keys, the payload
+  is routed through `schemaToProperties` for validation. Otherwise the
+  raw pass-through is preserved. Routing is all-or-nothing per call;
+  mixed payloads stay raw. Existing raw patterns (rename,
+  delete-via-null, raw-formula) continue to work unchanged.
+
+- **Post-publish smoke script (`npm run release:smoke`).** Resolves
+  `easy-notion-mcp@latest` from npm, installs to a throwaway tmp dir,
+  spawns the tarball's stdio entry point, and runs `initialize` plus
+  `tools/call get_me` to confirm the published artifact boots and
+  authenticates. Distinct exit codes for precondition, install,
+  handshake, and shape-validation failures. Manual post-publish step;
+  not wired into CI.
+
+- **E2E stale-sandbox sweeper (`npm run test:e2e:sweep` and
+  `npm run test:e2e:sweep:apply`).** Standalone script for cleaning up
+  leftover sandbox pages when test teardown is interrupted. Dry-run by
+  default. Refuses to archive anything outside the configured
+  `NOTION_ROOT_PAGE_ID`. Scoped to `child_page` descendants; search
+  results outside the known candidate set are logged SKIP-only. Exit
+  codes: 2 for local preconditions, 3 for root-boundary refusal, 4 for
+  `--apply` runs that hit unexpected archive errors.
+
+- **E2E teardown error classifier.** Three-class classifier
+  (`already_archived`, `archived_ancestor`, `not_found`) with an
+  `unexpected` fallthrough, plus an unconditional
+  `[e2e][teardown] cleanup summary: archived=... already_archived=...
+  archived_ancestor=... not_found=... unexpected=...` line per run.
+  Internal testing infrastructure; no user-facing API change.
+
+### Changed
+
+- **`add_database_entry` / `update_database_entry` now write `people`
+  values.** Pass a single user ID string or an array of user IDs.
+  v0.3.0 threw under the G-4b strictness path with "this server does
+  not support"; the throw is lifted and the value is written through.
+
+- **`create_database` / `update_data_source` reject unknown property
+  types with a validation error.** Previously silently dropped during
+  `schemaToProperties`, called out as a known limit in the v0.3.0
+  changelog. The error surfaces the offending property name, the
+  rejected type string, and the list of supported types. Migration:
+  remove or rename unsupported entries in the payload.
+
+- **E2E teardown no longer treats tolerated Notion archive outcomes as
+  failures.** `archivePageIds`'s return shape changed: `failed` is
+  renamed to `unexpected`, with new `tolerated` and `summary` fields.
+  Affects only callers inside `tests/e2e/`; no impact on the server
+  API or the published tarball.
+
+### Security
+
+- **Refreshed `package-lock.json` to pin `hono@4.12.14`**, closing
+  [GHSA-458j-xx4x-4375](https://github.com/advisories/GHSA-458j-xx4x-4375)
+  (moderate XSS in `hono/jsx` SSR) on our own CI and audit posture.
+  End-user impact is nil: the npm tarball does not ship
+  `package-lock.json`, and `@modelcontextprotocol/sdk`'s caret range
+  already resolves fresh installs to the patched version. The
+  vulnerable code path (`hono/jsx` SSR) is not reachable from this
+  server's `src/`; no symbols from `hono` or `@hono/node-server` are
+  imported directly. Patched anyway per the "patch rather than
+  whitelist" rule in CLAUDE.md. Filed upstream at
+  [modelcontextprotocol/typescript-sdk#1941](https://github.com/modelcontextprotocol/typescript-sdk/issues/1941).
+
 ## [0.3.1] - 2026-04-20
 
 ### Fixed
