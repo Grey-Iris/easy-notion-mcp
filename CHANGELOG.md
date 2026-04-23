@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-23
+
+### Breaking changes
+
+- **`query_database` response shape changed from `Array<entry>` to
+  `{ results: Array<entry>, warnings?: Array<warning> }`.** The
+  `results` key is always present; `warnings` is included only when a
+  warning fires. Migration: change `rows` to `rows.results`. Existing
+  test call sites in the repo were migrated in the same change.
+
+### Added
+
+- **Long-property pagination for `query_database` and `read_page`.**
+  When Notion's `pages.retrieve` truncates multi-value properties at
+  25 items (`title`, `rich_text`, `relation`, `people`), the server
+  now calls `pages.properties.retrieve` to fetch up to
+  `max_property_items` (default 75, 0 means unlimited). When the cap
+  is hit, the response surfaces a `truncated_properties` warning with
+  a `how_to_fetch_all` hint pointing at the override.
+
+- **New input param `max_property_items` on both `query_database` and
+  `read_page`.** Negative values are rejected with a validation error
+  before any Notion API call.
+
+- **New warning code `truncated_properties`.** Detail shape:
+  `{ code, properties: [{ name, type, returned_count, cap }],
+  how_to_fetch_all }`.
+
+### Notes
+
+- **`read_page` paginates titles only.** Relation and people properties
+  on the page object are not paginated because `read_page` does not
+  surface them.
+
+- **Rollup-array pagination is deferred to a follow-up.** See the plan
+  at `.meta/plans/pr2-long-property-pagination-2026-04-23.md`,
+  section 2.2, for rationale.
+
 ## [0.4.0] - 2026-04-22
 
 ### Added
