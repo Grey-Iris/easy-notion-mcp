@@ -16,6 +16,10 @@ dist/
 internal/
 .meta/investigations/
 
+# Bench transcripts (raw, not committed)
+.meta/bench/transcripts/
+.meta/bench/.runner-pids/
+
 # Internal documents (not for public repo)
 audit-report-*.md
 competitor-comparison.md
