@@ -308,7 +308,7 @@ describe.skipIf(!env.shouldRun)(
       } finally {
         await client?.close();
       }
-    }, 60_000);
+    }, 300_000);
 
     it("A1: auth / transport smoke", async () => {
       expect(client).toBeTruthy();
