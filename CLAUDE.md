@@ -38,15 +38,21 @@ CI runs on every PR and push to `main`/`dev` (GitHub Actions: build, typecheck, 
 
 ## Releasing
 
-Tag-triggered via GitHub Actions. To publish a new version:
+Manual publish is the primary path (CI Trusted Publishing is upstream-blocked; tracked in tasuku as `debug-npm-trusted-publishing-for`).
 
-1. Bump version in `package.json`
-2. Commit: `git commit -am "Bump to vX.Y.Z"`
+1. Bump `version` in **both** `package.json` and `package-lock.json` (top-level `version` field AND `packages."".version`) in the same commit
+2. Commit: `git commit -am "chore: bump to vX.Y.Z"`
 3. Tag: `git tag vX.Y.Z`
-4. Push: `git push && git push --tags`
-5. CI runs tests → publishes to npm → creates GitHub release
+4. Push: `git push public dev && git push public --tags`
+5. `npm login --auth-type=web` (if session expired)
+6. `npm publish --access public` (from the tagged commit)
+7. `npm run release:smoke` (post-publish verification)
+8. `gh release create vX.Y.Z --generate-notes` (GitHub release)
+9. Merge `main` ← release PR, then `dev` ← `main` catch-up merge
 
-Requires `NPM_TOKEN` secret in repo settings.
+Tag-triggered Release workflow exists in CI and runs tests, but its publish step currently 404s. Once Trusted Publishing is fixed upstream, CI will become the primary path and steps 5-6 can be removed.
+
+Requires `NPM_TOKEN` secret in repo settings (used by CI workflow).
 
 ## Architecture
 
@@ -65,7 +71,8 @@ src/
 └── types.ts              # Shared types
 ```
 
-- `server.ts` exports `createServer(notionClientFactory, config)` — a factory that builds an MCP Server with all 26 tools registered
+- `server.ts` exports `createServer(notionClientFactory, config)` — a factory that builds an MCP Server with all 28 tools registered
+<!-- Maintainer: update this count when adding/removing tools. Canonical source: grep for name: in src/server.ts tool definitions array. -->
 - `index.ts` is a thin stdio entry point: creates one Notion client, passes it to `createServer`, connects via `StdioServerTransport`
 - `http.ts` exports `createApp(options)` — builds an Express app with MCP endpoints; supports two modes:
   - **Static token mode**: uses a fixed `NOTION_TOKEN`, no auth middleware
@@ -134,3 +141,7 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 - **OAuth relay** — the server acts as an MCP OAuth Authorization Server, redirects to Notion's OAuth consent screen, exchanges codes, and issues its own bearer tokens backed by encrypted file-based storage (AES-256-GCM)
 - **Transport-conditional tools** — tools can declare a `transports: ['stdio' | 'http']` list to restrict where they appear. Tools without the field are available in all transports. File-reading tools (e.g. `create_page_from_file`) are stdio-only because HTTP-mode callers don't share the server's filesystem.
 - **Non-fatal `warnings` field on tool responses** — tools may return an optional `warnings: Array<{code: string, ...detail}>` for non-fatal data-fidelity concerns (e.g., `omitted_block_types` on `read_page`). Omitted when empty. Codes are part of the contract once shipped — new tools should reuse existing codes or add specific descriptive names.
+
+## `.meta/research/` lifecycle
+
+Research notes under `.meta/research/` have a 90-day shelf life. If a research note has not been referenced by a merged plan, an active doc, or a tasuku task within 90 days of its creation, delete it. Check creation date via `git log --diff-filter=A --format=%ai -- <file>`. This rule is forward-looking only — do not retroactively purge existing notes when this rule is added.
