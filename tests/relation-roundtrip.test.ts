@@ -147,7 +147,8 @@ describe("relation property — round-trip through write + read", () => {
         name: "query_database",
         arguments: { database_id: dbId },
       });
-      const rows = JSON.parse(parseToolText(queryResult));
+      const parsed = JSON.parse(parseToolText(queryResult));
+      const rows = parsed.results;
       expect(rows).toHaveLength(1);
       expect(rows[0].Ref).toEqual(["target-id-a"]);
     } finally {
@@ -176,7 +177,8 @@ describe("relation property — round-trip through write + read", () => {
         name: "query_database",
         arguments: { database_id: dbId },
       });
-      const rows = JSON.parse(parseToolText(queryResult));
+      const parsed = JSON.parse(parseToolText(queryResult));
+      const rows = parsed.results;
       expect(rows).toHaveLength(1);
       expect(rows[0].Ref).toEqual(["id-a", "id-b"]);
     } finally {
@@ -200,7 +202,8 @@ describe("relation property — round-trip through write + read", () => {
         name: "query_database",
         arguments: { database_id: dbId },
       });
-      const rows = JSON.parse(parseToolText(queryResult));
+      const parsed = JSON.parse(parseToolText(queryResult));
+      const rows = parsed.results;
       expect(rows).toHaveLength(1);
       expect(rows[0].Ref).toEqual([]);
     } finally {
@@ -230,7 +233,8 @@ describe("relation property — round-trip through write + read", () => {
         name: "query_database",
         arguments: { database_id: dbId },
       });
-      const rows = JSON.parse(parseToolText(queryResult));
+      const parsed = JSON.parse(parseToolText(queryResult));
+      const rows = parsed.results;
       expect(rows).toHaveLength(1);
       expect(rows[0].Ref).toEqual(["id-b"]);
     } finally {

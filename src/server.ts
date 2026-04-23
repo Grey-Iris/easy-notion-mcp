@@ -31,6 +31,7 @@ import {
   listChildren,
   listUsers,
   movePage,
+  paginatePageProperties,
   queryDatabase,
   restorePage,
   schemaToProperties,
@@ -41,6 +42,7 @@ import {
   updatePage,
   type PageParent,
   type SchemaEntry,
+  type TruncatedPropertyEntry,
 } from "./notion-client.js";
 import type { NotionBlock, RichText } from "./types.js";
 
@@ -638,7 +640,9 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
   },
   {
     name: "read_page",
-    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.`,
+    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.
+
+Long titles: when a page title exceeds 25 rich_text segments (uncommon in practice), the response paginates the title up to max_property_items (default 75). If the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint. Call again with max_property_items: 0 for unlimited or with a larger cap number.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -650,6 +654,11 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         max_blocks: {
           type: "number",
           description: "Maximum top-level blocks to return. Omit to return all.",
+        },
+        max_property_items: {
+          type: "number",
+          description:
+            "Max rich_text segments returned when a page title exceeds 25 segments (uncommon in practice). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint.",
         },
       },
       required: ["page_id"],
@@ -840,7 +849,9 @@ At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided. Emp
 - Checkbox: { "property": "Urgent", "checkbox": { "equals": true } }
 - Date after: { "property": "Due", "date": { "after": "2025-01-01" } }
 - Combine: { "and": [...] } or { "or": [...] }
-Call get_database first to see available properties and valid options.`,
+Call get_database first to see available properties and valid options.
+
+Response shape: returns { results: Array<entry>, warnings?: Array<warning> }. The results key is always present; warnings is included only when something needs the caller's attention. One possible warning code is truncated_properties, which fires when any multi-value property (title, rich_text, relation, people) exceeded max_property_items. Default cap is 75 items per property. If you see that warning, call again with max_property_items: 0 for unlimited, or with a larger cap number such as max_property_items: 500, to fetch the full set.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -854,6 +865,11 @@ Call get_database first to see available properties and valid options.`,
         text: {
           type: "string",
           description: "Search text \u2014 matches across all text fields (title, rich_text, url, email, phone)",
+        },
+        max_property_items: {
+          type: "number",
+          description:
+            "Max items returned per multi-value property (title, rich_text, relation, people). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint.",
         },
       },
       required: ["database_id"],
@@ -1255,12 +1271,29 @@ export function createServer(
         }
         case "read_page": {
           const notion = notionClientFactory();
-          const { page_id, include_metadata, max_blocks } = args as {
+          const { page_id, include_metadata, max_blocks, max_property_items } = args as {
             page_id: string;
             include_metadata?: boolean;
             max_blocks?: number;
+            max_property_items?: unknown;
           };
-          const page = await getPage(notion, page_id);
+          const cap = max_property_items === undefined ? 75 : max_property_items;
+          if (
+            typeof cap !== "number" ||
+            !Number.isFinite(cap) ||
+            cap < 0 ||
+            !Number.isInteger(cap)
+          ) {
+            throw new Error(
+              "read_page: `max_property_items` must be a non-negative integer. Use 0 for unlimited.",
+            );
+          }
+
+          const rawPage = await getPage(notion, page_id);
+          const { page, warnings: propertyWarnings } = await paginatePageProperties(notion, rawPage, {
+            maxPropertyItems: cap,
+            onlyTypes: ["title"],
+          });
 
           let blocks: NotionBlock[];
           let hasMore = false;
@@ -1285,8 +1318,19 @@ export function createServer(
             response.has_more = true;
           }
 
+          const warnings: unknown[] = [];
           if (ctx.omitted.length > 0) {
-            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
+            warnings.push({ code: "omitted_block_types", blocks: ctx.omitted });
+          }
+          if (propertyWarnings.length > 0) {
+            warnings.push({
+              code: "truncated_properties",
+              properties: propertyWarnings,
+              how_to_fetch_all: "Call again with max_property_items: 0 to fetch all items, or raise the cap to a larger number.",
+            });
+          }
+          if (warnings.length > 0) {
+            response.warnings = warnings;
           }
 
           if (include_metadata) {
@@ -1469,12 +1513,24 @@ export function createServer(
         }
         case "query_database": {
           const notion = notionClientFactory();
-          const { database_id, filter, sorts, text } = args as {
+          const { database_id, filter, sorts, text, max_property_items } = args as {
             database_id: string;
             filter?: Record<string, unknown>;
             sorts?: unknown[];
             text?: string;
+            max_property_items?: unknown;
           };
+          const cap = max_property_items === undefined ? 75 : max_property_items;
+          if (
+            typeof cap !== "number" ||
+            !Number.isFinite(cap) ||
+            cap < 0 ||
+            !Number.isInteger(cap)
+          ) {
+            throw new Error(
+              "query_database: `max_property_items` must be a non-negative integer. Use 0 for unlimited.",
+            );
+          }
           let effectiveFilter = filter;
           if (text) {
             const textFilter = await buildTextFilter(notion, database_id, text);
@@ -1482,8 +1538,36 @@ export function createServer(
               effectiveFilter = filter ? { and: [textFilter, filter] } : textFilter;
             }
           }
-          const results = await queryDatabase(notion, database_id, effectiveFilter, sorts) as any[];
-          return textResponse(results.map(simplifyEntry));
+          const rawResults = await queryDatabase(notion, database_id, effectiveFilter, sorts) as any[];
+          const collectedWarnings: TruncatedPropertyEntry[] = [];
+          const paginatedResults: any[] = [];
+
+          for (const row of rawResults) {
+            const { page, warnings } = await paginatePageProperties(notion, row, {
+              maxPropertyItems: cap,
+            });
+            paginatedResults.push(page);
+            if (warnings.length > 0) {
+              collectedWarnings.push(...warnings);
+            }
+          }
+
+          const response: {
+            results: Record<string, unknown>[];
+            warnings?: unknown[];
+          } = {
+            results: paginatedResults.map(simplifyEntry),
+          };
+
+          if (collectedWarnings.length > 0) {
+            response.warnings = [{
+              code: "truncated_properties",
+              properties: collectedWarnings,
+              how_to_fetch_all: "Call again with max_property_items: 0 to fetch all items, or raise the cap to a larger number.",
+            }];
+          }
+
+          return textResponse(response);
         }
         case "add_database_entry": {
           const notion = notionClientFactory();
