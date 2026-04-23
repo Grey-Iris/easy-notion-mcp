@@ -1,14 +1,14 @@
 ---
 name: e2e-artifact-a
-description: CI jungle gym (Artifact A) for easy-notion-mcp - 13 deterministic agent scenarios behind opt-in label, nightly cron, and release-tag hard gate.
+description: Local jungle gym (Artifact A) for easy-notion-mcp - 13 deterministic agent scenarios in a local-first harness.
 type: plan
 date: 2026-04-23
 author: Planner PM
 status: draft (pre-review)
-pr_split: proposed (PR-A0 skeleton + scenario 13, PR-A1 mature framework + scenarios 1+3 + opt-in CI, PR-A2 remaining 10 + gates)
+pr_split: proposed (PR-A0 skeleton + scenario 13, PR-A1 mature framework + remaining 12 scenarios)
 ---
 
-# Artifact A: CI Jungle Gym - Implementation Plan
+# Artifact A: Local Jungle Gym - Implementation Plan
 
 ## 0. Framing
 
@@ -22,7 +22,7 @@ Decisions map to the research doc as: format §3.1-A, verification §3.2-V3, sel
 
 ## 1. Scope and non-goals
 
-### In scope (ships across PR-A0 + PR-A1 + PR-A2)
+### In scope (ships across PR-A0 + PR-A1)
 
 - Framework at `tests/bench/` (loader, runner, verifier, reporter, manifest writer, CLI entry).
 - 13 scenarios authored as YAML (+ 2 `assert.ts` escape hatches for scenarios 8 and 10), matching research doc §4 IDs and end-state sketches.
@@ -30,7 +30,6 @@ Decisions map to the research doc as: format §3.1-A, verification §3.2-V3, sel
 - Two-axis verification: V3 hybrid (SDK primary, dogfood-MCP secondary, read-path divergence logged as diagnostic) plus schema-drop detection (requested-vs-persisted schema diff, fails the scenario). The second axis is the corrected plan for the create-path silent-drop class; see §4 and §14.
 - Dispatch via `claude -p --mcp-config <ephemeral> --strict-mcp-config --model claude-sonnet-4-6`, one process per scenario, sequential.
 - Ephemeral HTTP server (reusing `tests/e2e/helpers/http-server.ts`) on an ephemeral port with a fresh bearer per run.
-- CI wiring: opt-in label `bench-a` on PRs, nightly cron on `dev` and `main`, hard gate on release-tag workflow with documented break-glass override.
 - Transcript storage: gitignored; manifest with SHA256 committed alongside summary report at `.meta/bench/runs/`.
 - Teardown: extend `scripts/e2e/sweep-stale.ts` to match `BENCH:` prefix alongside `E2E:`.
 - New env var `BENCH_ROOT_PAGE_ID`, documented in `CLAUDE.md` Environment section.
@@ -50,21 +49,17 @@ Decisions map to the research doc as: format §3.1-A, verification §3.2-V3, sel
 
 ## 2. Proposed PR split
 
-This body of work exceeds one reviewable PR. Framework surface alone is ~1000 LOC; 13 scenario YAMLs add ~1200-1500 more lines. The draft initially proposed a two-PR split (framework + 3 pilots, then remaining 10). Codex pressure-test (§14) flagged PR-A1 as still too large - reviewers would have to validate the whole system (dispatch, hybrid verifier, report, manifest, CI, sweeper, docs) alongside three materially different scenarios in one pass. Revised to a **three-PR split**:
+This body of work exceeds one reviewable PR. Framework surface alone is ~1000 LOC; 13 scenario YAMLs add ~1200-1500 more lines. With the local-first pivot, the right split is a **two-PR sequence**:
 
-- **PR-A0 - dispatch + verifier skeleton + scenario 13 only.** Ships the minimum surface that proves the dispatch path works end-to-end: loader, dispatch wrapper, verifier for a very small claim set, manifest writer, and scenario 13 (Identity Smoke - three tool calls, cheapest possible scenario). No CI wiring. No sweeper change. No report aggregator beyond a single-scenario summary. Goal: land the `claude -p --mcp-config --strict-mcp-config` composition and the ephemeral-port HTTP server pattern behind a single passing test. ~600-800 LOC.
-- **PR-A1 - mature framework + scenarios 1 and 3 + opt-in CI.** Expands the verifier to the full declarative claim grammar (see §4), adds the report aggregator, ships scenarios 1 (Meeting-Notes Kickoff, representative write/read/edit path) and 3 (Bug-Tracker Bootstrap, the deliberate silent-drop probe with a dedicated schema-drop claim kind). Adds `.github/workflows/bench-a.yml` on `bench-a` label only (no nightly, no release gate). Extends sweeper for `BENCH:` prefix. Adds CLAUDE.md env doc and `tests/bench/README.md`. ~900-1100 LOC.
-- **PR-A2 - remaining 10 scenarios + nightly cron + release-tag gate.** Scenarios 2, 4, 5, 6, 7, 8, 9, 10, 11, 12 land as pure data (plus 2 `assert.ts` escape hatches for scenarios 8 and 10). Enables nightly cron on `dev` and `main` once PR-A1 has been green on opt-in label for at least 3 consecutive runs. Hooks the release-tag workflow with the break-glass override. ~1200-1500 LOC, mostly YAML.
+- **PR-A0 - dispatch + verifier skeleton + scenario 13 only.** Ships the minimum surface that proves the dispatch path works end-to-end: loader, dispatch wrapper, verifier for a very small claim set, manifest writer, and scenario 13 (Identity Smoke - three tool calls, cheapest possible scenario). No sweeper change. No report aggregator beyond a single-scenario summary. Goal: land the `claude -p --mcp-config --strict-mcp-config` composition and the ephemeral-port HTTP server pattern behind a single passing test. ~600-800 LOC.
+- **PR-A1 - mature framework + remaining 12 scenarios.** Expands the verifier to the full declarative claim grammar (see §4), adds the report aggregator, ships scenarios 1 through 12, extends the sweeper for `BENCH:` prefix, and adds the CLAUDE.md env doc plus `tests/bench/README.md`. Scenario 3 (Bug-Tracker Bootstrap) remains the deliberate silent-drop probe with a dedicated schema-drop claim kind. ~1800-2300 LOC, mostly scenario YAML plus verifier coverage.
 
 The plan below is written as a single logical build with **phases** that map across PRs as follows:
 
 - **PR-A0:** Phases 0, 1, 2, plus slim slices of Phases 3 (verifier - only the claim kinds scenario 13 actually uses: `users.must_include_bot`, `tools_must_be_called`), 4 (manifest - only, no report aggregator), and 5 (runner - single-scenario path, no cross-scenario teardown-robustness).
-- **PR-A1:** Phases 3-7 completed at full scope (all claim kinds, report aggregator, scenarios 1 + 3, CI on opt-in label, sweeper extension, docs).
-- **PR-A2:** Phases 8 and 9.
+- **PR-A1:** Phases 3-8 completed at full scope (all claim kinds, report aggregator, scenarios 1-12, sweeper extension, docs).
 
-Phase boundaries are the natural acceptance checkpoints within a single PR; the three-PR split slices the verifier and runner vertically so the first PR is genuinely small.
-
-If James prefers a two-PR split (collapsing PR-A0 and PR-A1), say so - the three-PR split is the plan's default but not a constraint.
+Phase boundaries are the natural acceptance checkpoints within a single PR; the two-PR split still slices the verifier and runner vertically so the first PR is genuinely small.
 
 ---
 
@@ -108,7 +103,7 @@ tests/bench/
 │   ├── system-prefix.md         (standard "use the provided MCP tools" preamble)
 │   └── reflection-template.md   (R2 structured YAML friction schema, few-shot)
 ├── cli.ts                       (npx tsx tests/bench/cli.ts [--scenarios <ids>] [--bail])
-└── README.md                    (short: how to run locally, how CI runs it, where reports land)
+└── README.md                    (short: how to run locally, where reports land, how to triage failures)
 
 .meta/bench/runs/                 (committed: summary reports + manifests)
 .meta/bench/transcripts/          (gitignored: raw transcripts per run)
@@ -316,30 +311,15 @@ Also ship scenario 13 YAML (Identity Smoke) - the cheapest scenario, runs first,
 
 **Runtime evidence.** The `.meta/bench/runs/run-{date}-{sha}.md` file produced by the live run, pasted into the PR description.
 
-### Phase 6 - Scenarios 1 + 3 + CI opt-in label
+### Phase 6 - Scenarios 1 + 3
 
-**Build.** Scenario 1 YAML (Meeting-Notes Kickoff), scenario 3 YAML + `assert.ts` (Bug-Tracker Bootstrap - the deliberate silent-drop probe). New workflow `.github/workflows/bench-a.yml`:
+**Build.** Scenario 1 YAML (Meeting-Notes Kickoff) and scenario 3 YAML (Bug-Tracker Bootstrap - the deliberate silent-drop probe). Scenario 3 stays declarative: the regression signal comes from `requested_schema` plus `schema_drop_detection`, not from harness-side special casing or an extra execution mode.
 
-```
-on:
-  pull_request:
-    types: [labeled, synchronize]   # re-run if label was applied or new commits pushed
-jobs:
-  bench-a:
-    if: contains(github.event.pull_request.labels.*.name, 'bench-a')
-    env:
-      NOTION_TOKEN: ${{ secrets.BENCH_NOTION_TOKEN }}
-      BENCH_ROOT_PAGE_ID: ${{ secrets.BENCH_ROOT_PAGE_ID }}
-      ANTHROPIC_API_KEY: ${{ secrets.BENCH_ANTHROPIC_API_KEY }}
-      BENCH_MODEL: claude-sonnet-4-6
-    steps: [ checkout, setup-node@20, install claude-code CLI, npm ci, npm run build, npx tsx tests/bench/cli.ts, upload-artifact ]
-```
+**Tests first.** `npx tsx tests/bench/cli.ts --validate-only --scenarios 01 03` to confirm the authored YAMLs load against the full grammar before live runs.
 
-**Tests first.** N/A (CI config). Instead, a lint step in the workflow itself runs a YAML schema check over all scenarios via `npx tsx tests/bench/cli.ts --validate-only`.
+**Acceptance.** A local run with scenarios 1 and 3 completes end-to-end, with scenario 1 exercising the representative write/read/edit path and scenario 3 proving the schema-drop detector reports missing properties precisely.
 
-**Acceptance.** A throwaway PR labeled `bench-a` triggers the workflow; workflow runs to completion; artifact bundle contains report + manifest + all transcripts.
-
-**Runtime evidence.** Link to the successful workflow run in the PR description. Artifact downloadable.
+**Runtime evidence.** Local run report + manifest linked in the PR description.
 
 ### Phase 7 - Sweeper extension + CLAUDE.md + README
 
@@ -354,30 +334,15 @@ jobs:
 
 **Runtime evidence.** `npm run test:e2e:sweep` dry-run against a live workspace that has both `E2E:` and `BENCH:` pages lists both.
 
-### --- PR-A1 ends here ---
-
-### Phase 8 - Remaining 10 scenarios (PR-A2)
+### Phase 8 - Remaining 10 scenarios
 
 **Build.** Scenarios 2, 4, 5, 6, 7, 8, 9, 10, 11, 12 YAMLs. Scenario 5 carries `transport: stdio` (create_page_from_file is stdio-only); the runner reports it as `skipped (transport: stdio)` when the harness dispatch is HTTP-only, and as `ran` when a future stdio-dispatch variant exists. Scenario 8 uses its `assert.ts` to call `list_users` with a filter that only selects bot-typed users before writing to the people column.
 
 **Tests first.** For each scenario, the scenario itself is the test; it is written by authoring the declarative ground-truth sketch from research doc §4, then tightening it against one live passing run.
 
-**Acceptance.** 11/13 scenarios pass consistently across three consecutive nightly runs once PR-A2 merges. Scenario 5 is reported as skipped in HTTP-mode (expected); remaining 12 are green.
+**Acceptance.** Scenario 5 is reported as skipped in HTTP-mode (expected); the remaining authored scenarios are green under the local runner.
 
-**Runtime evidence.** Three consecutive green nightly runs linked from the PR description.
-
-### Phase 9 - Enable nightly + release-tag gate
-
-**Build.**
-- Extend `bench-a.yml` with a `schedule: [ cron: '0 8 * * *' ]` trigger that runs on `dev` and a second job that runs on `main`.
-- Hook into `.github/workflows/release.yml`: add a `needs: bench-a` step (or a reusable-workflow `workflow_call` pattern) that runs the full 13-scenario suite on the tag's SHA. Hard gate - non-zero exit blocks the publish step.
-- Break-glass: a `BENCH_OVERRIDE_REASON` env var, settable on the release workflow via a `workflow_dispatch` input (string, required when the override is used), which makes the bench job exit 0 but logs the reason string into the release notes via a dedicated step. The reason also lands in the release GitHub issue/PR thread for public accountability (recall: open-source context).
-
-**Tests first.** N/A (CI config). Add a lint rule to `bench-a.yml` that the `if:` guard for the override unambiguously requires both the env var set and a non-empty reason string.
-
-**Acceptance.** A dry-run release tag in a forked repo or `release:dry` workflow triggers the full 13 scenarios, blocks the publish step when one scenario is deliberately broken, and permits it through the override when the override is used with a reason.
-
-**Runtime evidence.** Workflow-run link demonstrating both the block and the override paths.
+**Runtime evidence.** Local run report + manifest linked from the PR description once the full scenario set lands.
 
 ---
 
@@ -410,10 +375,9 @@ Reflection (R2 capture): after the scenario prompt finishes, the runner issues a
 
 `afterAll`: `handle.kill()` (SIGTERM; awaits child exit). Delete the sentinel on clean shutdown. Attach `process.on('uncaughtException')`, `process.on('SIGINT')`, and `process.on('SIGTERM')` handlers that trigger the same teardown for the bench-runner process itself.
 
-**Hard-kill guardrail (Codex finding, §14).** The original draft claimed "ephemeral port evaporates with the process tree" - too strong. Under SIGKILL (CI timeout, OOM) the parent Node process dies before its `afterAll` fires, and the `node dist/http.js` child can survive long enough to hold the port or confuse the next run. Two-part mitigation:
+**Hard-kill guardrail (Codex finding, §14).** The original draft claimed "ephemeral port evaporates with the process tree" - too strong. Under SIGKILL or OOM the parent Node process dies before its `afterAll` fires, and the `node dist/http.js` child can survive long enough to hold the port or confuse the next run. Mitigation:
 
 1. **Pre-start reap.** Before `spawnHttpServer`, read any stale sentinel files from previous runs and attempt to SIGTERM their PIDs. If a PID is still alive, wait 2 seconds then SIGKILL. If a PID is unknown (process table doesn't know it), delete the sentinel and continue. Any failure to reap logs a warning but does not block startup; the ephemeral port is per-run so reaping is belt-and-suspenders, not critical-path.
-2. **CI post-step.** Add a `cleanup: always()` job step that runs `pkill -f "dist/http.js" || true` and deletes `.meta/bench/.runner-pids/`. Runs regardless of job success/failure. Hosted runners throw the whole VM away, but this step matters for self-hosted and for local re-runs.
 
 Adding `spawn` option `detached: false` (the default, called out explicitly) so the child is in the parent's process group - that makes `SIGTERM` to the parent's group hit the child when the runner cleanly signals. Does not help with SIGKILL (which bypasses signal handlers), which is why the out-of-process reap exists.
 
@@ -454,45 +418,7 @@ Transcripts are NDJSON (one stream-json event per line), gitignored. Manifest + 
 
 ### Model pinning
 
-Single source of truth: `BENCH_MODEL` env var, defaulted to `claude-sonnet-4-6` in `tests/bench/harness/dispatch.ts`. CI passes `BENCH_MODEL: claude-sonnet-4-6` explicitly. The exact string is recorded in the manifest regardless of source. Changing the model is a PR that updates the default and records the rationale.
-
----
-
-## 7. CI wiring specifics
-
-### Workflow file: `.github/workflows/bench-a.yml`
-
-Triggers:
-- `pull_request: { types: [labeled, synchronize] }` - gated by `bench-a` label.
-- `schedule: [ cron: '0 8 * * *' ]` - nightly on `dev` and `main`. (Implemented as two jobs branching on `github.ref`, or two workflow files if that's cleaner.)
-- `workflow_call` - reusable, called from `release.yml` in Phase 9.
-
-Secrets needed:
-- `BENCH_NOTION_TOKEN` - bench bot token. Same Test bot as `.env` per decision 11; the secret is separately set on the CI side so rotations don't depend on developer `.env` files.
-- `BENCH_ROOT_PAGE_ID` - dedicated bench root page id.
-- `BENCH_ANTHROPIC_API_KEY` - the API key the `claude -p` subprocess uses.
-
-Artifact bundle (uploaded on success and failure):
-- `.meta/bench/runs/run-{date}-{sha}.md` (the report).
-- `.meta/bench/runs/run-{date}-{sha}.manifest.json`.
-- Every `.meta/bench/transcripts/{date}-{sha}/scenario-{id}.ndjson`.
-- `bench-a.log` (aggregate stdout/stderr of the runner).
-
-Retention: 30 days (GitHub default).
-
-### Break-glass override
-
-Available only on `workflow_dispatch` for the release workflow. Two required inputs:
-- `override_bench_a: boolean` (default false).
-- `override_reason: string` (required when override is true).
-
-When the override fires, the bench job exits 0, writes a `## BENCH-A override` section to the release notes containing the reason, and the release-notes section is reproduced verbatim in the generated GitHub release body via `gh release create --notes-file`.
-
-Rationale: the override exists for cases where the bench is flaking due to upstream (Notion API outage) and a time-critical security release still needs to publish. The reason is public-by-design so the override is social-cost accountable. Per CLAUDE.md's "open source context" rule, reason strings should not reference third parties by name; the workflow lint checks for that.
-
-### Existing CI (ci.yml) stays unchanged
-
-No merges into the existing `ci.yml`. Artifact A lives in its own workflow so a flaky bench never blocks tier-1's existing fast-feedback loop.
+Single source of truth: `BENCH_MODEL` env var, defaulted to `claude-sonnet-4-6` in `tests/bench/harness/dispatch.ts`. The exact string is recorded in the manifest regardless of source. Changing the model is a PR that updates the default and records the rationale.
 
 ---
 
@@ -512,13 +438,13 @@ Justification: both artifacts are already committed to public record; neither is
 **PR-A0 - scenario 13 only.**
 - **13 Identity Smoke** - cheapest, ~5 seconds, 3 tool calls. Doubles as auth probe. Lands the dispatch + minimal verifier + manifest end-to-end at the smallest possible diff.
 
-**PR-A1 - scenarios 1 and 3.**
+**PR-A1 - scenarios 1 through 12.**
 - **1 Meeting-Notes Kickoff** - representative write/read/edit path. Exercises 5 core tools (`create_page`, `append_content`, `update_section`, `read_page`, `find_replace`). Most of the 13 scenarios are structurally similar.
 - **3 Bug-Tracker Bootstrap** - deliberate silent-drop probe. Validates the **schema-drop detection** axis (§4, §5 Phase 3). The scenario's `ground_truth.databases[0].requested_schema` explicitly declares the four known-drop columns (`formula`, `relation`, `people`, `unique_id`); the verifier diffs this against the persisted schema and fails per-property. This replaces the original draft's now-known-wrong "V3 hybrid catches it" claim.
 
 Two scenarios, both meaningful to review: a representative happy path and the adversarial probe. The framework's correctness stands or falls on scenario 3 specifically.
 
-Full rollout (PR-A2): author scenarios in this order to parallelize reviewer attention:
+Within PR-A1, author the remaining scenarios in this order to parallelize reviewer attention:
 1. Scenario 6 (Bibliography Database) and 7 (Editorial Calendar) - database-heavy, similar shape, co-review efficient.
 2. Scenario 2 (Runbook Refresh) and 12 (Blog-Post Polish) - content-editing shape, similar verifier claims.
 3. Scenario 4 (Sprint Retro Synthesis) and 11 (Weekly Status Report) - discover + assemble shape.
@@ -538,16 +464,9 @@ Based on research doc §6 prior-art numbers, refined:
 - Wall-clock: 10-15 min sequential. Ephemeral port setup/teardown ~5s; per-scenario dispatch averaged ~50-60s with some variance.
 - Notion rate limits (~3 req/sec): comfortable under the ceiling at sequential execution. Verifier adds a handful of SDK + MCP calls per scenario; still bounded.
 
-### Nightly + PR-on-label + release gate
-
-- Nightly (2 branches): $2-6/day, ~$60-180/month.
-- PR on label: opt-in, bursty. At 5 opt-in uses/week, ~$20-60/month.
-- Release gate: ~$1-3/release. Expected to hit maybe 2-6/month.
-- **Aggregate ceiling:** ~$300/month if all channels run hot. A sanity-check dashboard in the CI summary lands as a deferred decision (§11) once we have 30 days of actual spend.
-
 ### Builder wall-clock
 
-Honest estimate for PR-A1 framework + 3-scenario pilot: **8-14 hours**. Per learning `[0186bc]`, actual is likely to be 3-6 hours (10-40x under-run factor). PR-A2 (10 scenarios + gates): **4-8 hours** estimated, likely 1.5-3 hours actual.
+Honest estimate for PR-A0 (dispatch skeleton + scenario 13): **3-5 hours**. Per learning `[0186bc]`, actual is likely to be 1-2 hours (10-40x under-run factor). PR-A1 (mature framework + remaining 12 scenarios): **9-16 hours** estimated, likely 3-6 hours actual.
 
 The Phase 0 spike is the biggest unknown. If `claude -p --mcp-config + --strict-mcp-config` with HTTP transport + bearer turns out to have undocumented limitations, Phase 0 could sink 2-4 extra hours of investigation. That risk is called out below.
 
@@ -561,17 +480,15 @@ The Phase 0 spike is the biggest unknown. If `claude -p --mcp-config + --strict-
 
 ### Medium-risk
 
-2. **Notion eventual consistency under sequential 13-scenario run.** Verifier retries mitigate most cases, but scenario 9 (archive + restore) and scenario 10 (rollup column) are known to have multi-second settle times. Mitigation: per-scenario retry envelope in the verifier; if a scenario is flaky 2 nightly runs out of 5, it gets promoted to a known-flake list rather than fixed-by-retry. Aligns with SWE-bench-Verified discipline.
+2. **Notion eventual consistency under sequential 13-scenario run.** Verifier retries mitigate most cases, but scenario 9 (archive + restore) and scenario 10 (rollup column) are known to have multi-second settle times. Mitigation: per-scenario retry envelope in the verifier; if a scenario is flaky 2 reruns out of 5, it gets promoted to a known-flake list rather than fixed-by-retry. Aligns with SWE-bench-Verified discipline.
 
 2a. **V3 hybrid verification does not catch create-time silent drops.** The original draft claimed it did; Codex pressure-test falsified this (§14). The create_database case specifically persists nothing for unsupported types, so SDK and MCP both agree the property doesn't exist and divergence never fires. The **schema-drop detection** axis (§4, §5 Phase 3) is the real detection path for that class. V3 still catches read-path drops (SDK-says-exists but MCP-says-absent); the report labels the two diagnostics distinctly so a reader doesn't conflate them.
 
 3. **Token/cost overrun.** A Claude that loops on a confusing tool can burn the scenario budget in one scenario. Mitigation: `--max-budget-usd` per scenario (framework-level hard cap); `max_turns` soft cap in the system prefix; runner aborts a scenario that exceeds 2x its budget even if `claude -p` hasn't stopped itself. Aggregate run budget check at the end: if total_usd > 2 * expected, flag as budget-anomaly in the report.
 
-4. **HTTP server startup race on CI.** Ephemeral port + startup-line detection should handle this (already does in tier-1), but CI runners have been known to deliver unexpected IPv6-localhost vs IPv4-localhost resolution. Mitigation: the helper already forces `NOTION_MCP_BIND_HOST: "127.0.0.1"`; verify this is still honored by the HTTP server after any recent changes. Fallback: fail loud and skip.
+4. **HTTP server startup race.** Ephemeral port + startup-line detection should handle this (already does in tier-1), but local environments can still deliver unexpected IPv6-localhost vs IPv4-localhost resolution. Mitigation: the helper already forces `NOTION_MCP_BIND_HOST: "127.0.0.1"`; verify this is still honored by the HTTP server after any recent changes. Fallback: fail loud and skip.
 
-4a. **HTTP server orphan under SIGKILL.** Codex finding (§14): the draft's "port evaporates with the process tree" claim was too strong; SIGKILL on the parent can leave `node dist/http.js` running. Mitigation (implemented per §6 "Hard-kill guardrail"): PID/port sentinel file per run, pre-start reap of stale sentinels, CI `always()` cleanup step. Ephemeral port avoids actual collision; reaping prevents accumulated zombies on self-hosted runners.
-
-5. **Claude CLI auth on CI.** `claude -p` needs `ANTHROPIC_API_KEY` on CI. Verify the installed CLI version accepts API-key auth in `--bare` mode (per the CLI help, it does). Mitigation: Phase 0 includes a CI-like run with only `ANTHROPIC_API_KEY` in env (no OAuth, no keychain).
+4a. **HTTP server orphan under SIGKILL.** Codex finding (§14): the draft's "port evaporates with the process tree" claim was too strong; SIGKILL on the parent can leave `node dist/http.js` running. Mitigation (implemented per §6 "Hard-kill guardrail"): PID/port sentinel file per run and pre-start reap of stale sentinels. Ephemeral port avoids actual collision; reaping prevents accumulated zombies across local reruns.
 
 ### Low-risk
 
@@ -581,14 +498,12 @@ The Phase 0 spike is the biggest unknown. If `claude -p --mcp-config + --strict-
 
 ### Open questions needing human input before builder dispatch
 
-- **Q1.** Is the `BENCH_NOTION_TOKEN` secret already set in the repo's GitHub secrets? If not, James needs to add it before Phase 6 can merge. (The CI workflow can be written and dry-run without the secret, but the `bench-a` label run will fail closed until it's present.)
-- **Q2.** Same for `BENCH_ANTHROPIC_API_KEY`. Confirm the API key is billable to the right account; the monthly cost will appear there.
-- **Q3.** Is there any restriction on which Notion workspace the bench bot can write into? Decision 11 says same Test bot as `.env`, but the bench root page needs to exist and be shared with the bot. Confirm `BENCH_ROOT_PAGE_ID` is provisioned before Phase 5 runs.
-- **Q4.** The research doc flagged a tool-count discrepancy (CLAUDE.md says 26, `src/server.ts` registers 28). Per the brief this is a deferred doc reconciliation task, not a plan blocker, but confirm it stays deferred rather than sneaking into this PR.
+- **Q1.** Is there any restriction on which Notion workspace the bench bot can write into? Decision 11 says same Test bot as `.env`, but the bench root page needs to exist and be shared with the bot. Confirm `BENCH_ROOT_PAGE_ID` is provisioned before Phase 5 runs.
+- **Q2.** The research doc flagged a tool-count discrepancy (CLAUDE.md says 26, `src/server.ts` registers 28). Per the brief this is a deferred doc reconciliation task, not a plan blocker, but confirm it stays deferred rather than sneaking into this PR.
 
 ### Open questions the PM resolves (surfacing for visibility, not blocking)
 
-- Ephemeral port binding to 127.0.0.1 (not `0.0.0.0`): chosen for security isolation on CI runners; the project already uses this. No change proposed.
+- Ephemeral port binding to 127.0.0.1 (not `0.0.0.0`): chosen for loopback-only security isolation; the project already uses this. No change proposed.
 - YAML parser choice: `yaml` package (not `js-yaml`) for tighter TypeScript types. Pinned at build time.
 - `--bare` flag on `claude -p`: chosen so the subprocess does not inherit parent CLAUDE.md or memory; isolation matters for signal quality. If a builder discovers `--bare` breaks some assumption, revert to explicit `--settings <empty-settings.json>`.
 
@@ -624,30 +539,20 @@ These are intended as file-right-after-plan-approval tasuku entries; they are no
 - [ ] Live run report + manifest at `.meta/bench/runs/run-{date}-{sha}.{md,manifest.json}` committed.
 - [ ] `.meta/bench/transcripts/` and `.meta/bench/.runner-pids/` added to `.gitignore`.
 - [ ] PID/port sentinel + pre-start reap implemented; unit-tested against a pre-planted stale sentinel.
-- [ ] No CI workflow changes (deferred to PR-A1).
 - [ ] No em dashes in user-voice prose; `.meta/` screening complete.
 
-### PR-A1 (mature framework + scenarios 1 + 3 + opt-in CI)
+### PR-A1 (mature framework + remaining 12 scenarios)
 
 - [ ] Verifier grammar expanded to the full claim kind set (§4); unit tests cover each kind, including `schema_drop_detection` against each of the four known-dropped property types.
 - [ ] Scenario 3 uses `requested_schema` + `schema_drop_policy: fail` rather than relying on V3 hybrid divergence.
 - [ ] Report aggregator emits stable markdown; round-tripping two fake runs shows only intended deltas.
-- [ ] `.github/workflows/bench-a.yml` runs to completion on a throwaway PR with the `bench-a` label; artifacts downloadable.
-- [ ] CI workflow has a `cleanup: always()` step that kills orphan `dist/http.js` processes and clears `.meta/bench/.runner-pids/`.
-- [ ] `scripts/e2e/sweep-stale.ts` matches both `E2E:` and `BENCH:` prefixes; `sweep-stale.test.ts` updated.
-- [ ] CLAUDE.md Environment section lists `BENCH_ROOT_PAGE_ID`.
-- [ ] `tests/bench/README.md` covers the three-config-layer story and the two-axis verifier.
-- [ ] No em dashes in user-voice prose; `.meta/` screening complete.
-
-### PR-A2 (remaining 10 scenarios + nightly + release gate)
-
-- [ ] Scenarios 2, 4, 5, 6, 7, 8, 9, 10, 11, 12 YAMLs present and validating.
+- [ ] Scenarios 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 YAMLs present and validating.
 - [ ] Scenario 8's `assert.ts` implements bot-only filter on `list_users` before any people-column write.
 - [ ] Scenario 10's `assert.ts` verifies rollup column computed value.
 - [ ] Scenario 5 is reported as skipped when dispatch is HTTP-only (transport marker honored).
-- [ ] Three consecutive green nightly runs on the opt-in label before nightly cron is enabled.
-- [ ] Nightly cron fires on `dev` and `main`; release-tag workflow includes the hard gate.
-- [ ] Break-glass override: workflow_dispatch inputs (`override_bench_a`, `override_reason`), override lint prevents empty-reason override, reason string renders into release notes.
+- [ ] `scripts/e2e/sweep-stale.ts` matches both `E2E:` and `BENCH:` prefixes; `sweep-stale.test.ts` updated.
+- [ ] CLAUDE.md Environment section lists `BENCH_ROOT_PAGE_ID`.
+- [ ] `tests/bench/README.md` covers the three-config-layer story and the two-axis verifier.
 - [ ] No em dashes in user-voice prose; `.meta/` screening complete.
 
 ---
@@ -660,19 +565,19 @@ Review session: `plan-review-artifact-a-v2` (first attempt `plan-review-artifact
 
 1. **`claude -p --mcp-config` shape.** Codex verified the draft's assumed JSON shape (`{ mcpServers: { name: { type: "http", url, headers: { Authorization: "Bearer ..." } } } }`) against current Claude Code docs and local `claude` v2.1.116; shape matches. **Disposition: accepted, no change.**
 
-2. **HTTP server lifecycle under SIGKILL.** The draft claimed "ephemeral port evaporates with the process tree" - too strong. Under parent SIGKILL or OOM, the `node dist/http.js` child can orphan. **Disposition: accepted. §6 now specifies a PID/port sentinel file, pre-start reap of stale sentinels, and a CI `always()` cleanup step. §11 risk 4a added.**
+2. **HTTP server lifecycle under SIGKILL.** The draft claimed "ephemeral port evaporates with the process tree" - too strong. Under parent SIGKILL or OOM, the `node dist/http.js` child can orphan. **Disposition: accepted. §6 now specifies a PID/port sentinel file and pre-start reap of stale sentinels. §11 risk 4a added.**
 
 3. **V3 verifier on silent-drop class.** The draft's central claim for scenario 3 was wrong. The formula-column drop is a *create-time* drop - Notion itself persists nothing - so SDK and MCP both agree the property doesn't exist, and divergence never fires. The spike doc at lines 143-181 verifies this: `create_database` returned only `["Task", "Count"]` and `get_database` returned only `Task` + `Count`; no Score. **Disposition: accepted with a concrete fix. §4 now adds `requested_schema` + `schema_drop_policy` + `schema_drop_detection` grammar; §5 Phase 3 now implements schema-drop detection as an independent verifier axis distinct from V3 hybrid. V3 is retained for the read-path variant of the silent-drop class but no longer overclaimed. Scenario 3's YAML is now declarative rather than relying on `assert.ts`. §9 rollout plan updated accordingly.**
 
 4. **YAML grammar sufficiency.** Codex counted 6-8 of 13 scenarios that would need `assert.ts` escape hatches under the original thinner grammar: 3 (schema-drop), 6 (filter-returns-subset), 7 (compound filter), 8 (bot-only pre-write), 9 (survivor set), 10 (rollup computed value), plus 2 (only-section-changed) and 12 (icon/cover metadata) at the edge. **Disposition: accepted. §4 grammar expanded with `rows.must_exist / must_not_exist / size_min`, `query.filter + result_must_include_titles`, `pages_under_parent.must_include/must_not_include`, `pages.only_section_changed`, `pages.icon`, `pages.cover`, `requested_schema`, `schema_drop_detection`, `users.must_include_bot`, `comments.must_include_ordered`. Remaining `assert.ts` scope narrows to 2 of 13 (scenarios 8 and 10) and is justified explicitly in §4.**
 
-5. **PR-split boundary.** Codex flagged PR-A1 (draft: framework + 3 pilots + opt-in CI + sweeper + docs) as still too large. Recommended three-PR split: PR-A0 dispatch/verifier skeleton + scenario 13, PR-A1 scenarios 1+3 + opt-in CI, PR-A2 remaining 10 + gates. **Disposition: accepted. §2 rewritten; §5 phase-to-PR mapping updated; §13 now has per-PR acceptance checklists.**
+5. **PR-split boundary.** Codex flagged the earlier draft's large framework PR as too big for one review. The follow-on roadmap decision after the local-first pivot collapsed delivery to two PRs: PR-A0 dispatch/verifier skeleton + scenario 13, PR-A1 mature framework + remaining 12 scenarios. **Disposition: superseded by the roadmap edit. §2 rewritten; §5 phase-to-PR mapping updated; §13 now has per-PR acceptance checklists.**
 
 6. **Three gotchas ranked by severity.** Codex's top three: (a) the silent-drop detection premise; (b) the hard-kill lifecycle story; (c) grammar thinness. All three are addressed above. Codex did not find additional issues beyond these.
 
 ### Where Codex pushed back but the plan overruled
 
-None. Every finding was accepted. The three-PR split adds slightly more coordination overhead across reviews but the reviewer-load reduction and the clean framework-vs-scenarios boundary are both concrete wins; I did not see a case for rejecting any of the findings.
+None. Every finding was accepted. The follow-on local-first pivot reduced delivery back to two PRs without changing the benchmark design, so there was still no case for rejecting any of the underlying technical findings.
 
 ### What Codex did not look at
 
