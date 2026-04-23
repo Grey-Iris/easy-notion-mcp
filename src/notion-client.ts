@@ -38,6 +38,22 @@ function titleRichText(content: string) {
 }
 
 type PropertiesUpdate = UpdateDataSourceParameters["properties"];
+export type PaginatedPropertyType = "title" | "rich_text" | "relation" | "people";
+
+export type TruncatedPropertyEntry = {
+  name: string;
+  type: PaginatedPropertyType;
+  returned_count: number;
+  cap: number;
+};
+
+export type PaginationOpts = {
+  maxPropertyItems: number;
+  onlyTypes?: PaginatedPropertyType[];
+};
+
+const PROPERTY_PAGINATION_RUNAWAY_ERROR =
+  "paginatePropertyValue: runaway loop detected (no progress)";
 
 export type SchemaEntry = {
   name: string;
@@ -106,6 +122,123 @@ const RAW_PROPERTY_SHAPE_KEYS = new Set([
 const schemaCache = new Map<string, { schema: any; expires: number }>();
 const dataSourceIdCache = new Map<string, { dsId: string; expires: number }>();
 const SCHEMA_CACHE_TTL = 5 * 60 * 1000;
+
+function isPaginatedPropertyType(type: unknown): type is PaginatedPropertyType {
+  return type === "title" || type === "rich_text" || type === "relation" || type === "people";
+}
+
+function propertyItemValue(item: any, propertyType: PaginatedPropertyType): unknown {
+  switch (propertyType) {
+    case "title":
+      return item.title;
+    case "rich_text":
+      return item.rich_text;
+    case "relation":
+      return item.relation;
+    case "people":
+      return item.people;
+  }
+}
+
+export async function paginatePageProperties(
+  client: Client,
+  page: any,
+  opts: PaginationOpts,
+): Promise<{ page: any; warnings: TruncatedPropertyEntry[] }> {
+  if (!page?.properties) {
+    return { page, warnings: [] };
+  }
+
+  const properties = page.properties as Record<string, any>;
+  const nextProperties = { ...properties };
+  const warnings: TruncatedPropertyEntry[] = [];
+
+  for (const [name, prop] of Object.entries(properties)) {
+    const propertyType = prop?.type;
+    if (!isPaginatedPropertyType(propertyType)) {
+      continue;
+    }
+    if (opts.onlyTypes && !opts.onlyTypes.includes(propertyType)) {
+      continue;
+    }
+
+    const values = prop[propertyType];
+    if (!Array.isArray(values) || values.length !== 25) {
+      continue;
+    }
+
+    const paginated = await paginatePropertyValue(
+      client,
+      page.id,
+      prop.id,
+      propertyType,
+      opts.maxPropertyItems,
+    );
+
+    nextProperties[name] = { ...prop, [propertyType]: paginated.values };
+    if (paginated.truncatedAtCap) {
+      warnings.push({
+        name,
+        type: propertyType,
+        returned_count: paginated.values.length,
+        cap: opts.maxPropertyItems,
+      });
+    }
+  }
+
+  return { page: { ...page, properties: nextProperties }, warnings };
+}
+
+async function paginatePropertyValue(
+  client: Client,
+  pageId: string,
+  propertyId: string,
+  propertyType: PaginatedPropertyType,
+  cap: number,
+): Promise<{ values: unknown[]; truncatedAtCap: boolean }> {
+  const values: unknown[] = [];
+  let cursor: string | undefined;
+
+  while (true) {
+    const request: { page_id: string; property_id: string; start_cursor?: string } = {
+      page_id: pageId,
+      property_id: propertyId,
+    };
+    if (cursor !== undefined) {
+      request.start_cursor = cursor;
+    }
+
+    const response = await client.pages.properties.retrieve(request as any) as any;
+    if (!Array.isArray(response?.results)) {
+      throw new Error("paginatePropertyValue: expected paginated property results");
+    }
+
+    const hasMore = response.has_more === true;
+    if (hasMore && response.results.length === 0) {
+      throw new Error(PROPERTY_PAGINATION_RUNAWAY_ERROR);
+    }
+
+    const nextCursor = typeof response.next_cursor === "string" ? response.next_cursor : undefined;
+    if (hasMore && (!nextCursor || nextCursor === cursor)) {
+      throw new Error(PROPERTY_PAGINATION_RUNAWAY_ERROR);
+    }
+
+    values.push(...response.results.map((item: any) => propertyItemValue(item, propertyType)));
+
+    if (cap > 0 && values.length >= cap) {
+      return {
+        values: values.slice(0, cap),
+        truncatedAtCap: values.length > cap || hasMore,
+      };
+    }
+
+    if (!hasMore) {
+      return { values, truncatedAtCap: false };
+    }
+
+    cursor = nextCursor;
+  }
+}
 
 /**
  * Resolve a database_id to its primary data_source_id.
@@ -944,3 +1077,6 @@ export async function listUsers(client: Client) {
 export async function getMe(client: Client) {
   return client.users.me({});
 }
+
+/** @internal */
+export { paginatePropertyValue };
