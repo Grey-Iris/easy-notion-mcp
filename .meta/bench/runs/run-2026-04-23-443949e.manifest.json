@@ -1,0 +1,25 @@
+{
+  "run_id": "run-2026-04-23-443949e",
+  "git_sha": "443949efcb6f6005e4025d0e32511bbad958b30e",
+  "git_branch": "feat/bench-a-pr-a0-2026-04-24",
+  "started_at": "2026-04-23T22:31:37Z",
+  "finished_at": "2026-04-23T22:31:57Z",
+  "model": "claude-sonnet-4-6",
+  "node_version": "v22.19.0",
+  "scenarios": [
+    {
+      "id": "identity-smoke",
+      "passed": true,
+      "duration_ms": 16122,
+      "cost_usd": 0.08172990000000001,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-23-443949e/scenario-identity-smoke.ndjson",
+      "transcript_sha256": "281f4e67413d85789a57f8b4cf52846a283db29d8b5ecdda966e16c41519471a"
+    }
+  ],
+  "totals": {
+    "scenarios_run": 1,
+    "passed": 1,
+    "failed": 0,
+    "cost_usd": 0.08172990000000001
+  }
+}

@@ -1,0 +1,13 @@
+id: identity-smoke
+tier: [A]
+prompt: "Call the get_me tool and report the bot's id, name, and type."
+budget:
+  max_turns: 3
+  max_tokens: 5000
+  max_usd: 0.50
+transport: http
+ground_truth:
+  users:
+    - must_include_bot: true
+      size_min: 1
+  tools_must_be_called: [get_me]
