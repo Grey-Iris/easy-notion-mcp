@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.http
 *.log
 
 # MCP Registry auth tokens
