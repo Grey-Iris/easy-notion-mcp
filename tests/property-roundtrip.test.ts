@@ -347,9 +347,13 @@ describe("property schema roundtrip", () => {
       const createCall = notion.pages.create.mock.calls[0][0];
       expect(createCall.properties.Owner).toEqual({ people: [{ id: "user-1" }] });
 
-      const rows = parseToolJson<Array<Record<string, unknown>>>(
+      const rowsResponse = parseToolJson<{
+        results: Array<Record<string, unknown>>;
+        warnings?: unknown[];
+      }>(
         await client.callTool({ name: "query_database", arguments: { database_id: created.id } }),
       );
+      const rows = rowsResponse.results;
       expect(rows).toHaveLength(1);
       expect(rows[0]).toEqual(expect.objectContaining({ Owner: ["user-1"] }));
     } finally {

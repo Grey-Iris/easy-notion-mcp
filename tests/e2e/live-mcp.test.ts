@@ -84,6 +84,17 @@ type AddDatabaseEntryResponse = {
   error?: string;
 };
 
+type QueryDatabaseWarning = {
+  code?: string;
+  properties?: Array<Record<string, unknown>>;
+  how_to_fetch_all?: string;
+};
+
+type QueryDatabaseResponse = {
+  results: Array<Record<string, unknown>>;
+  warnings?: QueryDatabaseWarning[];
+};
+
 type ReadPageResponse = {
   id: string;
   title: string | null;
@@ -431,9 +442,10 @@ describe.skipIf(!env.shouldRun)(
       // Notion evaluates formulas asynchronously; poll a few times before asserting.
       let row: Record<string, unknown> | undefined;
       for (let attempt = 0; attempt < 6; attempt += 1) {
-        const rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+        const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
           database_id: created.id,
         });
+        const rows = rowsResponse.results;
         row = rows.find((candidate) => candidate.Task === "row1");
         if (row && row.Score !== null && row.Score !== undefined) {
           break;
@@ -494,12 +506,14 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(entry.id);
 
       // Notion evaluates formulas asynchronously; poll a few times before asserting.
+      let rowsResponse: QueryDatabaseResponse = { results: [] };
       let rows: Array<Record<string, unknown>> = [];
       let row: Record<string, unknown> | undefined;
       for (let attempt = 0; attempt < 6; attempt += 1) {
-        rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+        rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
           database_id: created.id,
         });
+        rows = rowsResponse.results;
         row = rows.find((candidate) => candidate.Title === "row1");
         if (row && row.Formula !== null && row.Formula !== undefined) {
           break;
@@ -507,8 +521,8 @@ describe.skipIf(!env.shouldRun)(
         await new Promise((resolve) => setTimeout(resolve, 2_000));
       }
 
-      expect(Array.isArray(rows)).toBe(true);
-      expect(Object.prototype.hasOwnProperty.call(rows, "warnings")).toBe(false);
+      expect(Array.isArray(rowsResponse.results)).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(rowsResponse, "warnings")).toBe(false);
       expect(row).toBeDefined();
       expect(row).toEqual(expect.objectContaining({ Title: "row1", Count: 5 }));
       expect(row?.Formula).not.toBeNull();
@@ -623,15 +637,145 @@ describe.skipIf(!env.shouldRun)(
       expect(entry.error).toBeUndefined();
       ctx.createdPageIds.push(entry.id);
 
-      const rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+      const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
         database_id: created.id,
       });
+      const rows = rowsResponse.results;
 
       const row = rows.find((candidate) => candidate.Title === "r1");
       expect(row).toBeDefined();
       expect(Array.isArray(row?.Owner)).toBe(true);
       expect((row?.Owner as unknown[]).length).toBeGreaterThan(0);
     }, 30_000);
+
+    describe("relation pagination", () => {
+      it("returns 27 relation entries without a warning at the default cap", async () => {
+        const source = await callTool<CreateDatabaseResponse>(client, "create_database", {
+          parent_page_id: ctx.sandboxId!,
+          title: "P6 relation source 27",
+          schema: [
+            { name: "Name", type: "title" },
+          ],
+        });
+        expect(source.error).toBeUndefined();
+        ctx.createdPageIds.push(source.id);
+
+        const sourceEntryIds: string[] = [];
+        for (let index = 0; index < 27; index += 1) {
+          const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+            database_id: source.id,
+            properties: {
+              Name: `source ${index + 1}`,
+            },
+          });
+          expect(entry.error).toBeUndefined();
+          ctx.createdPageIds.push(entry.id);
+          sourceEntryIds.push(entry.id);
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
+
+        const target = await callTool<CreateDatabaseResponse>(client, "create_database", {
+          parent_page_id: ctx.sandboxId!,
+          title: "P6 relation target 27",
+          schema: [
+            { name: "Name", type: "title" },
+            { name: "Refs", type: "relation", data_source_id: source.id },
+          ],
+        });
+        expect(target.error).toBeUndefined();
+        ctx.createdPageIds.push(target.id);
+
+        const targetEntry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+          database_id: target.id,
+          properties: {
+            Name: "target",
+            Refs: sourceEntryIds,
+          },
+        });
+        expect(targetEntry.error).toBeUndefined();
+        ctx.createdPageIds.push(targetEntry.id);
+
+        const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
+          database_id: target.id,
+        });
+
+        expect(rowsResponse.results).toHaveLength(1);
+        const row = rowsResponse.results[0];
+        expect(Array.isArray(row.Refs)).toBe(true);
+        expect((row.Refs as unknown[])).toHaveLength(27);
+        expect(Object.prototype.hasOwnProperty.call(rowsResponse, "warnings")).toBe(false);
+      }, 180_000);
+
+      it("returns 75 relation entries with a cap warning at the default cap", async () => {
+        const source = await callTool<CreateDatabaseResponse>(client, "create_database", {
+          parent_page_id: ctx.sandboxId!,
+          title: "P6 relation source 85",
+          schema: [
+            { name: "Name", type: "title" },
+          ],
+        });
+        expect(source.error).toBeUndefined();
+        ctx.createdPageIds.push(source.id);
+
+        const sourceEntryIds: string[] = [];
+        for (let index = 0; index < 85; index += 1) {
+          const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+            database_id: source.id,
+            properties: {
+              Name: `source ${index + 1}`,
+            },
+          });
+          expect(entry.error).toBeUndefined();
+          ctx.createdPageIds.push(entry.id);
+          sourceEntryIds.push(entry.id);
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
+
+        const target = await callTool<CreateDatabaseResponse>(client, "create_database", {
+          parent_page_id: ctx.sandboxId!,
+          title: "P6 relation target 85",
+          schema: [
+            { name: "Name", type: "title" },
+            { name: "Refs", type: "relation", data_source_id: source.id },
+          ],
+        });
+        expect(target.error).toBeUndefined();
+        ctx.createdPageIds.push(target.id);
+
+        const targetEntry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+          database_id: target.id,
+          properties: {
+            Name: "target",
+            Refs: sourceEntryIds,
+          },
+        });
+        expect(targetEntry.error).toBeUndefined();
+        ctx.createdPageIds.push(targetEntry.id);
+
+        const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
+          database_id: target.id,
+        });
+
+        expect(rowsResponse.results).toHaveLength(1);
+        const row = rowsResponse.results[0];
+        expect(Array.isArray(row.Refs)).toBe(true);
+        expect((row.Refs as unknown[])).toHaveLength(75);
+        expect(rowsResponse.warnings).toHaveLength(1);
+        const warning = rowsResponse.warnings?.[0];
+        expect(warning?.code).toBe("truncated_properties");
+        expect(warning?.properties).toHaveLength(1);
+        expect(warning?.properties?.[0]).toEqual(
+          expect.objectContaining({
+            name: "Refs",
+            type: "relation",
+            returned_count: 75,
+            cap: 75,
+          }),
+        );
+        expect(warning?.how_to_fetch_all).toEqual(expect.any(String));
+        expect(warning?.how_to_fetch_all).toContain("max_property_items");
+      }, 180_000);
+    });
 
     it("C6: unique_id schema with prefix", async () => {
       const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
@@ -667,9 +811,10 @@ describe.skipIf(!env.shouldRun)(
       expect(entry.error).toBeUndefined();
       ctx.createdPageIds.push(entry.id);
 
-      const rows = await callTool<Array<Record<string, unknown>>>(client, "query_database", {
+      const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
         database_id: created.id,
       });
+      const rows = rowsResponse.results;
 
       const row = rows.find((candidate) => candidate.Title === "row1");
       expect(row).toBeDefined();
