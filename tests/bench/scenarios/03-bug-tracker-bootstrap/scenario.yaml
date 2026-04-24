@@ -1,0 +1,50 @@
+id: bug-tracker-bootstrap
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}, build a bug tracking system:
+  1. Create a database titled "Bug Tags" with just a Title column. Add exactly 30 entries named "tag-01" through "tag-30".
+  2. Create a database titled "Bug Tracker" with these columns:
+     - Title (title)
+     - Status (select with options: Open, In Progress, Closed)
+     - Priority (select with options: P0, P1, P2, P3)
+     - Description (rich_text)
+     - Tags (relation to the "Bug Tags" database)
+  3. Add 3 bug entries:
+     - "Auth timeout on login" with Status=Open, Priority=P0, Description="Users see timeout after 30s"
+     - "Dashboard CSS glitch" with Status=Open, Priority=P2, Description="Sidebar overlaps main content"
+     - "API rate limit exceeded" with Status=In Progress, Priority=P1, Description="Batch endpoint hits 429"
+  4. Update "Auth timeout on login" to link ALL 30 tags in the Tags relation column.
+  5. Query the "Bug Tracker" database with default settings and report the results.
+  6. Query the "Bug Tracker" database again, this time with max_property_items set to 25, and report what warnings appear in the response.
+  7. Update "Auth timeout on login" status from Open to In Progress.
+budget:
+  max_turns: 50
+  max_tokens: 80000
+  max_usd: 3.00
+transport: http
+ground_truth:
+  databases:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Bug Tracker"
+      must_have_properties:
+        - name: Status
+          type: select
+        - name: Priority
+          type: select
+        - name: Description
+          type: rich_text
+        - name: Tags
+          type: relation
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Bug Tags"
+  rows:
+    - database_title_matches: "Bug Tracker"
+      size_min: 3
+      must_exist:
+        - match:
+            Title: "Auth timeout on login"
+          expect:
+            Status: "In Progress"
+    - database_title_matches: "Bug Tags"
+      size_min: 30
+  tools_must_be_called: [create_database, add_database_entries, query_database, update_database_entry, get_database]

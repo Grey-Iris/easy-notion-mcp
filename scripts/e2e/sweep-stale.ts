@@ -109,10 +109,29 @@ async function listPages(
 }
 
 async function searchPages(client: McpStdioClient): Promise<PageRef[] | ToolError> {
-  return callTool<PageRef[] | ToolError>(client, "search", {
-    query: "E2E:",
-    filter: "pages",
-  });
+  const results: PageRef[] = [];
+  const seen = new Set<string>();
+
+  for (const query of ["E2E:", "BENCH:"]) {
+    const response = await callTool<PageRef[] | ToolError>(client, "search", {
+      query,
+      filter: "pages",
+    });
+
+    if (isToolError(response)) {
+      return response;
+    }
+
+    for (const page of response) {
+      if (seen.has(page.id)) {
+        continue;
+      }
+      seen.add(page.id);
+      results.push(page);
+    }
+  }
+
+  return results;
 }
 
 async function walkCandidate(
@@ -219,7 +238,9 @@ export async function runSweep(
       return 4;
     }
 
-    const candidates = rootListing.filter((page) => typeof page.title === "string" && /^E2E: /.test(page.title));
+    const candidates = rootListing.filter(
+      (page) => typeof page.title === "string" && /^(E2E|BENCH): /.test(page.title),
+    );
     const candidateIds = new Set(candidates.map((page) => page.id));
 
     let skippedUnverified = 0;

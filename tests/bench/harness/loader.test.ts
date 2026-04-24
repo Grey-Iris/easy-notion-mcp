@@ -54,6 +54,7 @@ describe("bench harness loader", () => {
         users: [{ must_include_bot: true, size_min: 1 }],
         tools_must_be_called: ["get_me"],
       },
+      scenarioDir: "",
     });
   });
 
@@ -115,6 +116,7 @@ extra_top_level: ignored
       expect(scenario.id).toBe("identity-smoke");
       expect(scenario.transport).toBe("http");
       expect(scenario.ground_truth.users).toEqual([{ must_include_bot: true, size_min: 1 }]);
+      expect(scenario.scenarioDir).toBe(scenarioDir);
     } finally {
       await rm(scenarioDir, { recursive: true, force: true });
     }

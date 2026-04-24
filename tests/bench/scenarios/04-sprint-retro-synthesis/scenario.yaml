@@ -1,0 +1,21 @@
+id: sprint-retro-synthesis
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}, create two source pages:
+  1. A page titled "Sprint 41 Retro" with content about what went well (faster deploys) and what didn't (flaky tests).
+  2. A page titled "Sprint 42 Retro" with content about what went well (new monitoring) and what didn't (scope creep).
+  Then use search to find pages containing "Retro" under ${SCENARIO_PARENT}.
+  Finally, create a synthesis page titled "Retro Synthesis" that summarizes themes from both retros, linking to each source page.
+budget:
+  max_turns: 20
+  max_tokens: 30000
+  max_usd: 1.50
+transport: http
+ground_truth:
+  pages:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Retro Synthesis"
+      must_contain_blocks:
+        - type: paragraph
+          count_min: 1
+  tools_must_be_called: [create_page, search, read_page]

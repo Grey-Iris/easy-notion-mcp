@@ -80,6 +80,7 @@ export function parseScenario(yamlContent: string): Scenario | ValidationError {
     },
     transport: parsed.transport,
     ground_truth: parsed.ground_truth,
+    scenarioDir: "",
   };
 }
 
@@ -93,7 +94,10 @@ export async function loadScenario(scenarioDir: string): Promise<Scenario> {
     throw new Error(`Invalid scenario at ${scenarioPath}${suffix}: ${parsed.error}`);
   }
 
-  return parsed;
+  return {
+    ...parsed,
+    scenarioDir,
+  };
 }
 
 export async function loadAllScenarios(scenariosRoot: string): Promise<Scenario[]> {

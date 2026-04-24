@@ -29,6 +29,7 @@ function makeScenarioResult(overrides: Partial<ScenarioResult> = {}): ScenarioRe
   return {
     id: "13-identity-smoke",
     passed: true,
+    status: "pass",
     durationMs: 54210,
     costUsd: 0.028,
     transcript: makeTranscript(),
@@ -81,11 +82,17 @@ describe("bench harness manifest", () => {
           expect.objectContaining({
             id: "13-identity-smoke",
             passed: true,
+            status: "pass",
             duration_ms: 54210,
             transcript_sha256:
               "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
           }),
         ],
+        totals: expect.objectContaining({
+          passed: 1,
+          failed: 0,
+          skipped: 0,
+        }),
       }),
     );
   });
