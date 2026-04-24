@@ -1,0 +1,33 @@
+id: onboarding-checklist
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}:
+  1. Create a page titled "New Hire Onboarding" with a checklist:
+     - [ ] Set up development environment
+     - [ ] Complete security training
+     - [ ] Meet with team lead
+     - [ ] Review codebase documentation
+  2. Add a comment on the page: "Welcome aboard! Please complete these items in your first week."
+  3. Add another comment: "Security training link: https://example.com/training"
+  4. List all comments on the page to verify they were added.
+  5. Call list_users to see available workspace members.
+  6. Share the page and report the share URL.
+budget:
+  max_turns: 20
+  max_tokens: 30000
+  max_usd: 1.50
+transport: http
+ground_truth:
+  pages:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "New Hire Onboarding"
+      must_contain_blocks:
+        - type: to_do
+          count_min: 4
+  comments:
+    - page_title_matches: "New Hire Onboarding"
+      size_min: 2
+      must_include_ordered:
+        - body_contains: "Welcome aboard"
+        - body_contains: "Security training"
+  tools_must_be_called: [create_page, add_comment, list_comments, list_users, share_page]

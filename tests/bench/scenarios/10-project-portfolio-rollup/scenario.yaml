@@ -1,0 +1,45 @@
+id: project-portfolio-rollup
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}:
+  1. Create a database titled "Tasks" with columns:
+     - Title (title)
+     - Status (select: Todo, In Progress, Done)
+     - Project (relation - will link to Projects database)
+  2. Create a database titled "Projects" with columns:
+     - Title (title)
+     - Description (rich_text)
+     - Tasks (relation to the "Tasks" database)
+  3. Add 3 project entries: "Alpha", "Beta", "Gamma".
+  4. Add task entries linked to projects:
+     - "Design mockups" -> Alpha (Done)
+     - "Build API" -> Alpha (In Progress)
+     - "Write tests" -> Alpha (Todo)
+     - "Setup CI" -> Beta (Done)
+     - "Deploy staging" -> Beta (In Progress)
+  5. Query the "Projects" database and report each project with its linked tasks.
+budget:
+  max_turns: 30
+  max_tokens: 40000
+  max_usd: 2.00
+transport: http
+ground_truth:
+  databases:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Projects"
+      must_have_properties:
+        - name: Tasks
+          type: relation
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Tasks"
+      must_have_properties:
+        - name: Status
+          type: select
+        - name: Project
+          type: relation
+  rows:
+    - database_title_matches: "Tasks"
+      size_min: 5
+    - database_title_matches: "Projects"
+      size_min: 3
+  tools_must_be_called: [create_database, add_database_entry, query_database]

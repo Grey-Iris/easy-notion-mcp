@@ -1,0 +1,31 @@
+id: blog-post-polish
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}:
+  1. Create a page titled "Announcing Our New API" with a rough draft:
+     "We're excited to announce our new API. It has many features. Stay tuned for more details."
+  2. Use replace_content to replace the entire body with a polished version:
+     Include an introduction paragraph, an H2 "Key Features" section with 3 bullet points, and an H2 "Getting Started" section with a code example.
+  3. Use update_page to set the page icon to the rocket emoji (🚀) and set an external cover image URL to "https://images.unsplash.com/photo-1451187580459-43490279c0fa".
+  4. Read the page to confirm the final state.
+budget:
+  max_turns: 15
+  max_tokens: 20000
+  max_usd: 1.00
+transport: http
+ground_truth:
+  pages:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Announcing Our New API"
+      icon:
+        type: emoji
+        emoji: "🚀"
+      cover:
+        type: external
+        external: "https://images.unsplash.com/photo-1451187580459-43490279c0fa"
+      must_contain_blocks:
+        - type: heading_2
+          text: "Key Features"
+        - type: heading_2
+          text: "Getting Started"
+  tools_must_be_called: [create_page, replace_content, update_page, read_page]

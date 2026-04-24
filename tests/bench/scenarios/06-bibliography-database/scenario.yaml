@@ -1,0 +1,46 @@
+id: bibliography-database
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}, create an academic bibliography:
+  1. Create a database titled "Bibliography" with columns:
+     - Title (title)
+     - Authors (rich_text)
+     - Year (number)
+     - Tags (multi_select)
+     - URL (url)
+     - DOI (rich_text)
+  2. Add 10 entries with realistic academic paper data. Use tags like "machine-learning", "nlp", "computer-vision", "robotics". Ensure at least 3 have the tag "machine-learning" and years between 2020-2025.
+  3. Query the database with a filter for tag "machine-learning".
+  4. Use update_data_source to add a new column "Impact Factor" of type number.
+  5. Verify the column was added by calling get_database.
+budget:
+  max_turns: 25
+  max_tokens: 40000
+  max_usd: 2.00
+transport: http
+ground_truth:
+  databases:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Bibliography"
+      must_have_properties:
+        - name: Authors
+          type: rich_text
+        - name: Year
+          type: number
+        - name: Tags
+          type: multi_select
+        - name: URL
+          type: url
+        - name: Impact Factor
+          type: number
+  rows:
+    - database_title_matches: "Bibliography"
+      size_min: 10
+  query:
+    - database_title_matches: "Bibliography"
+      filter:
+        property: "Tags"
+        multi_select:
+          contains: "machine-learning"
+      result_size_min: 3
+  tools_must_be_called: [create_database, add_database_entries, query_database, update_data_source, get_database]

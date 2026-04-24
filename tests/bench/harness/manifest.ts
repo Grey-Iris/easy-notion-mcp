@@ -21,14 +21,16 @@ export function buildManifest(runResult: RunResultInput): RunManifest {
   const scenarios = runResult.scenarios.map((scenario) => ({
     id: scenario.id,
     passed: scenario.passed,
+    status: scenario.status,
     duration_ms: scenario.durationMs,
     cost_usd: scenario.costUsd,
     transcript_path: scenario.transcriptPath ?? "",
     transcript_sha256: scenario.transcriptSha256 ?? "",
   }));
 
-  const passed = scenarios.filter((scenario) => scenario.passed).length;
-  const failed = scenarios.length - passed;
+  const passed = scenarios.filter((scenario) => scenario.status === "pass").length;
+  const failed = scenarios.filter((scenario) => scenario.status === "fail").length;
+  const skipped = scenarios.filter((scenario) => scenario.status === "skip").length;
   const totalCost = scenarios.reduce((sum, scenario) => sum + scenario.cost_usd, 0);
 
   return {
@@ -44,6 +46,7 @@ export function buildManifest(runResult: RunResultInput): RunManifest {
       scenarios_run: scenarios.length,
       passed,
       failed,
+      skipped,
       cost_usd: totalCost,
     },
   };

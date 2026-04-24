@@ -1,0 +1,21 @@
+id: archive-old-sprints
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}:
+  1. Create three pages: "Sprint 39", "Sprint 40", "Sprint 41".
+  2. Create a database titled "Stale Tasks" with Title and Status columns. Add 2 entries: "Fix login bug" (Status: Done), "Update README" (Status: Done).
+  3. Archive "Sprint 39" and "Sprint 40" (they're old sprints).
+  4. Restore "Sprint 40" (it was archived by mistake).
+  5. Delete the "Fix login bug" entry from the "Stale Tasks" database (it's been resolved and migrated).
+  6. List pages under ${SCENARIO_PARENT} to confirm final state.
+budget:
+  max_turns: 25
+  max_tokens: 30000
+  max_usd: 1.50
+transport: http
+ground_truth:
+  pages_under_parent:
+    - parent: ${SCENARIO_PARENT}
+      must_include_titles: ["Sprint 40", "Sprint 41"]
+      must_not_include_titles: ["Sprint 39"]
+  tools_must_be_called: [create_page, archive_page, restore_page, delete_database_entry, list_pages]

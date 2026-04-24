@@ -96,6 +96,9 @@ src/
 - `PORT` (default: 3333) — HTTP server port
 - `OAUTH_REDIRECT_URI` (default: http://localhost:{PORT}/callback)
 
+### Bench mode
+- `BENCH_ROOT_PAGE_ID` (optional) -- parent page for bench scenario sandboxes. Falls back to `E2E_ROOT_PAGE_ID` if not set.
+
 ## Custom markdown conventions
 
 Notion has block types with no standard markdown equivalent. We use these conventions:
