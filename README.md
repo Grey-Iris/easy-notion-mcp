@@ -195,6 +195,10 @@ Authorization: Bearer <your NOTION_MCP_BEARER value>
 >
 > **v0.3.0 migration:** as of v0.3.0 the HTTP server binds `127.0.0.1` by default and static-token mode requires `NOTION_MCP_BEARER`. `host.docker.internal` reaches the host's bridge IP, so you need `NOTION_MCP_BIND_HOST=0.0.0.0` on the host and the bearer header on every client request. OAuth mode (which issues its own per-user bearers) is the recommended alternative for shared Docker deployments.
 
+### With Docker
+
+See [Docker setup instructions](docs/docker.md) for building and running the server in a container with either OAuth or API token authentication.
+
 easy-notion-mcp works with any MCP-compatible client. The server runs via stdio (API token mode) or HTTP (OAuth or API token mode).
 
 ![](assets/papercraft-divider.png)
