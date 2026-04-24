@@ -1,0 +1,44 @@
+# Tier-1 E2E suite against a real Notion workspace.
+# Runs nightly and on manual dispatch — NOT on every PR/push (would be wasteful,
+# slow, and noisy; it creates real pages in a real workspace).
+#
+# NOTE: The C5 people-column test writes a real user ID to a people-type column,
+# which triggers a real-world notification to that user (Iris) on every run.
+# This is intentional coverage of the people-column write path, accepted as a
+# daily notification cost. If this becomes noisy, skip C5 via an env-var gate
+# inside the test itself rather than stripping coverage here.
+name: E2E (Tier-1)
+
+on:
+  schedule:
+    # 06:00 UTC daily (off-peak for Notion API, avoids midnight-boundary edge cases)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-tier1
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      E2E_ROOT_PAGE_ID: ${{ secrets.E2E_ROOT_PAGE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run Tier-1 E2E suite
+        run: npm run test:e2e
+      - name: Sweep stale sandbox pages
+        if: always()
+        run: npm run test:e2e:sweep:apply
