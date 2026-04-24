@@ -42,7 +42,18 @@ function makeScenarioResult(overrides: Partial<ScenarioResult> = {}): ScenarioRe
   };
 }
 
-function makeRunResult() {
+function makeRunResult(
+  overrides: Partial<{
+    runId: string;
+    gitSha: string;
+    gitBranch: string;
+    startedAt: string;
+    finishedAt: string;
+    model: string;
+    nodeVersion: string;
+    scenarios: ScenarioResult[];
+  }> = {},
+) {
   return {
     runId: "run-2026-04-23-a1b2c3d",
     gitSha: "a1b2c3d4e5f6",
@@ -52,6 +63,7 @@ function makeRunResult() {
     model: "claude-sonnet-4-6",
     nodeVersion: "v20.11.1",
     scenarios: [makeScenarioResult()],
+    ...overrides,
   };
 }
 
@@ -97,6 +109,84 @@ describe("bench harness manifest", () => {
     );
   });
 
+  it("buildManifest includes per-claim data in scenario entries", async () => {
+    const { buildManifest } = await importManifest();
+    const manifest = buildManifest(
+      makeRunResult({
+        scenarios: [
+          makeScenarioResult({
+            verification: {
+              passed: false,
+              warnings: [],
+              claims: [
+                { claim: "databases[0]", passed: true },
+                { claim: "rows[1]", passed: false, message: "row not found" },
+              ],
+            },
+          }),
+        ],
+      }),
+    );
+    const scenario = manifest.scenarios[0] as (typeof manifest.scenarios)[number] & {
+      claims?: Array<{ kind: string; index: number; status: "pass" | "fail"; reason?: string }>;
+    };
+
+    expect(scenario.claims).toEqual([
+      { kind: "databases[0]", index: 0, status: "pass" },
+      { kind: "rows[1]", index: 1, status: "fail", reason: "row not found" },
+    ]);
+  });
+
+  it("buildManifest omits reason on passing claims", async () => {
+    const { buildManifest } = await importManifest();
+    const manifest = buildManifest(
+      makeRunResult({
+        scenarios: [
+          makeScenarioResult({
+            verification: {
+              passed: true,
+              warnings: [],
+              claims: [{ claim: "pages[0]", passed: true }],
+            },
+          }),
+        ],
+      }),
+    );
+    const scenario = manifest.scenarios[0] as (typeof manifest.scenarios)[number] & {
+      claims?: Array<{ kind: string; index: number; status: "pass" | "fail"; reason?: string }>;
+    };
+
+    expect(scenario.claims).toHaveLength(1);
+    expect(scenario.claims?.[0]).toEqual({
+      kind: "pages[0]",
+      index: 0,
+      status: "pass",
+    });
+    expect(scenario.claims?.[0]).not.toHaveProperty("reason");
+  });
+
+  it("buildManifest handles scenario with empty claims array", async () => {
+    const { buildManifest } = await importManifest();
+    const manifest = buildManifest(
+      makeRunResult({
+        scenarios: [
+          makeScenarioResult({
+            verification: {
+              passed: true,
+              warnings: [],
+              claims: [],
+            },
+          }),
+        ],
+      }),
+    );
+    const scenario = manifest.scenarios[0] as (typeof manifest.scenarios)[number] & {
+      claims?: Array<{ kind: string; index: number; status: "pass" | "fail"; reason?: string }>;
+    };
+
+    expect(scenario.claims).toEqual([]);
+  });
+
   it("writes manifest JSON to the requested path", async () => {
     const { buildManifest, writeManifest } = await importManifest();
     const outDir = await mkdtemp(join(tmpdir(), "bench-manifest-"));
@@ -109,6 +199,50 @@ describe("bench harness manifest", () => {
       const written = JSON.parse(await readFile(manifestPath, "utf8"));
 
       expect(written).toEqual(manifest);
+    } finally {
+      await rm(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("writeManifest persists per-claim data to disk", async () => {
+    const { buildManifest, writeManifest } = await importManifest();
+    const outDir = await mkdtemp(join(tmpdir(), "bench-manifest-"));
+    const manifestPath = join(outDir, "run.manifest.json");
+    const manifest = buildManifest(
+      makeRunResult({
+        scenarios: [
+          makeScenarioResult({
+            verification: {
+              passed: false,
+              warnings: [],
+              claims: [
+                { claim: "databases[0]", passed: true },
+                { claim: "rows[1]", passed: false, message: "row not found" },
+              ],
+            },
+          }),
+        ],
+      }),
+    );
+
+    try {
+      await writeManifest(manifestPath, manifest);
+
+      const written = JSON.parse(await readFile(manifestPath, "utf8")) as {
+        scenarios: Array<{
+          claims?: Array<{
+            kind: string;
+            index: number;
+            status: "pass" | "fail";
+            reason?: string;
+          }>;
+        }>;
+      };
+
+      expect(written.scenarios[0]?.claims).toEqual([
+        { kind: "databases[0]", index: 0, status: "pass" },
+        { kind: "rows[1]", index: 1, status: "fail", reason: "row not found" },
+      ]);
     } finally {
       await rm(outDir, { recursive: true, force: true });
     }

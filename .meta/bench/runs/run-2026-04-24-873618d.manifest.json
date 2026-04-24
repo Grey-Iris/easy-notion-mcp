@@ -1,0 +1,60 @@
+{
+  "run_id": "run-2026-04-24-873618d",
+  "git_sha": "873618dbc2408d64839f02b01e5c7019ea0582aa",
+  "git_branch": "feat/bench-a-followups-2026-04-24",
+  "started_at": "2026-04-24T03:07:34Z",
+  "finished_at": "2026-04-24T03:09:38Z",
+  "model": "claude-sonnet-4-6",
+  "node_version": "v22.19.0",
+  "scenarios": [
+    {
+      "id": "project-portfolio-rollup",
+      "passed": false,
+      "status": "fail",
+      "duration_ms": 118201,
+      "cost_usd": 0.23414564999999998,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-873618d/scenario-project-portfolio-rollup.ndjson",
+      "transcript_sha256": "50073457caa12cecf797065f5e48a2ce8d533f42bcd20f1fedbf12a4129a3495",
+      "claims": [
+        {
+          "kind": "databases[0]",
+          "index": 0,
+          "status": "pass"
+        },
+        {
+          "kind": "databases[1]",
+          "index": 1,
+          "status": "pass"
+        },
+        {
+          "kind": "rows[0]",
+          "index": 2,
+          "status": "pass"
+        },
+        {
+          "kind": "rows[1]",
+          "index": 3,
+          "status": "pass"
+        },
+        {
+          "kind": "tools_must_be_called",
+          "index": 4,
+          "status": "pass"
+        },
+        {
+          "kind": "assert.ts",
+          "index": 5,
+          "status": "fail",
+          "reason": "ctx.notion.databases.query is not a function"
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "scenarios_run": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "cost_usd": 0.23414564999999998
+  }
+}
