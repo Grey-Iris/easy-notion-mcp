@@ -142,6 +142,13 @@ export interface ScenarioResult {
   transcriptSha256?: string;
 }
 
+export interface ManifestClaim {
+  kind: string;
+  index: number;
+  status: "pass" | "fail";
+  reason?: string;
+}
+
 export interface RunManifest {
   run_id: string;
   git_sha: string;
@@ -158,6 +165,7 @@ export interface RunManifest {
     cost_usd: number;
     transcript_path: string;
     transcript_sha256: string;
+    claims: ManifestClaim[];
   }>;
   totals: {
     scenarios_run: number;

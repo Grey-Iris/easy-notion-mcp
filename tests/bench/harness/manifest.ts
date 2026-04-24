@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
-import type { RunManifest, ScenarioResult } from "./types.ts";
+import type { ManifestClaim, RunManifest, ScenarioResult } from "./types.ts";
 
 export interface RunResultInput {
   runId: string;
@@ -26,6 +26,12 @@ export function buildManifest(runResult: RunResultInput): RunManifest {
     cost_usd: scenario.costUsd,
     transcript_path: scenario.transcriptPath ?? "",
     transcript_sha256: scenario.transcriptSha256 ?? "",
+    claims: scenario.verification.claims.map((claim, index): ManifestClaim => ({
+      kind: claim.claim,
+      index,
+      status: claim.passed ? "pass" : "fail",
+      ...(claim.message ? { reason: claim.message } : {}),
+    })),
   }));
 
   const passed = scenarios.filter((scenario) => scenario.status === "pass").length;

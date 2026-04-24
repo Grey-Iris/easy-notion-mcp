@@ -38,6 +38,8 @@ const FAILURE_EXIT_CODE = 1;
 const SUCCESS_EXIT_CODE = 0;
 const NOTION_RETRY_ATTEMPTS = 3;
 const NOTION_RETRY_BACKOFF_MS = 2_000;
+export const VERIFY_RETRY_ATTEMPTS = 5;
+export const VERIFY_RETRY_BACKOFF_MS = 3_000;
 
 type PageSummary = Awaited<ReturnType<SdkContext["findChildPages"]>>[number];
 type DatabaseSummary = Awaited<ReturnType<SdkContext["findChildDatabases"]>>[number];
@@ -49,8 +51,29 @@ export interface RunnerResult {
   scenarios: ScenarioResult[];
 }
 
+export interface VerifyWithRetryResult {
+  result: VerifyResult;
+  attempts: number;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function verifyWithRetry(
+  verify: () => Promise<VerifyResult>,
+  maxAttempts: number,
+  backoffMs: number,
+): Promise<VerifyWithRetryResult> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = await verify();
+    if (result.passed || attempt === maxAttempts) {
+      return { result, attempts: attempt };
+    }
+    await delay(backoffMs);
+  }
+
+  throw new Error("verifyWithRetry: unreachable");
 }
 
 async function withNotionRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
@@ -586,53 +609,50 @@ async function runScenario(opts: {
   const transcript = parseStreamJson(commandResult.stdout);
   await writeFile(transcriptPathAbs, commandResult.stdout, "utf8");
 
-  const declarativeVerification =
-    commandResult.timedOut
-      ? failureVerification(
-          "runner.timeout",
-          `Timed out after ${formatDuration(scenarioTimeoutMs(opts.scenario.budget.max_usd))}`,
-        )
-      : commandResult.exitCode !== 0
-        ? failureVerification(
-            "runner.process_exit",
-            [
-              `claude exited with code ${commandResult.exitCode ?? "null"} and signal ${commandResult.signal ?? "null"}.`,
-              commandResult.stderr.trim(),
-            ]
-              .filter((value) => value !== "")
-              .join("\n"),
-          )
-        : await verifyGroundTruth(
-            opts.scenario.ground_truth,
-            transcript,
-            opts.sdkContext,
-            opts.scenarioParentId,
-          ).catch((error) =>
-            failureVerification(
-              "runner.verification_error",
-              error instanceof Error ? error.message : String(error),
-            )
-          );
+  let verification: VerifyResult;
 
-  const verification =
-    commandResult.exitCode === 0 && !commandResult.timedOut
-      ? await runScenarioAssert(
-          opts.scenario,
-          opts.notion,
-          opts.scenarioParentId,
-          transcript,
-        )
-          .then((assertResult) => mergeVerification(declarativeVerification, assertResult))
-          .catch((error) =>
-            mergeVerification(
-              declarativeVerification,
-              {
-                passed: false,
-                message: error instanceof Error ? error.message : String(error),
-              },
-            ),
-          )
-      : declarativeVerification;
+  if (commandResult.timedOut) {
+    verification = failureVerification(
+      "runner.timeout",
+      `Timed out after ${formatDuration(scenarioTimeoutMs(opts.scenario.budget.max_usd))}`,
+    );
+  } else if (commandResult.exitCode !== 0) {
+    verification = failureVerification(
+      "runner.process_exit",
+      [
+        `claude exited with code ${commandResult.exitCode ?? "null"} and signal ${commandResult.signal ?? "null"}.`,
+        commandResult.stderr.trim(),
+      ]
+        .filter((value) => value !== "")
+        .join("\n"),
+    );
+  } else {
+    const verifyAll = async (): Promise<VerifyResult> => {
+      const declarative = await verifyGroundTruth(
+        opts.scenario.ground_truth,
+        transcript,
+        opts.sdkContext,
+        opts.scenarioParentId,
+      );
+      const assertResult = await runScenarioAssert(
+        opts.scenario,
+        opts.notion,
+        opts.scenarioParentId,
+        transcript,
+      ).catch((error) => ({
+        passed: false,
+        message: error instanceof Error ? error.message : String(error),
+      } as AssertResult));
+
+      return mergeVerification(declarative, assertResult);
+    };
+    const retryOutcome = await verifyWithRetry(
+      verifyAll,
+      VERIFY_RETRY_ATTEMPTS,
+      VERIFY_RETRY_BACKOFF_MS,
+    );
+    verification = retryOutcome.result;
+  }
 
   const durationMs = Date.now() - startedAt;
   const costUsd = transcript.result?.costUsd ?? 0;
