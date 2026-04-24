@@ -1,4 +1,5 @@
 import type { AssertContext, AssertResult } from "../../harness/types.ts";
+import { queryDatabase } from "../../../../src/notion-client.ts";
 
 export async function assert(ctx: AssertContext): Promise<AssertResult> {
   const blocks = [];
@@ -29,8 +30,8 @@ export async function assert(ctx: AssertContext): Promise<AssertResult> {
     return { passed: false, message: "Tasks database not found under scenario parent" };
   }
 
-  const queryResponse = await ctx.notion.databases.query({ database_id: tasksDbId });
-  const tasksWithRelation = queryResponse.results.filter((row: any) => {
+  const rows = await queryDatabase(ctx.notion, tasksDbId);
+  const tasksWithRelation = rows.filter((row: any) => {
     const projectProp = Object.values(row.properties).find((property: any) => property.type === "relation") as any;
     return projectProp && Array.isArray(projectProp.relation) && projectProp.relation.length > 0;
   });
