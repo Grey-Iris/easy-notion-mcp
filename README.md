@@ -10,6 +10,7 @@ Agents write markdown — easy-notion-mcp converts it to Notion's block API and 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
 [![node](https://img.shields.io/node/v/easy-notion-mcp)](package.json)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/S8cghJSVBU)
 [![Glama](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp/badges/card.svg)](https://glama.ai/mcp/servers/Grey-Iris/easy-notion-mcp)
 
 ```bash
@@ -24,7 +25,7 @@ npx easy-notion-mcp
 
 ---
 
-**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Config](#configuration) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions)
+**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Config](#configuration) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
@@ -450,6 +451,10 @@ Yes. Nested toggles inside toggles, columns with mixed content types (lists, blo
 ### Does easy-notion-mcp handle partial failures in batch operations?
 
 Yes. `add_database_entries` returns separate `succeeded` and `failed` arrays. If one entry fails validation, the others still get created. Agents can retry just the failures without re-sending the whole batch.
+
+## Community
+
+There's a community Discord at [discord.gg/S8cghJSVBU](https://discord.gg/S8cghJSVBU). The `#easy-notion-mcp` channel covers setup questions and design discussion, and the rest of the server is open for show-and-tell or general conversation. For bugs and concrete feature requests, [GitHub issues](https://github.com/Grey-Iris/easy-notion-mcp/issues) remain the canonical channel.
 
 ## Contributing
 
