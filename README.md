@@ -198,6 +198,8 @@ Authorization: Bearer <your NOTION_MCP_BEARER value>
 
 easy-notion-mcp works with any MCP-compatible client. The server runs via stdio (API token mode) or HTTP (OAuth or API token mode).
 
+If you run into questions during setup, the [Discord community](https://discord.gg/S8cghJSVBU) is a good place to ask. The `#easy-notion-mcp` channel covers setup and design discussion. Bugs go on [GitHub issues](https://github.com/Grey-Iris/easy-notion-mcp/issues).
+
 ![](assets/papercraft-divider.png)
 
 ## Why markdown-first?
