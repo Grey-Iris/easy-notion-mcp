@@ -5,6 +5,7 @@
 1. Read `CLAUDE.md` for architecture, commands, and conventions
 2. Check existing issues before starting work
 3. For non-trivial changes, open an issue first to discuss the approach
+4. For open-ended questions and design discussion, ask in [Discord](https://discord.gg/S8cghJSVBU); bugs and concrete requests still belong on [GitHub issues](https://github.com/Grey-Iris/easy-notion-mcp/issues)
 
 ## Development setup
 
