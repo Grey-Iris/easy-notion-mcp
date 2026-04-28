@@ -1,0 +1,240 @@
+{
+  "timestamp": "2026-04-28T23:48:24.567Z",
+  "tokenizer": "cl100k_base (js-tiktoken encodingForModel('gpt-4'))",
+  "listing_budget": {
+    "ours": 4969,
+    "hosted_floor": 772,
+    "hosted_with_schemas_midpoint": 3000
+  },
+  "workflows": [
+    {
+      "name": "1. block-surgical-edit",
+      "description": "find_replace 5 occurrences of 'legacy auth system' on a 100-block page",
+      "ours": {
+        "call_count": 1,
+        "request_tokens": 59,
+        "response_tokens": 5,
+        "per_call_total": 64,
+        "calls": [
+          {
+            "tool": "find_replace",
+            "request_tokens": 59,
+            "response_tokens": 5
+          }
+        ]
+      },
+      "hosted": {
+        "call_count": 2,
+        "request_tokens": 1954,
+        "response_tokens": 1831,
+        "per_call_total": 3785,
+        "calls": [
+          {
+            "tool": "notion-fetch",
+            "request_tokens": 52,
+            "response_tokens": 1736
+          },
+          {
+            "tool": "notion-update-page",
+            "request_tokens": 1902,
+            "response_tokens": 95
+          }
+        ]
+      },
+      "per_call_delta": 3721,
+      "notes": [
+        "Hosted has no surgical edit tool (block-level edits are 'out of scope by design' per Notion's blog).",
+        "The agent must fetch full page content, edit in memory, then notion-update-page replaces the whole page.",
+        "Per issue #271, this loses block IDs, breaks deep-links, and re-parents comments — but the token cost is the same either way."
+      ]
+    },
+    {
+      "name": "2. batch-import-10-entries",
+      "description": "Create 10 database rows in one batch (best case for hosted, single call)",
+      "ours": {
+        "call_count": 1,
+        "request_tokens": 337,
+        "response_tokens": 244,
+        "per_call_total": 581,
+        "calls": [
+          {
+            "tool": "add_database_entries",
+            "request_tokens": 337,
+            "response_tokens": 244
+          }
+        ]
+      },
+      "hosted": {
+        "call_count": 1,
+        "request_tokens": 917,
+        "response_tokens": 2399,
+        "per_call_total": 3316,
+        "calls": [
+          {
+            "tool": "notion-create-pages",
+            "request_tokens": 917,
+            "response_tokens": 2399
+          }
+        ]
+      },
+      "per_call_delta": 2735,
+      "notes": [
+        "Best-case hosted assumption: notion-create-pages accepts an array of 10 in one call.",
+        "If issues #121 / #244 force per-row retries (date drops, parent-required regressions), hosted cost rises ~Nx; this measurement does not include that retry tax.",
+        "Hosted request payload uses Notion property wrappers (title:[{text:{content}}]); ours uses bare key-value pairs that the server expands using cached schema."
+      ]
+    },
+    {
+      "name": "3. read-and-summarize",
+      "description": "Read one moderate-size page (no edits)",
+      "ours": {
+        "call_count": 1,
+        "request_tokens": 41,
+        "response_tokens": 1861,
+        "per_call_total": 1902,
+        "calls": [
+          {
+            "tool": "read_page",
+            "request_tokens": 41,
+            "response_tokens": 1861
+          }
+        ]
+      },
+      "hosted": {
+        "call_count": 1,
+        "request_tokens": 52,
+        "response_tokens": 1736,
+        "per_call_total": 1788,
+        "calls": [
+          {
+            "tool": "notion-fetch",
+            "request_tokens": 52,
+            "response_tokens": 1736
+          }
+        ]
+      },
+      "per_call_delta": -114,
+      "notes": [
+        "Single tool call on each side; this is the cleanest direct comparison of response-payload format overhead.",
+        "Both responses use the same source block JSON; difference is converter output."
+      ]
+    },
+    {
+      "name": "4. multi-page-navigation",
+      "description": "Search → read 3 pages → update one section of the 3rd page",
+      "ours": {
+        "call_count": 5,
+        "request_tokens": 169,
+        "response_tokens": 2945,
+        "per_call_total": 3114,
+        "calls": [
+          {
+            "tool": "search",
+            "request_tokens": 6,
+            "response_tokens": 257
+          },
+          {
+            "tool": "read_page",
+            "request_tokens": 22,
+            "response_tokens": 631
+          },
+          {
+            "tool": "read_page",
+            "request_tokens": 22,
+            "response_tokens": 1200
+          },
+          {
+            "tool": "read_page",
+            "request_tokens": 22,
+            "response_tokens": 847
+          },
+          {
+            "tool": "update_section",
+            "request_tokens": 97,
+            "response_tokens": 10
+          }
+        ]
+      },
+      "hosted": {
+        "call_count": 5,
+        "request_tokens": 942,
+        "response_tokens": 2825,
+        "per_call_total": 3767,
+        "calls": [
+          {
+            "tool": "notion-search",
+            "request_tokens": 6,
+            "response_tokens": 149
+          },
+          {
+            "tool": "notion-fetch",
+            "request_tokens": 19,
+            "response_tokens": 622
+          },
+          {
+            "tool": "notion-fetch",
+            "request_tokens": 22,
+            "response_tokens": 1180
+          },
+          {
+            "tool": "notion-fetch",
+            "request_tokens": 20,
+            "response_tokens": 830
+          },
+          {
+            "tool": "notion-update-page",
+            "request_tokens": 875,
+            "response_tokens": 44
+          }
+        ]
+      },
+      "per_call_delta": 653,
+      "notes": [
+        "5 calls per side; final edit on hosted re-uses content from the prior fetch (no extra fetch needed).",
+        "If the agent didn't fetch the target page in the search-and-read phase, hosted would need a 6th call; this measurement assumes the lucky path.",
+        "Ours uses update_section (surgical, scoped to one heading); hosted re-writes the whole page."
+      ]
+    }
+  ],
+  "break_even": {
+    "weighted_avg_delta_per_workflow": 2331.6666666666665,
+    "listing_deficit_floor": 4197,
+    "listing_deficit_midpoint": 1969,
+    "break_even_workflows_floor": 1.8,
+    "break_even_workflows_midpoint": 0.8444603288062903,
+    "per_workflow_break_even": [
+      {
+        "workflow": "1. block-surgical-edit",
+        "floor_workflows": 1.1279226014512227,
+        "midpoint_workflows": 0.5291588282719699
+      },
+      {
+        "workflow": "2. batch-import-10-entries",
+        "floor_workflows": 1.5345521023765996,
+        "midpoint_workflows": 0.7199268738574041
+      },
+      {
+        "workflow": "3. read-and-summarize",
+        "floor_workflows": null,
+        "midpoint_workflows": null
+      },
+      {
+        "workflow": "4. multi-page-navigation",
+        "floor_workflows": 6.427258805513016,
+        "midpoint_workflows": 3.01531393568147
+      }
+    ]
+  },
+  "live_cross_check": {
+    "enabled": false,
+    "reason": "NOTION_TOKEN or WORKFLOW_BENCH_PAGE_ID/NOTION_ROOT_PAGE_ID not set"
+  },
+  "caveats": [
+    "Hosted listing budget reuses the description-only floor (772) from .meta/research/token-remeasure-2026-04-28.md. Real hosted tools/list with full inputSchemas is plausibly 1.5K-4K tokens; midpoint shown for break-even sensitivity.",
+    "Hosted response payload is approximated by a hand-rolled blocksToEnhancedMarkdown converter following developers.notion.com/guides/data-apis/enhanced-markdown. Color attributes are dropped; the spec ranks them as block-level extensions that almost always increase hosted cost — so this UNDER-estimates hosted response payload.",
+    "notion-fetch's response wrapper is not publicly documented. We model a YAML-style metadata frontmatter; if hosted ships a richer wrapper (block IDs, parent breadcrumb, related-page schema), hosted costs rise further.",
+    "notion-create-pages is assumed to accept a 10-row batch in one call (best case). Per-row retries from issues #121/#244 would shift Workflow 2 against hosted further.",
+    "Workflow 4 assumes the agent's update target was already fetched in the search-and-read phase, so no extra fetch is needed before notion-update-page. If not, hosted needs one more notion-fetch call.",
+    "All requests use compact JSON.stringify() — same convention as the prior listing-budget remeasure."
+  ]
+}
