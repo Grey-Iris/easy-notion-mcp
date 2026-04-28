@@ -1,0 +1,399 @@
+{
+  "timestamp": "2026-04-28T23:13:44.471Z",
+  "tokenizer": "cl100k_base",
+  "surfaces": {
+    "local": {
+      "label": "easy-notion-mcp (HEAD)",
+      "tool_count": 28,
+      "total_tokens": 4969,
+      "total_bytes": 22234,
+      "avg_tokens_per_tool": 177.46,
+      "tools": [
+        {
+          "name": "create_page",
+          "tokens": 539,
+          "bytes": 2056
+        },
+        {
+          "name": "create_page_from_file",
+          "tokens": 323,
+          "bytes": 1390
+        },
+        {
+          "name": "append_content",
+          "tokens": 85,
+          "bytes": 397
+        },
+        {
+          "name": "replace_content",
+          "tokens": 180,
+          "bytes": 861
+        },
+        {
+          "name": "update_section",
+          "tokens": 233,
+          "bytes": 1129
+        },
+        {
+          "name": "find_replace",
+          "tokens": 126,
+          "bytes": 607
+        },
+        {
+          "name": "read_page",
+          "tokens": 360,
+          "bytes": 1668
+        },
+        {
+          "name": "duplicate_page",
+          "tokens": 182,
+          "bytes": 845
+        },
+        {
+          "name": "update_page",
+          "tokens": 123,
+          "bytes": 563
+        },
+        {
+          "name": "archive_page",
+          "tokens": 43,
+          "bytes": 187
+        },
+        {
+          "name": "search",
+          "tokens": 79,
+          "bytes": 374
+        },
+        {
+          "name": "list_pages",
+          "tokens": 47,
+          "bytes": 218
+        },
+        {
+          "name": "share_page",
+          "tokens": 48,
+          "bytes": 211
+        },
+        {
+          "name": "create_database",
+          "tokens": 334,
+          "bytes": 1414
+        },
+        {
+          "name": "update_data_source",
+          "tokens": 803,
+          "bytes": 3607
+        },
+        {
+          "name": "get_database",
+          "tokens": 71,
+          "bytes": 356
+        },
+        {
+          "name": "list_databases",
+          "tokens": 45,
+          "bytes": 221
+        },
+        {
+          "name": "query_database",
+          "tokens": 450,
+          "bytes": 1972
+        },
+        {
+          "name": "add_database_entry",
+          "tokens": 268,
+          "bytes": 1134
+        },
+        {
+          "name": "add_database_entries",
+          "tokens": 102,
+          "bytes": 514
+        },
+        {
+          "name": "update_database_entry",
+          "tokens": 245,
+          "bytes": 1104
+        },
+        {
+          "name": "list_comments",
+          "tokens": 42,
+          "bytes": 187
+        },
+        {
+          "name": "add_comment",
+          "tokens": 62,
+          "bytes": 284
+        },
+        {
+          "name": "move_page",
+          "tokens": 66,
+          "bytes": 285
+        },
+        {
+          "name": "restore_page",
+          "tokens": 41,
+          "bytes": 187
+        },
+        {
+          "name": "delete_database_entry",
+          "tokens": 47,
+          "bytes": 220
+        },
+        {
+          "name": "list_users",
+          "tokens": 23,
+          "bytes": 107
+        },
+        {
+          "name": "get_me",
+          "tokens": 25,
+          "bytes": 107
+        }
+      ]
+    },
+    "npm": {
+      "label": "@notionhq/notion-mcp-server (latest npm)",
+      "tool_count": 22,
+      "total_tokens": 15206,
+      "total_bytes": 68253,
+      "avg_tokens_per_tool": 691.18,
+      "tools": [
+        {
+          "name": "API-get-user",
+          "tokens": 605,
+          "bytes": 2684
+        },
+        {
+          "name": "API-get-users",
+          "tokens": 664,
+          "bytes": 2982
+        },
+        {
+          "name": "API-get-self",
+          "tokens": 595,
+          "bytes": 2654
+        },
+        {
+          "name": "API-post-search",
+          "tokens": 1078,
+          "bytes": 4842
+        },
+        {
+          "name": "API-get-block-children",
+          "tokens": 693,
+          "bytes": 3125
+        },
+        {
+          "name": "API-patch-block-children",
+          "tokens": 696,
+          "bytes": 3104
+        },
+        {
+          "name": "API-retrieve-a-block",
+          "tokens": 613,
+          "bytes": 2741
+        },
+        {
+          "name": "API-update-a-block",
+          "tokens": 716,
+          "bytes": 3175
+        },
+        {
+          "name": "API-delete-a-block",
+          "tokens": 613,
+          "bytes": 2738
+        },
+        {
+          "name": "API-retrieve-a-page",
+          "tokens": 680,
+          "bytes": 3058
+        },
+        {
+          "name": "API-patch-page",
+          "tokens": 857,
+          "bytes": 3899
+        },
+        {
+          "name": "API-post-page",
+          "tokens": 782,
+          "bytes": 3527
+        },
+        {
+          "name": "API-retrieve-a-page-property",
+          "tokens": 702,
+          "bytes": 3168
+        },
+        {
+          "name": "API-retrieve-a-comment",
+          "tokens": 687,
+          "bytes": 3107
+        },
+        {
+          "name": "API-create-a-comment",
+          "tokens": 671,
+          "bytes": 3060
+        },
+        {
+          "name": "API-query-data-source",
+          "tokens": 721,
+          "bytes": 3232
+        },
+        {
+          "name": "API-retrieve-a-data-source",
+          "tokens": 619,
+          "bytes": 2777
+        },
+        {
+          "name": "API-update-a-data-source",
+          "tokens": 676,
+          "bytes": 3015
+        },
+        {
+          "name": "API-create-a-data-source",
+          "tokens": 652,
+          "bytes": 2914
+        },
+        {
+          "name": "API-list-data-source-templates",
+          "tokens": 639,
+          "bytes": 2872
+        },
+        {
+          "name": "API-retrieve-a-database",
+          "tokens": 614,
+          "bytes": 2759
+        },
+        {
+          "name": "API-move-page",
+          "tokens": 631,
+          "bytes": 2797
+        }
+      ]
+    },
+    "hosted": {
+      "label": "mcp.notion.com Enhanced Markdown fixture (lower bound)",
+      "tool_count": 18,
+      "total_tokens": 772,
+      "total_bytes": 3607,
+      "avg_tokens_per_tool": 42.89,
+      "tools": [
+        {
+          "name": "notion-search",
+          "tokens": 43,
+          "bytes": 194
+        },
+        {
+          "name": "notion-fetch",
+          "tokens": 49,
+          "bytes": 222
+        },
+        {
+          "name": "notion-create-pages",
+          "tokens": 43,
+          "bytes": 218
+        },
+        {
+          "name": "notion-update-page",
+          "tokens": 45,
+          "bytes": 205
+        },
+        {
+          "name": "notion-move-pages",
+          "tokens": 39,
+          "bytes": 166
+        },
+        {
+          "name": "notion-duplicate-page",
+          "tokens": 40,
+          "bytes": 195
+        },
+        {
+          "name": "notion-create-database",
+          "tokens": 45,
+          "bytes": 211
+        },
+        {
+          "name": "notion-update-data-source",
+          "tokens": 43,
+          "bytes": 196
+        },
+        {
+          "name": "notion-create-view",
+          "tokens": 59,
+          "bytes": 249
+        },
+        {
+          "name": "notion-update-view",
+          "tokens": 48,
+          "bytes": 216
+        },
+        {
+          "name": "notion-query-data-sources",
+          "tokens": 44,
+          "bytes": 215
+        },
+        {
+          "name": "notion-query-database-view",
+          "tokens": 44,
+          "bytes": 195
+        },
+        {
+          "name": "notion-create-comment",
+          "tokens": 47,
+          "bytes": 220
+        },
+        {
+          "name": "notion-get-comments",
+          "tokens": 45,
+          "bytes": 220
+        },
+        {
+          "name": "notion-get-teams",
+          "tokens": 42,
+          "bytes": 170
+        },
+        {
+          "name": "notion-get-users",
+          "tokens": 35,
+          "bytes": 158
+        },
+        {
+          "name": "notion-get-user",
+          "tokens": 32,
+          "bytes": 142
+        },
+        {
+          "name": "notion-get-self",
+          "tokens": 44,
+          "bytes": 196
+        }
+      ]
+    }
+  },
+  "ratios": {
+    "local_vs_npm": {
+      "local_tokens": 4969,
+      "npm_tokens": 15206,
+      "ratio": "0.33",
+      "pct_savings": "67.3%"
+    },
+    "local_vs_hosted": {
+      "local_tokens": 4969,
+      "hosted_tokens": 772,
+      "ratio": "6.44",
+      "pct_savings": "-543.7%"
+    },
+    "npm_vs_hosted": {
+      "npm_tokens": 15206,
+      "hosted_tokens": 772,
+      "ratio": "19.70",
+      "pct_savings": "-1869.7%"
+    }
+  },
+  "caveats": [
+    "Hosted mcp.notion.com tools were measured from .meta/bench/token-remeasure/hosted-tools-fixture.json because live capture requires OAuth.",
+    "Hosted fixture includes verbatim published descriptions but empty inputSchemas, so hosted totals are a lower bound and likely undercount the real tools/list budget.",
+    "All three surfaces were tokenized with js-tiktoken encodingForModel(\"gpt-4\"), which maps to cl100k_base.",
+    "Per-tool and total measurements use compact JSON.stringify output and include any extra fields returned by a server, such as annotations."
+  ]
+}
