@@ -128,8 +128,6 @@ const MULTI_SECTION_FIXTURE = resolve(process.cwd(), "tests/e2e/fixtures/multi-s
 const IMAGE_URL_RE = /!\[[^\]]*\]\((https:\/\/[^\s)]+)\)/;
 const HTTP_ACCEPT = "application/json, text/event-stream";
 const HTTP_PROTOCOL_VERSION = "2024-11-05";
-const F2_OVERSIZE_ERROR =
-  "body failed validation: body.children[0].code.rich_text[0].text.content.length should be ≤ `2000`, instead was `2050`. Check property names and types with get_database.";
 
 function getChildBlocks(block: NotionBlock): NotionBlock[] {
   switch (block.type) {
@@ -906,17 +904,16 @@ describe.skipIf(!env.shouldRun)(
       expect(normalizeSectionBody(beta.body)).not.toContain("Beta bullet 2");
     }, 30_000);
 
-    it("F2: replace_content with oversize payload — current destructive behavior", async () => {
+    it("F2: replace_content (atomic) returns success:true and replaces page content", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
         parent_page_id: ctx.sandboxId!,
-        title: "F2 replace_content",
+        title: "F2 replace_content atomic happy path",
         markdown: "**before-replace** sentinel",
       });
-
       expect(created.error).toBeUndefined();
       ctx.createdPageIds.push(created.id);
 
-      const validReplace = await callTool<{ deleted?: number; appended?: number; error?: string }>(
+      const replaced = await callTool<{ success?: boolean; truncated?: boolean; warnings?: unknown; error?: string }>(
         client,
         "replace_content",
         {
@@ -924,48 +921,238 @@ describe.skipIf(!env.shouldRun)(
           markdown: "Valid replacement content with [link](https://example.com/f2)",
         },
       );
+      expect(replaced.error).toBeUndefined();
+      expect(replaced.success).toBe(true);
 
-      expect(validReplace.error).toBeUndefined();
-      expect(validReplace.deleted).toBeGreaterThanOrEqual(1);
-      expect(validReplace.appended).toBeGreaterThanOrEqual(1);
-
-      const pageAfterValidReplace = await callTool<ReadPageResponse>(client, "read_page", {
-        page_id: created.id,
-      });
-
-      expect(pageAfterValidReplace.error).toBeUndefined();
-      assertNoWarnings(pageAfterValidReplace);
-      expect(stripContentNotice(pageAfterValidReplace.markdown)).toContain(
+      const pageAfter = await callTool<ReadPageResponse>(client, "read_page", { page_id: created.id });
+      expect(pageAfter.error).toBeUndefined();
+      assertNoWarnings(pageAfter);
+      expect(stripContentNotice(pageAfter.markdown)).toContain(
         "Valid replacement content with [link](https://example.com/f2)",
       );
+      expect(stripContentNotice(pageAfter.markdown)).not.toContain("before-replace");
+    }, 30_000);
 
-      const bigLine = "x".repeat(2050);
-      const oversizePayload = `\`\`\`\n${bigLine}\n\`\`\``;
+    it("F5: replace_content (atomic) preserves block IDs for unchanged blocks across paragraph/heading/toggle/callout", async () => {
+      const initial = [
+        "# Title heading",
+        "",
+        "Paragraph one stays put.",
+        "",
+        "Paragraph TWO will be edited.",
+        "",
+        "+++ Toggle title",
+        "toggle body",
+        "+++",
+        "",
+        "> [!NOTE]",
+        "> note callout body",
+      ].join("\n");
 
-      const oversizeReplace = await callTool<{ error?: string; deleted?: number; appended?: number }>(
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "F5 replace_content atomic ID preservation",
+        markdown: initial,
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const { Client: NotionClient } = await import("@notionhq/client");
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const before = await liveClient.blocks.children.list({ block_id: created.id });
+      const beforeIds = before.results.map((b: any) => b.id);
+      const beforeTypes = before.results.map((b: any) => b.type);
+      expect(beforeTypes).toContain("heading_1");
+      expect(beforeTypes).toContain("toggle");
+      expect(beforeTypes).toContain("callout");
+      const paragraphIds = before.results
+        .filter((b: any) => b.type === "paragraph")
+        .map((b: any) => b.id);
+      expect(paragraphIds.length).toBeGreaterThanOrEqual(2);
+
+      const edited = [
+        "# Title heading",
+        "",
+        "Paragraph one stays put.",
+        "",
+        "Paragraph TWO has been edited.",
+        "",
+        "+++ Toggle title",
+        "toggle body",
+        "+++",
+        "",
+        "> [!NOTE]",
+        "> note callout body",
+      ].join("\n");
+
+      const replaced = await callTool<{ success?: boolean; warnings?: unknown; error?: string }>(
         client,
         "replace_content",
-        {
-          page_id: created.id,
-          markdown: oversizePayload,
-        },
+        { page_id: created.id, markdown: edited },
       );
+      expect(replaced.error).toBeUndefined();
+      expect(replaced.success).toBe(true);
 
-      expect(oversizeReplace).toEqual({
-        error: F2_OVERSIZE_ERROR,
+      const after = await liveClient.blocks.children.list({ block_id: created.id });
+      const afterIds = new Set(after.results.map((b: any) => b.id));
+      const survived = beforeIds.filter((id: string) => afterIds.has(id));
+
+      // Block-ID preservation for atomic replace_content. Per probe 4 the survival rate
+      // is 100% on near-identical content; we hold a relaxed >=70% bar so the test is
+      // resilient to small Notion-side matching changes without losing the wedge claim.
+      expect(survived.length / beforeIds.length).toBeGreaterThanOrEqual(0.7);
+
+      const afterTypes = after.results.map((b: any) => b.type);
+      expect(afterTypes).toContain("heading_1");
+      expect(afterTypes).toContain("toggle");
+      expect(afterTypes).toContain("callout");
+
+      const readBack = await callTool<ReadPageResponse>(client, "read_page", { page_id: created.id });
+      const body = stripContentNotice(readBack.markdown);
+      expect(body).toContain("Paragraph TWO has been edited.");
+      expect(body).not.toContain("Paragraph TWO will be edited.");
+    }, 60_000);
+
+    it("F6: replace_content (atomic) preserves the deep-link target block ID for an unchanged paragraph", async () => {
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "F6 replace_content deep-link survival",
+        markdown: [
+          "# Anchor section",
+          "",
+          "Anchor target paragraph for the deep link.",
+          "",
+          "Body paragraph that will be edited.",
+        ].join("\n"),
       });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
 
-      const pageAfterOversizeReplace = await callTool<ReadPageResponse>(client, "read_page", {
+      const { Client: NotionClient } = await import("@notionhq/client");
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const before = await liveClient.blocks.children.list({ block_id: created.id });
+      const anchorBlock = before.results.find((b: any) => {
+        const text = b?.paragraph?.rich_text?.map((t: any) => t.plain_text).join("");
+        return text === "Anchor target paragraph for the deep link.";
+      }) as any;
+      expect(anchorBlock).toBeDefined();
+      const anchorId = anchorBlock.id;
+      // Construct the deep link as Notion would render it; resolution = the anchor block
+      // continues to exist by ID after replace.
+      const deepLink = `https://www.notion.so/${created.id.replace(/-/g, "")}#${anchorId.replace(/-/g, "")}`;
+      expect(deepLink).toContain(anchorId.replace(/-/g, ""));
+
+      const replaced = await callTool<{ success?: boolean; error?: string }>(client, "replace_content", {
         page_id: created.id,
+        markdown: [
+          "# Anchor section",
+          "",
+          "Anchor target paragraph for the deep link.",
+          "",
+          "Body paragraph EDITED.",
+        ].join("\n"),
       });
+      expect(replaced.error).toBeUndefined();
+      expect(replaced.success).toBe(true);
 
-      expect(pageAfterOversizeReplace.error).toBeUndefined();
-      assertNoWarnings(pageAfterOversizeReplace);
+      const afterBlock = await liveClient.blocks.retrieve({ block_id: anchorId });
+      expect((afterBlock as any).id).toBe(anchorId);
+      expect((afterBlock as any).type).toBe("paragraph");
+      const afterText = (afterBlock as any).paragraph.rich_text
+        .map((t: any) => t.plain_text)
+        .join("");
+      expect(afterText).toBe("Anchor target paragraph for the deep link.");
+    }, 60_000);
 
-      const strippedAfterOversize = stripContentNotice(pageAfterOversizeReplace.markdown);
-      expect(strippedAfterOversize.trim()).toBe("");
-      expect(strippedAfterOversize).not.toContain("Valid replacement content");
-      expect(strippedAfterOversize).not.toContain("before-replace");
+    it("F3: update_block edits a paragraph in place, block ID survives", async () => {
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "F3 update_block paragraph",
+        markdown: "First sentence.\n\nSecond sentence anchor block.\n\nThird sentence.",
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const childrenBefore = await client.request("tools/call", {
+        name: "read_page",
+        arguments: { page_id: created.id },
+      });
+      // Use list_children via direct API would be cleaner; we instead read_page to get markdown and
+      // separately call our own listChildren via the MCP tool surface. The cheapest route is
+      // calling blocks.children.list through the SDK, but the MCP harness gives us read_page only.
+      // So we capture block IDs via the underlying SDK by reusing the page_id with a blocks-list
+      // helper exposed through the MCP `read_page` is insufficient. Instead, run a no-op
+      // update_block expecting type-mismatch error to verify the tool's reachable, then use
+      // search-style verification: replace_content would destroy IDs (the very thing we're proving
+      // is preserved), so we anchor the test on round-trip content match plus a separate
+      // block-id-survival assertion via raw blocks.children.list.
+      void childrenBefore;
+
+      // Pull the block IDs directly via the same Notion client the e2e harness uses.
+      const { Client: NotionClient } = await import("@notionhq/client");
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const beforeList = await liveClient.blocks.children.list({ block_id: created.id });
+      const middleBlock = beforeList.results.find((b: any) => {
+        const text = b?.paragraph?.rich_text?.map((t: any) => t.plain_text).join("");
+        return text === "Second sentence anchor block.";
+      }) as any;
+      expect(middleBlock).toBeDefined();
+      const middleId = middleBlock.id;
+
+      const updateResult = await callTool<{ id?: string; type?: string; updated?: boolean; error?: string }>(
+        client,
+        "update_block",
+        { block_id: middleId, markdown: "Second sentence rewritten in place." },
+      );
+      expect(updateResult.error).toBeUndefined();
+      expect(updateResult.updated).toBe(true);
+      expect(updateResult.id).toBe(middleId);
+      expect(updateResult.type).toBe("paragraph");
+
+      const afterList = await liveClient.blocks.children.list({ block_id: created.id });
+      const afterMiddle = afterList.results.find((b: any) => b.id === middleId) as any;
+      expect(afterMiddle).toBeDefined();
+      expect(afterMiddle.type).toBe("paragraph");
+      const afterText = afterMiddle.paragraph.rich_text.map((t: any) => t.plain_text).join("");
+      expect(afterText).toBe("Second sentence rewritten in place.");
+
+      // Surrounding blocks unchanged.
+      expect(afterList.results.length).toBe(beforeList.results.length);
+      const beforeIds = new Set(beforeList.results.map((b: any) => b.id));
+      for (const block of afterList.results) {
+        expect(beforeIds.has((block as any).id)).toBe(true);
+      }
+    }, 30_000);
+
+    it("F4: update_block toggles a to_do checked state, block ID survives", async () => {
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "F4 update_block to_do",
+        markdown: "- [ ] write the test",
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const { Client: NotionClient } = await import("@notionhq/client");
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const before = await liveClient.blocks.children.list({ block_id: created.id });
+      const todoBlock = before.results.find((b: any) => b.type === "to_do") as any;
+      expect(todoBlock).toBeDefined();
+      expect(todoBlock.to_do.checked).toBe(false);
+      const todoId = todoBlock.id;
+
+      const updateResult = await callTool<{ id?: string; type?: string; updated?: boolean; error?: string }>(
+        client,
+        "update_block",
+        { block_id: todoId, markdown: "- [x] write the test" },
+      );
+      expect(updateResult.error).toBeUndefined();
+      expect(updateResult.updated).toBe(true);
+
+      const after = await liveClient.blocks.children.list({ block_id: created.id });
+      const afterTodo = after.results.find((b: any) => b.id === todoId) as any;
+      expect(afterTodo).toBeDefined();
+      expect(afterTodo.to_do.checked).toBe(true);
     }, 30_000);
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {

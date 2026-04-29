@@ -23,14 +23,19 @@ async function listTools() {
 }
 
 describe("Destructive-edit tool descriptions (G-3a)", () => {
-  it("G3a-1: replace_content description warns DESTRUCTIVE, no rollback, and names duplicate_page (or a non-destructive alternative) as recovery", async () => {
+  it("G3a-1: replace_content description (post-PR3 atomic) names matched-block ID preservation and the child_page / synced_block / child_database non-preservation, not DESTRUCTIVE", async () => {
     const { tools } = await listTools();
     const replaceContent = tools.find((tool) => tool.name === "replace_content");
     expect(replaceContent).toBeDefined();
     const description = replaceContent!.description ?? "";
-    expect(description).toMatch(/DESTRUCTIVE/);
-    expect(description).toMatch(/no rollback/i);
-    expect(description).toMatch(/(duplicate_page[^.]*first|non-destructive)/i);
+    // PR3 (DP5=B) softened the warning: the atomic endpoint preserves block IDs
+    // for matched content, so the "DESTRUCTIVE no rollback" framing overclaims
+    // risk. The remaining honest hazard is that block types the parser doesn't
+    // represent (child_page, synced_block, child_database, link_to_page) get
+    // dropped on replace.
+    expect(description).not.toMatch(/DESTRUCTIVE/);
+    expect(description).toMatch(/atomically|preserve|matched/i);
+    expect(description).toMatch(/child_page|synced_block|child_database/);
   });
 
   it("G3a-2: update_section description warns DESTRUCTIVE, no rollback, names duplicate_page recovery, and mentions the heading-anchor retry-impossibility", async () => {

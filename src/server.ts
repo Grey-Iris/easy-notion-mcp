@@ -10,6 +10,7 @@ const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
 import { FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
+import { translateGfmToEnhancedMarkdown } from "./markdown-to-enhanced.js";
 import { readMarkdownFile } from "./read-markdown-file.js";
 import {
   addComment,
@@ -33,9 +34,12 @@ import {
   movePage,
   paginatePageProperties,
   queryDatabase,
+  replacePageMarkdown,
   restorePage,
+  retrieveBlock,
   schemaToProperties,
   searchNotion,
+  updateBlock,
   uploadFile,
   updateDataSource,
   updateDatabaseEntry,
@@ -198,6 +202,141 @@ export const SUPPORTED_BLOCK_TYPES = new Set<string>([
   "divider", "to_do", "table_of_contents", "bookmark", "embed",
   "image", "file", "audio", "video",
 ]);
+
+/**
+ * Block types that `update_block` can rewrite via markdown. Subset of
+ * SUPPORTED_BLOCK_TYPES — excludes container/structural types whose only
+ * meaningful update would change their children (which `blocks.update` cannot
+ * do — see plan §3.3) and read-only types whose content has no useful edit.
+ */
+const UPDATABLE_BLOCK_TYPES = new Set<string>([
+  "paragraph", "heading_1", "heading_2", "heading_3",
+  "bulleted_list_item", "numbered_list_item",
+  "toggle", "quote", "callout", "to_do", "code", "equation",
+]);
+
+/**
+ * Convert a parsed `markdownToBlocks` output (which may contain N top-level
+ * blocks + `children` arrays) into a `blocks.update` body payload for the
+ * given existing block type.
+ *
+ * Returns `{ ok: true, payload }` on a single-block snippet whose type matches
+ * the existing block, or `{ ok: false, error }` otherwise. The payload is the
+ * SDK-shaped variant body (e.g. `{ paragraph: { rich_text: [...] } }`) with no
+ * `block_id`, `in_trash`, or `archived` keys — those are added by the caller.
+ */
+function buildUpdateBlockPayload(
+  parsed: NotionBlock[],
+  existingType: string,
+  options: { checked?: boolean } = {},
+): { ok: true; payload: Record<string, unknown> } | { ok: false; error: string } {
+  if (parsed.length === 0) {
+    return { ok: false, error: "update_block: markdown must produce exactly one block; got 0." };
+  }
+  if (parsed.length > 1) {
+    return {
+      ok: false,
+      error:
+        "update_block: markdown produced multiple top-level blocks. update_block edits one block at a time. Use replace_content or append_content to write multi-block content.",
+    };
+  }
+  const block = parsed[0] as any;
+  if (block.type !== existingType) {
+    return {
+      ok: false,
+      error: `update_block: block type mismatch. Existing block is ${existingType}; markdown parses as ${block.type}. Notion's API does not allow changing a block's type via update — use replace_content or delete + append to change the type.`,
+    };
+  }
+
+  switch (block.type) {
+    case "paragraph":
+      return { ok: true, payload: { paragraph: { rich_text: block.paragraph.rich_text } } };
+    case "heading_1":
+      return {
+        ok: true,
+        payload: {
+          heading_1: {
+            rich_text: block.heading_1.rich_text,
+            ...(block.heading_1.is_toggleable !== undefined ? { is_toggleable: block.heading_1.is_toggleable } : {}),
+          },
+        },
+      };
+    case "heading_2":
+      return {
+        ok: true,
+        payload: {
+          heading_2: {
+            rich_text: block.heading_2.rich_text,
+            ...(block.heading_2.is_toggleable !== undefined ? { is_toggleable: block.heading_2.is_toggleable } : {}),
+          },
+        },
+      };
+    case "heading_3":
+      return {
+        ok: true,
+        payload: {
+          heading_3: {
+            rich_text: block.heading_3.rich_text,
+            ...(block.heading_3.is_toggleable !== undefined ? { is_toggleable: block.heading_3.is_toggleable } : {}),
+          },
+        },
+      };
+    case "bulleted_list_item":
+      return {
+        ok: true,
+        payload: { bulleted_list_item: { rich_text: block.bulleted_list_item.rich_text } },
+      };
+    case "numbered_list_item":
+      return {
+        ok: true,
+        payload: { numbered_list_item: { rich_text: block.numbered_list_item.rich_text } },
+      };
+    case "toggle":
+      return { ok: true, payload: { toggle: { rich_text: block.toggle.rich_text } } };
+    case "quote":
+      return { ok: true, payload: { quote: { rich_text: block.quote.rich_text } } };
+    case "callout":
+      return {
+        ok: true,
+        payload: {
+          callout: {
+            rich_text: block.callout.rich_text,
+            ...(block.callout.icon ? { icon: block.callout.icon } : {}),
+          },
+        },
+      };
+    case "to_do":
+      return {
+        ok: true,
+        payload: {
+          to_do: {
+            rich_text: block.to_do.rich_text,
+            checked: options.checked ?? block.to_do.checked ?? false,
+          },
+        },
+      };
+    case "code":
+      return {
+        ok: true,
+        payload: {
+          code: {
+            rich_text: block.code.rich_text,
+            language: block.code.language,
+          },
+        },
+      };
+    case "equation":
+      return {
+        ok: true,
+        payload: { equation: { expression: block.equation.expression } },
+      };
+    default:
+      return {
+        ok: false,
+        error: `update_block: block type '${block.type}' is not in the updatable set. Supported: ${Array.from(UPDATABLE_BLOCK_TYPES).join(", ")}.`,
+      };
+  }
+}
 
 function normalizeBlock(block: any): NotionBlock | null {
   switch (block.type) {
@@ -597,9 +736,11 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "replace_content",
-    description: `DESTRUCTIVE — no rollback: this tool deletes every block on the page, then writes new blocks. If the write fails mid-call (invalid markdown, rate limit, network error, Notion rejection of any single block), the page is left partially or fully emptied and there is no automatic recovery. For irreplaceable content, duplicate_page the target first so you have a restore point, or use find_replace / append_content which are non-destructive.
+    description: `Replaces all page content with the provided markdown atomically (one Notion API call). On matched blocks Notion preserves the original block IDs, so deep-link anchors (\`#block-id\`) and inline-comment threads attached to those blocks survive the edit. Unmatched blocks (returned in \`warnings\` with code \`unmatched_blocks\`) are replaced with new IDs.
 
-Replaces all page content with the provided markdown. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).`,
+NOT preserved across replace_content: \`child_page\` subpages, \`synced_block\` instances, \`child_database\` views, and \`link_to_page\` references on the source page — Enhanced Markdown has no input form for these, so they are dropped from the new page content. If the source contains them, use duplicate_page first or edit those types via the Notion UI.
+
+Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.). Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \`bookmark_lost_on_atomic_replace\` warning so callers know the rich-bookmark UI is lost.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -636,6 +777,36 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         replace_all: { type: "boolean", description: "Replace all occurrences. Default: first only." },
       },
       required: ["page_id", "find", "replace"],
+    },
+  },
+  {
+    name: "update_block",
+    description: `Update a single block in place by ID. Preserves the block's identity (deep-link anchors and inline-comment threads attached to the block survive the edit). Use this for surgical edits: fixing a heading, toggling a checkbox, rewriting one paragraph. For multi-block edits, use append_content, replace_content, or update_section.
+
+Type lock-in: the markdown must parse to the same block type as the existing block. update_block cannot change a block's type — Notion's API forbids it. To change a block's type, use replace_content or delete + append.
+
+Updatable types: paragraph, heading_1, heading_2, heading_3, toggle, bulleted_list_item, numbered_list_item, quote, callout, to_do, code, equation. Container blocks (toggle, callout) update first-level content only — children stay untouched. Non-updatable types (divider, table, image, bookmark, etc.) accept only \`archived: true\` to delete the block.
+
+To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one of \`markdown\` or \`archived\` is required.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        block_id: { type: "string", description: "Block ID to update" },
+        markdown: {
+          type: "string",
+          description:
+            "New content for the block. Must parse to a single block of the same type as the existing block. For to_do blocks, `- [x]` / `- [ ]` syntax sets the checked state.",
+        },
+        checked: {
+          type: "boolean",
+          description: "to_do only: explicit check-state override (otherwise inferred from `- [x]` / `- [ ]`).",
+        },
+        archived: {
+          type: "boolean",
+          description: "Set true to delete the block (sends in_trash: true).",
+        },
+      },
+      required: ["block_id"],
     },
   },
   {
@@ -1182,14 +1353,21 @@ export function createServer(
         case "replace_content": {
           const notion = notionClientFactory();
           const { page_id, markdown } = args as { page_id: string; markdown: string };
-          const existingBlocks = await listChildren(notion, page_id);
-          for (const block of existingBlocks) {
-            await deleteBlock(notion, block.id);
+          const processedMarkdown = await processFileUploads(notion, markdown, transport);
+          const { enhanced, warnings: translatorWarnings } =
+            translateGfmToEnhancedMarkdown(processedMarkdown);
+          const result = (await replacePageMarkdown(notion, page_id, enhanced, {
+            allowDeletingContent: true,
+          })) as any;
+          const unmatched = Array.isArray(result.unknown_block_ids) ? result.unknown_block_ids : [];
+          const warnings: Array<Record<string, unknown>> = [...translatorWarnings];
+          if (unmatched.length > 0) {
+            warnings.push({ code: "unmatched_blocks", block_ids: unmatched });
           }
-          const appended = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
           return textResponse({
-            deleted: existingBlocks.length,
-            appended: appended.length,
+            success: true,
+            ...(result.truncated ? { truncated: true } : {}),
+            ...(warnings.length > 0 ? { warnings } : {}),
           });
         }
         case "update_section": {
@@ -1264,10 +1442,78 @@ export function createServer(
               }],
             },
           }) as any;
+          const unmatched = Array.isArray(result.unknown_block_ids) ? result.unknown_block_ids : [];
           return textResponse({
             success: true,
             ...(result.truncated ? { truncated: true } : {}),
+            ...(unmatched.length > 0
+              ? { warnings: [{ code: "unmatched_blocks", block_ids: unmatched }] }
+              : {}),
           });
+        }
+        case "update_block": {
+          const notion = notionClientFactory();
+          const { block_id, markdown, checked, archived } = args as {
+            block_id: string;
+            markdown?: string;
+            checked?: boolean;
+            archived?: boolean;
+          };
+          if (!block_id || typeof block_id !== "string") {
+            return textResponse({ error: "update_block: block_id is required." });
+          }
+          const hasMarkdown = typeof markdown === "string";
+          const hasArchived = archived === true;
+          if (!hasMarkdown && !hasArchived) {
+            return textResponse({
+              error: "update_block: provide either `markdown` or `archived: true`.",
+            });
+          }
+          if (hasMarkdown && hasArchived) {
+            return textResponse({
+              error: "update_block: pass either `markdown` or `archived`, not both.",
+            });
+          }
+          if (hasMarkdown && !markdown!.trim()) {
+            return textResponse({
+              error: "update_block: markdown is empty. Pass non-empty markdown, or use archived: true to delete the block.",
+            });
+          }
+
+          let existing: any;
+          try {
+            existing = await retrieveBlock(notion, block_id);
+          } catch (error) {
+            const message = enhanceError(error, "update_block", { block_id });
+            return textResponse({ error: message });
+          }
+          const existingType = existing?.type as string | undefined;
+          if (!existingType) {
+            return textResponse({
+              error: `update_block: could not read existing block type for ${block_id}.`,
+            });
+          }
+
+          if (hasArchived) {
+            await updateBlock(notion, block_id, { in_trash: true });
+            return textResponse({ id: block_id, type: existingType, archived: true });
+          }
+
+          if (!UPDATABLE_BLOCK_TYPES.has(existingType)) {
+            return textResponse({
+              error: `update_block: existing block type '${existingType}' has no markdown content edit. Use archived:true to delete it, or use replace_content to rewrite the surrounding section.`,
+            });
+          }
+
+          const processedMarkdown = await processFileUploads(notion, markdown!, transport);
+          const parsed = markdownToBlocks(processedMarkdown);
+          const built = buildUpdateBlockPayload(parsed, existingType, { checked });
+          if (!built.ok) {
+            return textResponse({ error: built.error });
+          }
+
+          await updateBlock(notion, block_id, built.payload);
+          return textResponse({ id: block_id, type: existingType, updated: true });
         }
         case "read_page": {
           const notion = notionClientFactory();
