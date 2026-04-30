@@ -1,0 +1,26 @@
+id: meeting-notes-kickoff
+tier: [A]
+prompt: |
+  Create a meeting notes page titled "Weekly eng sync" under the page ${SCENARIO_PARENT}.
+  The page should have three H2 sections: "Attendees", "Discussion", and "Action Items".
+  Under "Action Items", add at least 3 to-do items with realistic engineering tasks.
+  Then use find_replace to change "Weekly eng sync" in the first paragraph to "Weekly engineering sync".
+budget:
+  max_turns: 15
+  max_tokens: 20000
+  max_usd: 1.00
+transport: http
+ground_truth:
+  pages:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Weekly eng"
+      must_contain_blocks:
+        - type: heading_2
+          text: "Attendees"
+        - type: heading_2
+          text: "Discussion"
+        - type: heading_2
+          text: "Action Items"
+        - type: to_do
+          count_min: 3
+  tools_must_be_called: [create_page, append_content, find_replace]

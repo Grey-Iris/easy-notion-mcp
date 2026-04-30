@@ -1,0 +1,164 @@
+[
+  {
+    "name": "notion-search",
+    "description": "Search across your Notion workspace and connected tools like Slack, Google Drive, and Jira.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-fetch",
+    "description": "Retrieves content from pages, databases, or data sources by URL/ID; supports fetching data source schemas and templates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-create-pages",
+    "description": "Creates one or more Notion pages with specified properties and content. Supports applying database templates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-update-page",
+    "description": "Update a Notion page's properties, content, icon, or cover. Supports applying database templates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-move-pages",
+    "description": "Move one or more Notion pages or databases to a new parent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-duplicate-page",
+    "description": "Duplicate a Notion page within your workspace. This action completes asynchronously.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-create-database",
+    "description": "Creates a new Notion database, initial data source, and initial view with the specified properties.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-update-data-source",
+    "description": "Update a Notion data source's properties, name, description, or other attributes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-create-view",
+    "description": "Create a new view on a Notion database. Supports table, board, list, calendar, timeline, gallery, form, chart, map, and dashboard view types.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-update-view",
+    "description": "Update a view's name, filters, sorts, or display configuration. Only the fields you specify will be changed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-query-data-sources",
+    "description": "Query across multiple Notion data sources directly with structured summaries, grouping, and filters.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-query-database-view",
+    "description": "Query data from a Notion database using a pre-defined view's filters and sorts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-create-comment",
+    "description": "Add a comment to a page or specific content. Supports page-level comments, block-level comments, and replies.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-get-comments",
+    "description": "Lists all comments and discussions on a page. Can include block-level and inline discussions, resolved threads.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-get-teams",
+    "description": "Retrieves a list of teams (teamspaces) in the current workspace.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-get-users",
+    "description": "Lists all users in the workspace with their details.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-get-user",
+    "description": "Retrieve your user information by ID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "notion-get-self",
+    "description": "Retrieves information about your own bot user and the Notion workspace you're connected to.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  }
+]

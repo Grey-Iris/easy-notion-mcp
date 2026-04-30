@@ -1,0 +1,15 @@
+id: knowledge-base-migration
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}, migrate three knowledge base articles from local files:
+  1. Create pages from files: getting-started.md, architecture.md, troubleshooting.md
+  2. Duplicate the "Getting Started" page.
+  3. Move the duplicate under a new "Archive" parent page.
+  4. List all pages under ${SCENARIO_PARENT} to confirm the structure.
+budget:
+  max_turns: 20
+  max_tokens: 30000
+  max_usd: 1.50
+transport: stdio
+ground_truth:
+  tools_must_be_called: [create_page_from_file, duplicate_page, move_page, list_pages]

@@ -1,0 +1,22 @@
+id: runbook-refresh
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}, create a page titled "Incident Runbook" with four H2 sections:
+  - Overview: "This runbook covers the production web service."
+  - Detection: "Monitor alerts for elevated error rates and latency."
+  - Response: "1. Acknowledge the incident. 2. Triage the latest deploy."
+  - Rollback: "1. Revert deployment. 2. Monitor rollback metrics."
+
+  After creating it, read the page and update ONLY the "Rollback" section with improved rollback steps.
+  Do not modify the other sections.
+  Then append a final line at the end of the page: "Last updated: ${DATE}".
+budget:
+  max_turns: 15
+  max_tokens: 20000
+  max_usd: 1.00
+transport: http
+ground_truth:
+  pages:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Runbook"
+  tools_must_be_called: [read_page, update_section, append_content]

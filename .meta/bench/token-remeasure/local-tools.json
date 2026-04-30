@@ -1,0 +1,614 @@
+[
+  {
+    "name": "create_page",
+    "description": "Create a new Notion page from markdown content. Supported markdown syntax:\n- Headings: # H1, ## H2, ### H3\n- Inline: **bold**, *italic*, ~~strikethrough~~, `code`, [links](url)\n- Images: ![alt](url)\n- Lists: - bullet, 1. numbered, - [ ] task, - [x] checked task\n- Tables: | col | col | with header row and --- separator\n- Code blocks: triple backtick with optional language\n- Blockquotes: > text\n- Callouts: > [!NOTE]\\n> content, > [!TIP]\\n> content, > [!WARNING]\\n> content, > [!IMPORTANT]\\n> content, > [!INFO]\\n> content, > [!SUCCESS]\\n> content, > [!ERROR]\\n> content → styled callout blocks with emoji\n- Dividers: ---\n- Toggle blocks: +++ Title\\ncontent\\n+++ (collapsible sections)\n- Column layouts: ::: columns\\n::: column\\nleft\\n:::\\n::: column\\nright\\n:::\\n:::\n- Bookmarks: bare URL on its own line (not wrapped in []()) → rich preview card\n- Equations: $$expression$$ or multi-line $$\\nexpression\\n$$ → equation block\n- Table of contents: [toc] → table of contents block\n- Embeds: [embed](url) → embed block\n- File uploads (stdio transport only): ![alt](file:///path/to/image.png) → uploads and creates image block\n  Link syntax: [name](file:///path/to/file.pdf) → uploads and creates file/audio/video block (by extension)\n  Max 20 MB per file. In HTTP transport the file:// form is rejected — host the file at an HTTPS URL instead.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Page title"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Markdown content for the page body"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID. Resolution order when omitted: NOTION_ROOT_PAGE_ID env var → last used parent in this session → workspace-level private page (OAuth mode). In stdio mode without NOTION_ROOT_PAGE_ID, this is required on first use."
+        },
+        "icon": {
+          "type": "string",
+          "description": "Optional emoji icon"
+        },
+        "cover": {
+          "type": "string",
+          "description": "Optional cover image URL"
+        }
+      },
+      "required": [
+        "title",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "create_page_from_file",
+    "description": "Create a Notion page from a local markdown file. The server reads the file, validates it, and creates the page — identical result to calling create_page, without shipping the file's content through the agent's context window.\n\nSTDIO MODE ONLY. This tool is not available when the server runs over HTTP, because in HTTP mode the server's filesystem belongs to the server host, not the caller.\n\nRestrictions:\n- file_path must be an ABSOLUTE path (no relative paths, no ~ expansion)\n- File must be inside the configured workspace root (defaults to the server's process.cwd(); override via the NOTION_MCP_WORKSPACE_ROOT env var)\n- File extension must be .md or .markdown\n- File size must be ≤ 1 MB (1,048,576 bytes)\n- File must be valid UTF-8\n- Symlinks are resolved and the resolved path must still be inside the workspace root\n\nSame markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, task lists, etc.).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Page title"
+        },
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to a local .md or .markdown file (≤ 1 MB, UTF-8, inside the configured workspace root)"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID. Same resolution rules as create_page."
+        }
+      },
+      "required": [
+        "title",
+        "file_path"
+      ]
+    }
+  },
+  {
+    "name": "append_content",
+    "description": "Append markdown content to an existing page. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Markdown to append"
+        }
+      },
+      "required": [
+        "page_id",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "replace_content",
+    "description": "DESTRUCTIVE — no rollback: this tool deletes every block on the page, then writes new blocks. If the write fails mid-call (invalid markdown, rate limit, network error, Notion rejection of any single block), the page is left partially or fully emptied and there is no automatic recovery. For irreplaceable content, duplicate_page the target first so you have a restore point, or use find_replace / append_content which are non-destructive.\n\nReplaces all page content with the provided markdown. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Replacement markdown content"
+        }
+      },
+      "required": [
+        "page_id",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "update_section",
+    "description": "DESTRUCTIVE — no rollback: this tool deletes the heading block and every block in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied AND the heading anchor is gone, so a retry will fail with \"heading not found.\" For irreplaceable sections, duplicate_page the target first so you have a restore point.\n\nUpdate a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "heading": {
+          "type": "string",
+          "description": "Heading text to find (case-insensitive)"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Replacement markdown including the heading"
+        }
+      },
+      "required": [
+        "page_id",
+        "heading",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "find_replace",
+    "description": "Find and replace text on a page. Preserves uploaded files and blocks that aren't touched. More efficient than replace_content for targeted text changes like fixing typos, updating URLs, or renaming terms.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "find": {
+          "type": "string",
+          "description": "Text to find (exact match)"
+        },
+        "replace": {
+          "type": "string",
+          "description": "Replacement text"
+        },
+        "replace_all": {
+          "type": "boolean",
+          "description": "Replace all occurrences. Default: first only."
+        }
+      },
+      "required": [
+        "page_id",
+        "find",
+        "replace"
+      ]
+    }
+  },
+  {
+    "name": "read_page",
+    "description": "Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a `warnings` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.\n\nLong titles: when a page title exceeds 25 rich_text segments (uncommon in practice), the response paginates the title up to max_property_items (default 75). If the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint. Call again with max_property_items: 0 for unlimited or with a larger cap number.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "include_metadata": {
+          "type": "boolean",
+          "description": "Include created_time, last_edited_time, created_by, last_edited_by in response. Default false."
+        },
+        "max_blocks": {
+          "type": "number",
+          "description": "Maximum top-level blocks to return. Omit to return all."
+        },
+        "max_property_items": {
+          "type": "number",
+          "description": "Max rich_text segments returned when a page title exceeds 25 segments (uncommon in practice). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint."
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "duplicate_page",
+    "description": "Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a `warnings` field. Deep-duplication of subpages is not yet supported.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Source page ID to duplicate"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title for the new page. Defaults to source title + ' (Copy)'"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID for the new page. Falls back to source page's parent, then follows the same resolution as create_page."
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "update_page",
+    "description": "Update page title, icon, or cover. Cover accepts an image URL, or a file:// path (stdio transport only) which will be uploaded to Notion. In HTTP transport, the file:// form is rejected — use an HTTPS URL instead.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Updated page title"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Updated emoji icon"
+        },
+        "cover": {
+          "type": "string",
+          "description": "Updated cover image URL"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "archive_page",
+    "description": "Archive a page in Notion.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "search",
+    "description": "Search Notion pages or databases. Use filter: 'databases' to find databases by name, then get_database for schema details.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "filter": {
+          "type": "string",
+          "enum": [
+            "pages",
+            "databases"
+          ],
+          "description": "Optional object filter"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "list_pages",
+    "description": "List child pages under a parent page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID"
+        }
+      },
+      "required": [
+        "parent_page_id"
+      ]
+    }
+  },
+  {
+    "name": "share_page",
+    "description": "Return the page URL that can be shared from Notion.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "create_database",
+    "description": "Create a database under a parent page.\n\nSupported property types and extras:\n- title\n- rich_text (alias: text)\n- number (optional: format, for example \"dollar\", \"percent\", \"number_with_commas\")\n- select, multi_select, status (optional: options array of strings or {name, color, description})\n- date, checkbox, url, email, phone\n- formula (required: expression, for example \"prop(\\\"Count\\\") * 2\")\n- rollup (required: function, relation_property, rollup_property)\n- relation (required: data_source_id; optional: relation_type \"single_property\" or \"dual_property\", synced_property_name)\n- unique_id (optional: prefix, for example \"ENG\")\n- people, files\n- created_time, last_edited_time, created_by, last_edited_by\n- verification, place, location, button\n\nUnknown property types fail with an explicit error. No silent drops.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Database title"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID"
+        },
+        "schema": {
+          "type": "array",
+          "description": "Array of {name, type} property definitions",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ]
+          }
+        },
+        "is_inline": {
+          "type": "boolean",
+          "description": "Create the database inline within the parent page"
+        }
+      },
+      "required": [
+        "title",
+        "parent_page_id",
+        "schema"
+      ]
+    }
+  },
+  {
+    "name": "update_data_source",
+    "description": "CRITICAL: full-list semantics. When you update a select or status property's `options` array, you MUST send the full desired list. Any existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. Rows that currently reference a removed option are silently reassigned to the default group's first option (for example \"Not started\" for status properties). No signal is raised. If you want to preserve the meaning of existing rows when removing an option, reclassify those rows to another explicit option before removing the option from the schema. To add one option, first call get_database, then resend the full current list with your addition appended.\n\nCannot toggle `is_inline` on existing databases. `is_inline` is a database-level field, not a data-source field. A separate `update_database` tool may be added later.\n\nUpdates a database's schema: rename existing properties, add or update many property types, remove properties, change the database title, or move it to or from trash. Use this after get_database tells you the current schema. Pass the same `database_id` you passed to get_database. The server resolves the underlying data source internally.\n\nThe `properties` field supports two modes:\n- Raw Notion API shape: the server forwards your payload as-is. This preserves advanced and back-compat flows such as rename payloads, raw formula objects, and deletes via `null`.\n- Schema helper shape: if every property entry has a top-level `type` plus helper fields and none of the raw Notion keys, the server validates and converts it for you. Example: { \"Score\": { \"type\": \"formula\", \"expression\": \"1+1\" } }.\n\nThe routing rule is all-or-nothing per call. If any property entry looks raw, the whole payload is treated as raw pass-through.\n\nStatus property notes:\n- As of Notion's 2026-03-19 changelog, status properties are updatable via API (https://developers.notion.com/page/changelog). The legacy `update-a-database` and `update-property-schema-object` reference pages still say otherwise. The changelog is authoritative.\n- Status property groups (default: \"To-do\" / \"In progress\" / \"Complete\") cannot be reconfigured via API. Group structure must be edited in the Notion UI. New status options added via API are assigned to the default group and cannot be reassigned programmatically.\n- Known upstream issue: Notion's API may return a stale schema where options assigned to the `in_progress` group appear as an empty array, causing validation errors on writes (makenotion/notion-mcp-server#232). If writes to in_progress-group options fail unexpectedly, this is the likely cause.\n\nProperty payload examples (raw Notion shape):\n- Rename a property: { \"Old Name\": { \"name\": \"New Name\" } }\n- Replace status options: { \"Status\": { \"status\": { \"options\": [{ \"name\": \"Backlog\" }, { \"name\": \"Doing\" }, { \"name\": \"Done\" }] } } }\n- Permanently delete a property and its data: { \"Unused\": null }\n\nThis tool cannot update row or page data. Use page update tools for that.\n\nAt least one of `title`, `properties`, or `in_trash` must be provided. Empty updates are rejected.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "New database title"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Raw Notion property update map"
+        },
+        "in_trash": {
+          "type": "boolean",
+          "description": "True to trash, false to restore"
+        }
+      },
+      "required": [
+        "database_id"
+      ]
+    }
+  },
+  {
+    "name": "get_database",
+    "description": "Get a database's schema — property names, types, and select/status options. Call this before query_database or add_database_entry to know the exact property names and valid values.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        }
+      },
+      "required": [
+        "database_id"
+      ]
+    }
+  },
+  {
+    "name": "list_databases",
+    "description": "List all databases the integration can access. Returns database names and IDs — use get_database on any result to see its schema.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "query_database",
+    "description": "Query a database with optional filters, sorts, or text search. Use text for simple keyword search across all text fields. For advanced filtering, use the filter parameter with Notion filter syntax:\n- Text contains: { \"property\": \"Name\", \"title\": { \"contains\": \"keyword\" } }\n- Select equals: { \"property\": \"Status\", \"status\": { \"equals\": \"Done\" } }\n- Checkbox: { \"property\": \"Urgent\", \"checkbox\": { \"equals\": true } }\n- Date after: { \"property\": \"Due\", \"date\": { \"after\": \"2025-01-01\" } }\n- Combine: { \"and\": [...] } or { \"or\": [...] }\nCall get_database first to see available properties and valid options.\n\nResponse shape: returns { results: Array<entry>, warnings?: Array<warning> }. The results key is always present; warnings is included only when something needs the caller's attention. One possible warning code is truncated_properties, which fires when any multi-value property (title, rich_text, relation, people) exceeded max_property_items. Default cap is 75 items per property. If you see that warning, call again with max_property_items: 0 for unlimited, or with a larger cap number such as max_property_items: 500, to fetch the full set.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "filter": {
+          "type": "object",
+          "description": "Optional Notion filter object"
+        },
+        "sorts": {
+          "type": "array",
+          "description": "Optional Notion sorts array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "text": {
+          "type": "string",
+          "description": "Search text — matches across all text fields (title, rich_text, url, email, phone)"
+        },
+        "max_property_items": {
+          "type": "number",
+          "description": "Max items returned per multi-value property (title, rich_text, relation, people). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint."
+        }
+      },
+      "required": [
+        "database_id"
+      ]
+    }
+  },
+  {
+    "name": "add_database_entry",
+    "description": "Create a new entry in a database.\n\nWritable property values use simple inputs:\n- title, rich_text: string\n- number: number\n- select, status: option name string\n- multi_select: array of option name strings\n- date: ISO date string (start only)\n- checkbox: boolean\n- url, email, phone: string\n- relation: string or array of page IDs\n- people: string or array of user IDs\n\nNot writable from this tool:\n- formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion\n- files, verification, place, location, button: not supported for value writes here\n\nExample: { \"Name\": \"Buy groceries\", \"Status\": \"Todo\", \"Priority\": \"High\", \"Due\": \"2025-03-20\", \"Tags\": [\"Personal\"] }.\nCall get_database to see available property names and valid select or status options.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Key-value property map to convert using the database schema"
+        }
+      },
+      "required": [
+        "database_id",
+        "properties"
+      ]
+    }
+  },
+  {
+    "name": "add_database_entries",
+    "description": "Create multiple entries in a database in one call. Each entry uses the same simple key-value format as add_database_entry. Returns per-entry results — partial failures don't block the batch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "entries": {
+          "type": "array",
+          "description": "Array of property objects, same format as add_database_entry",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "database_id",
+        "entries"
+      ]
+    }
+  },
+  {
+    "name": "update_database_entry",
+    "description": "Update an existing database entry. Pass only the properties you want to change; omitted properties are left unchanged.\n\nWritable property values use the same simple inputs as add_database_entry:\n- title, rich_text: string\n- number: number\n- select, status: option name string\n- multi_select: array of option name strings\n- date: ISO date string (start only)\n- checkbox: boolean\n- url, email, phone: string\n- relation: string or array of page IDs\n- people: string or array of user IDs\n\nNot writable from this tool:\n- formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion\n- files, verification, place, location, button: not supported for value writes here\n\nCall get_database to see valid property names and options.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID for the database entry"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Key-value property map to convert using the parent database schema"
+        }
+      },
+      "required": [
+        "page_id",
+        "properties"
+      ]
+    }
+  },
+  {
+    "name": "list_comments",
+    "description": "List comments on a page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "add_comment",
+    "description": "Add a comment to a page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "text": {
+          "type": "string",
+          "description": "Comment text (supports markdown inline formatting)"
+        }
+      },
+      "required": [
+        "page_id",
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "move_page",
+    "description": "Move a page to a new parent page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID to move"
+        },
+        "new_parent_id": {
+          "type": "string",
+          "description": "New parent page ID"
+        }
+      },
+      "required": [
+        "page_id",
+        "new_parent_id"
+      ]
+    }
+  },
+  {
+    "name": "restore_page",
+    "description": "Restore an archived page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "delete_database_entry",
+    "description": "Delete (archive) a database entry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Database entry page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "list_users",
+    "description": "List workspace users.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_me",
+    "description": "Get the current bot user.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

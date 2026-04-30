@@ -1,0 +1,27 @@
+id: weekly-status-report
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}:
+  1. Call list_databases to see available databases in the workspace.
+  2. Create a database titled "Team Tasks" with Title, Status (select: Todo, In Progress, Done), and Owner (rich_text) columns.
+  3. Add 5 task entries with varied statuses and owners.
+  4. Query the "Team Tasks" database for entries with Status "Done".
+  5. Create a page titled "Weekly Status Report" that includes:
+     - An H2 "Completed This Week" section with a bullet list of completed tasks
+     - An H2 "In Progress" section noting remaining work
+     - An H2 "Blockers" section (can be empty or note "None")
+budget:
+  max_turns: 25
+  max_tokens: 40000
+  max_usd: 1.50
+transport: http
+ground_truth:
+  pages:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Weekly Status Report"
+      must_contain_blocks:
+        - type: heading_2
+          text: "Completed"
+        - type: heading_2
+          text: "In Progress"
+  tools_must_be_called: [list_databases, create_database, add_database_entries, query_database, create_page]

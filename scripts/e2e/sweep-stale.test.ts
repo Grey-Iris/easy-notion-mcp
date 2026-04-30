@@ -89,7 +89,7 @@ describe("runSweep", () => {
   it("returns exit 0 when there is nothing to sweep in dry-run and apply mode", async () => {
     setToolResults({
       list_pages: [[], []],
-      search: [[], []],
+      search: [[], [], [], []],
     });
 
     await expect(
@@ -127,7 +127,7 @@ describe("runSweep", () => {
         [],
         [],
       ],
-      search: [[]],
+      search: [[], []],
     });
 
     await expect(
@@ -137,7 +137,7 @@ describe("runSweep", () => {
       }),
     ).resolves.toBe(0);
 
-    expect(mockRequest).toHaveBeenCalledTimes(5);
+    expect(mockRequest).toHaveBeenCalledTimes(6);
     expect(logSpy).toHaveBeenCalledWith("[sweep] archive plan (3 pages):");
     expect(logSpy).toHaveBeenCalledWith("- sandbox-1 E2E: one");
     expect(logSpy).toHaveBeenCalledWith("- sandbox-2 E2E: two");
@@ -158,7 +158,7 @@ describe("runSweep", () => {
         [],
         [],
       ],
-      search: [[]],
+      search: [[], []],
       archive_page: [
         { archived: "child-1" },
         { archived: "sandbox-1" },
@@ -194,7 +194,7 @@ describe("runSweep", () => {
   it("tolerates archived_ancestor outcomes and still exits 0", async () => {
     setToolResults({
       list_pages: [[{ id: "sandbox-1", title: "E2E: one" }], []],
-      search: [[]],
+      search: [[], []],
       archive_page: [
         {
           error:
@@ -221,7 +221,7 @@ describe("runSweep", () => {
   it("returns exit 4 when an unexpected archive error occurs", async () => {
     setToolResults({
       list_pages: [[{ id: "sandbox-1", title: "E2E: one" }], []],
-      search: [[]],
+      search: [[], []],
       archive_page: [{ error: "Notion rate limit hit. Wait a moment and retry." }],
     });
 
@@ -238,6 +238,32 @@ describe("runSweep", () => {
     expect(logSpy).toHaveBeenCalledWith(
       "[sweep] summary: archived=0 already_archived=0 archived_ancestor=0 not_found=0 unexpected=1 skipped_unverified=0",
     );
+  });
+
+  it("includes BENCH-prefixed pages in the sweep plan", async () => {
+    setToolResults({
+      list_pages: [
+        [
+          { id: "bench-1", title: "BENCH: one" },
+          { id: "e2e-1", title: "E2E: one" },
+          { id: "ignore-me", title: "scratch" },
+        ],
+        [],
+        [],
+      ],
+      search: [[], []],
+    });
+
+    await expect(
+      runSweep([], {
+        E2E_ROOT_PAGE_ID: "root-page",
+        NOTION_TOKEN: "token",
+      }),
+    ).resolves.toBe(0);
+
+    expect(logSpy).toHaveBeenCalledWith("[sweep] archive plan (2 pages):");
+    expect(logSpy).toHaveBeenCalledWith("- bench-1 BENCH: one");
+    expect(logSpy).toHaveBeenCalledWith("- e2e-1 E2E: one");
   });
 
   it("returns exit 3 when the root is unshared", async () => {
@@ -290,7 +316,7 @@ describe("runSweep", () => {
       search: [[
         { id: "sandbox-1", title: "E2E: one" },
         { id: "foreign-1", title: "E2E: elsewhere" },
-      ]],
+      ], []],
     });
 
     await expect(

@@ -1,0 +1,54 @@
+id: editorial-calendar
+tier: [A]
+prompt: |
+  Under the page ${SCENARIO_PARENT}, create an editorial calendar:
+  1. Create a database titled "Editorial Calendar" with columns:
+     - Title (title)
+     - Status (status with options: Not started, In progress, Published)
+     - Publish Date (date)
+     - Category (select with options: Tutorial, Case Study, Release Notes, Opinion)
+  2. Add these entries:
+     - "Getting Started Guide" - Status: Published, Publish Date: 2025-01-15, Category: Tutorial
+     - "Q1 Product Update" - Status: In progress, Publish Date: 2025-03-01, Category: Release Notes
+     - "Customer Success Story" - Status: Not started, Publish Date: 2025-04-01, Category: Case Study
+     - "AI Trends Analysis" - Status: Not started, Publish Date: 2025-02-15, Category: Opinion
+     - "Advanced Config Tutorial" - Status: In progress, Publish Date: 2025-02-28, Category: Tutorial
+  3. Query with a compound filter: status is "Not started" AND publish date is before 2025-05-01.
+  4. Update "Customer Success Story" status to "In progress".
+budget:
+  max_turns: 20
+  max_tokens: 30000
+  max_usd: 1.50
+transport: http
+ground_truth:
+  databases:
+    - parent: ${SCENARIO_PARENT}
+      title_matches: "Editorial Calendar"
+      must_have_properties:
+        - name: Status
+          type: status
+        - name: Publish Date
+          type: date
+        - name: Category
+          type: select
+  rows:
+    - database_title_matches: "Editorial Calendar"
+      size_min: 5
+      must_exist:
+        - match:
+            Title: "Customer Success Story"
+          expect:
+            Status: "In progress"
+  query:
+    - database_title_matches: "Editorial Calendar"
+      filter:
+        and:
+          - property: "Status"
+            status:
+              equals: "Not started"
+          - property: "Publish Date"
+            date:
+              before: "2025-05-01"
+      result_size_min: 1
+      result_must_include_titles: ["AI Trends Analysis"]
+  tools_must_be_called: [create_database, add_database_entry, query_database, update_database_entry]

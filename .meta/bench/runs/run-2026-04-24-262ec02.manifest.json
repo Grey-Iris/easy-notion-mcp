@@ -1,0 +1,126 @@
+{
+  "run_id": "run-2026-04-24-262ec02",
+  "git_sha": "262ec027aeddf71eae0ef43508f5510598f3f20e",
+  "git_branch": "feat/bench-a-pr-a1-2026-04-24",
+  "started_at": "2026-04-24T00:44:38Z",
+  "finished_at": "2026-04-24T00:57:22Z",
+  "model": "claude-sonnet-4-6",
+  "node_version": "v22.19.0",
+  "scenarios": [
+    {
+      "id": "meeting-notes-kickoff",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 28964,
+      "cost_usd": 0.10931625,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-meeting-notes-kickoff.ndjson",
+      "transcript_sha256": "0351d05b8f04102f21710eb307a82c86918ef137e4d920576b118b46a18838fd"
+    },
+    {
+      "id": "runbook-refresh",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 40132,
+      "cost_usd": 0.1364166,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-runbook-refresh.ndjson",
+      "transcript_sha256": "cfefe43e6e8af9725b02e054524bcbf67c6141694e74bfc57766f1f5f039882e"
+    },
+    {
+      "id": "bug-tracker-bootstrap",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 132716,
+      "cost_usd": 0.2632068,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-bug-tracker-bootstrap.ndjson",
+      "transcript_sha256": "d23ca6261c36f8351fc9b1ce816c5e004cdea86c962f539cc1e3bc770bd58246"
+    },
+    {
+      "id": "sprint-retro-synthesis",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 54702,
+      "cost_usd": 0.146718,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-sprint-retro-synthesis.ndjson",
+      "transcript_sha256": "b88232dc0013ede2c5aaf9aa4f4fb9e1802360891dcc95bf918e80a8dd134c2f"
+    },
+    {
+      "id": "knowledge-base-migration",
+      "passed": true,
+      "status": "skip",
+      "duration_ms": 0,
+      "cost_usd": 0,
+      "transcript_path": "",
+      "transcript_sha256": ""
+    },
+    {
+      "id": "bibliography-database",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 86215,
+      "cost_usd": 0.21002115000000002,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-bibliography-database.ndjson",
+      "transcript_sha256": "f2a89c795a548097686f390b61b8eb94acb3a92e829e37159d0a92081995fa43"
+    },
+    {
+      "id": "editorial-calendar",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 47375,
+      "cost_usd": 0.1449849,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-editorial-calendar.ndjson",
+      "transcript_sha256": "670cbe9a843141059b21c24ef9e51d1b5b96696bdfd61839c6da5c9251f1c576"
+    },
+    {
+      "id": "onboarding-checklist",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 46659,
+      "cost_usd": 0.12708915,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-onboarding-checklist.ndjson",
+      "transcript_sha256": "12fc1765ff7c1bc53a8dfac0ee66071d8b18b6255c680fd4f43d37aa330b6371"
+    },
+    {
+      "id": "archive-old-sprints",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 50470,
+      "cost_usd": 0.1656363,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-archive-old-sprints.ndjson",
+      "transcript_sha256": "61d50f3dc55fd4db91662c812d2a10d8cb395a9495289de55f18a11afc1b77c4"
+    },
+    {
+      "id": "project-portfolio-rollup",
+      "passed": false,
+      "status": "fail",
+      "duration_ms": 91042,
+      "cost_usd": 0.18961889999999998,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-project-portfolio-rollup.ndjson",
+      "transcript_sha256": "787b1d740f12310a9d1da6cb8464e9a7753180cd1c593993484e86806a0d969a"
+    },
+    {
+      "id": "weekly-status-report",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 57640,
+      "cost_usd": 0.17535284999999998,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-weekly-status-report.ndjson",
+      "transcript_sha256": "2bcdecfb8dcdb19a48180a1f0dd62cfa530e7ae98c87838690467a7b6a227965"
+    },
+    {
+      "id": "blog-post-polish",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 114587,
+      "cost_usd": 0.16446360000000002,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-262ec02/scenario-blog-post-polish.ndjson",
+      "transcript_sha256": "df89fa88e32bf5d910bc93e8b9dfcf1d7211b38588385f3768321f0e05515554"
+    }
+  ],
+  "totals": {
+    "scenarios_run": 12,
+    "passed": 10,
+    "failed": 1,
+    "skipped": 1,
+    "cost_usd": 1.8328244999999999
+  }
+}

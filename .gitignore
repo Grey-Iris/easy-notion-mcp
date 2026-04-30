@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.http
 *.log
 
 # MCP Registry auth tokens
@@ -14,6 +15,10 @@ dist/
 .tasuku/
 internal/
 .meta/investigations/
+
+# Bench transcripts (raw, not committed)
+.meta/bench/transcripts/
+.meta/bench/.runner-pids/
 
 # Internal documents (not for public repo)
 audit-report-*.md
