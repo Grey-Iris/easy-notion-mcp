@@ -37,6 +37,26 @@ export type TranslateResult = {
 
 const TAB = "\t";
 
+type CalloutSerializationMeta = {
+  icon: string;
+  color: string;
+};
+
+type SerializeOptions = {
+  escapeBodyText: boolean;
+  calloutMetas: CalloutSerializationMeta[];
+};
+
+const GFM_ALERT_CALLOUT_META: Record<string, CalloutSerializationMeta> = {
+  NOTE: { icon: "💡", color: "default" },
+  TIP: { icon: "💡", color: "green_background" },
+  WARNING: { icon: "⚠️", color: "yellow_background" },
+  IMPORTANT: { icon: "⚠️", color: "red_background" },
+  INFO: { icon: "ℹ️", color: "blue_background" },
+  SUCCESS: { icon: "✅", color: "green_background" },
+  ERROR: { icon: "❌", color: "red_background" },
+};
+
 function indent(text: string, depth: number): string {
   if (depth === 0) return text;
   const pad = TAB.repeat(depth);
@@ -50,13 +70,24 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
-function richTextToEnhanced(richText: RichText[] | undefined): string {
+function escapeBodyText(value: string): string {
+  return value.replace(/[\\*~`$\[\]<>{}|^]/g, (char) => `\\${char}`);
+}
+
+function richTextToEnhanced(
+  richText: RichText[] | undefined,
+  options: Pick<SerializeOptions, "escapeBodyText"> = { escapeBodyText: false },
+): string {
   if (!richText) return "";
   return richText
     .map((rt) => {
       let content = rt.text?.content ?? "";
       const annotations = rt.annotations ?? {};
-      if (annotations.code) content = `\`${content}\``;
+      if (annotations.code) {
+        content = `\`${content}\``;
+      } else if (options.escapeBodyText) {
+        content = escapeBodyText(content);
+      }
       if (annotations.bold) content = `**${content}**`;
       if (annotations.italic) content = `*${content}*`;
       if (annotations.strikethrough) content = `~~${content}~~`;
@@ -67,17 +98,40 @@ function richTextToEnhanced(richText: RichText[] | undefined): string {
 }
 
 const CALLOUT_DEFAULT_ICON = "💡";
+const CALLOUT_DEFAULT_COLOR = "default";
 
-function calloutIcon(block: any): string {
+function collectGfmAlertCalloutMetas(markdown: string): CalloutSerializationMeta[] {
+  const metas: CalloutSerializationMeta[] = [];
+  const alertMarker = /^[\t ]*>\s*\[!(NOTE|TIP|WARNING|IMPORTANT|INFO|SUCCESS|ERROR)\](?=\s|$)/gim;
+  let match: RegExpExecArray | null;
+  while ((match = alertMarker.exec(markdown)) !== null) {
+    metas.push(GFM_ALERT_CALLOUT_META[match[1].toUpperCase()]);
+  }
+  return metas;
+}
+
+function calloutIcon(block: any, meta: CalloutSerializationMeta | undefined): string {
+  if (meta) return meta.icon;
   const icon = block?.callout?.icon;
   if (icon?.type === "emoji" && typeof icon.emoji === "string") return icon.emoji;
   if (icon?.type === "external" && icon?.external?.url) return icon.external.url;
   return CALLOUT_DEFAULT_ICON;
 }
 
-function serializeBlocks(blocks: NotionBlock[], depth: number, warnings: TranslateWarning[]): string {
+function calloutColor(block: any, meta: CalloutSerializationMeta | undefined): string {
+  const color = block?.callout?.color;
+  if (typeof color === "string" && color.length > 0) return color;
+  return meta?.color ?? CALLOUT_DEFAULT_COLOR;
+}
+
+function serializeBlocks(
+  blocks: NotionBlock[],
+  depth: number,
+  warnings: TranslateWarning[],
+  options: SerializeOptions,
+): string {
   return blocks
-    .map((block) => serializeBlock(block, depth, warnings))
+    .map((block) => serializeBlock(block, depth, warnings, options))
     .filter((line) => line !== null && line !== "")
     .join("\n");
 }
@@ -86,78 +140,82 @@ function serializeBlock(
   block: NotionBlock,
   depth: number,
   warnings: TranslateWarning[],
+  options: SerializeOptions,
 ): string {
   const b = block as any;
   switch (block.type) {
     case "paragraph":
-      return indent(richTextToEnhanced(b.paragraph.rich_text), depth);
+      return indent(richTextToEnhanced(b.paragraph.rich_text, options), depth);
     case "heading_1": {
-      const text = richTextToEnhanced(b.heading_1.rich_text);
+      const text = richTextToEnhanced(b.heading_1.rich_text, options);
       const toggle = b.heading_1.is_toggleable ? ` {toggle="true"}` : "";
       const head = indent(`# ${text}${toggle}`, depth);
       const children = b.heading_1.children as NotionBlock[] | undefined;
       if (toggle && children?.length) {
-        return `${head}\n${serializeBlocks(children, depth + 1, warnings)}`;
+        return `${head}\n${serializeBlocks(children, depth + 1, warnings, options)}`;
       }
       return head;
     }
     case "heading_2": {
-      const text = richTextToEnhanced(b.heading_2.rich_text);
+      const text = richTextToEnhanced(b.heading_2.rich_text, options);
       const toggle = b.heading_2.is_toggleable ? ` {toggle="true"}` : "";
       const head = indent(`## ${text}${toggle}`, depth);
       const children = b.heading_2.children as NotionBlock[] | undefined;
       if (toggle && children?.length) {
-        return `${head}\n${serializeBlocks(children, depth + 1, warnings)}`;
+        return `${head}\n${serializeBlocks(children, depth + 1, warnings, options)}`;
       }
       return head;
     }
     case "heading_3": {
-      const text = richTextToEnhanced(b.heading_3.rich_text);
+      const text = richTextToEnhanced(b.heading_3.rich_text, options);
       const toggle = b.heading_3.is_toggleable ? ` {toggle="true"}` : "";
       const head = indent(`### ${text}${toggle}`, depth);
       const children = b.heading_3.children as NotionBlock[] | undefined;
       if (toggle && children?.length) {
-        return `${head}\n${serializeBlocks(children, depth + 1, warnings)}`;
+        return `${head}\n${serializeBlocks(children, depth + 1, warnings, options)}`;
       }
       return head;
     }
     case "bulleted_list_item": {
-      const text = richTextToEnhanced(b.bulleted_list_item.rich_text);
+      const text = richTextToEnhanced(b.bulleted_list_item.rich_text, options);
       const head = indent(`- ${text}`, depth);
       const children = b.bulleted_list_item.children as NotionBlock[] | undefined;
       if (children?.length) {
-        return `${head}\n${serializeBlocks(children, depth + 1, warnings)}`;
+        return `${head}\n${serializeBlocks(children, depth + 1, warnings, options)}`;
       }
       return head;
     }
     case "numbered_list_item": {
-      const text = richTextToEnhanced(b.numbered_list_item.rich_text);
+      const text = richTextToEnhanced(b.numbered_list_item.rich_text, options);
       const head = indent(`1. ${text}`, depth);
       const children = b.numbered_list_item.children as NotionBlock[] | undefined;
       if (children?.length) {
-        return `${head}\n${serializeBlocks(children, depth + 1, warnings)}`;
+        return `${head}\n${serializeBlocks(children, depth + 1, warnings, options)}`;
       }
       return head;
     }
     case "to_do": {
-      const text = richTextToEnhanced(b.to_do.rich_text);
+      const text = richTextToEnhanced(b.to_do.rich_text, options);
       const checked = b.to_do.checked ? "x" : " ";
       return indent(`- [${checked}] ${text}`, depth);
     }
     case "quote":
-      return indent(`> ${richTextToEnhanced(b.quote.rich_text)}`, depth);
+      return indent(`> ${richTextToEnhanced(b.quote.rich_text, options)}`, depth);
     case "callout": {
-      const text = richTextToEnhanced(b.callout.rich_text);
-      const icon = calloutIcon(block);
+      const text = richTextToEnhanced(b.callout.rich_text, { escapeBodyText: true });
+      const meta = options.calloutMetas.shift();
+      const icon = calloutIcon(block, meta);
+      const color = calloutColor(block, meta);
       const inner = indent(text, 1);
-      const calloutBlock = `<callout icon="${escapeAttr(icon)}">\n${inner}\n</callout>`;
+      const calloutBlock = `<callout icon="${escapeAttr(icon)}" color="${escapeAttr(color)}">\n${inner}\n</callout>`;
       return indent(calloutBlock, depth);
     }
     case "toggle": {
-      const title = richTextToEnhanced(b.toggle.rich_text);
+      const bodyOptions = { ...options, escapeBodyText: true };
+      const title = richTextToEnhanced(b.toggle.rich_text, bodyOptions);
       const children = b.toggle.children as NotionBlock[] | undefined;
       const childContent =
-        children && children.length > 0 ? indent(serializeBlocks(children, 0, warnings), 1) : "";
+        children && children.length > 0 ? indent(serializeBlocks(children, 0, warnings, bodyOptions), 1) : "";
       const detailsBlock = childContent
         ? `<details>\n<summary>${title}</summary>\n${childContent}\n</details>`
         : `<details>\n<summary>${title}</summary>\n</details>`;
@@ -180,7 +238,7 @@ function serializeBlock(
     case "column_list": {
       const cols = (b.column_list.children ?? []) as NotionBlock[];
       const inner = cols
-        .map((col) => serializeBlock(col, 0, warnings))
+        .map((col) => serializeBlock(col, 0, warnings, { ...options, escapeBodyText: true }))
         .filter((line) => line !== "")
         .join("\n");
       const block = `<columns>\n${indent(inner, 1)}\n</columns>`;
@@ -188,7 +246,7 @@ function serializeBlock(
     }
     case "column": {
       const children = (b.column.children ?? []) as NotionBlock[];
-      const inner = serializeBlocks(children, 0, warnings);
+      const inner = serializeBlocks(children, 0, warnings, { ...options, escapeBodyText: true });
       const block = `<column>\n${indent(inner, 1)}\n</column>`;
       return block;
     }
@@ -200,7 +258,7 @@ function serializeBlock(
         .map((row) => {
           const cells = row.table_row.cells as RichText[][];
           return `<tr>\n${cells
-            .map((cell) => `${TAB}<td>${richTextToEnhanced(cell)}</td>`)
+            .map((cell) => `${TAB}<td>${richTextToEnhanced(cell, { escapeBodyText: true })}</td>`)
             .join("\n")}\n</tr>`;
         })
         .join("\n");
@@ -246,6 +304,9 @@ export function translateGfmToEnhancedMarkdown(markdown: string): TranslateResul
     return { enhanced: "", warnings };
   }
   const blocks = markdownToBlocks(markdown);
-  const enhanced = serializeBlocks(blocks, 0, warnings);
+  const enhanced = serializeBlocks(blocks, 0, warnings, {
+    escapeBodyText: false,
+    calloutMetas: collectGfmAlertCalloutMetas(markdown),
+  });
   return { enhanced, warnings };
 }

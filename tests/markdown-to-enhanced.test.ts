@@ -73,12 +73,25 @@ describe("translateGfmToEnhancedMarkdown — per-block-type coverage", () => {
 
   it("callout (NOTE) translates to <callout> XML", () => {
     const { enhanced } = translateGfmToEnhancedMarkdown("> [!NOTE]\n> note body");
-    expect(enhanced).toBe('<callout icon="\u{1F4A1}">\n\tnote body\n</callout>');
+    expect(enhanced).toBe('<callout icon="\u{1F4A1}" color="default">\n\tnote body\n</callout>');
   });
 
   it("callout (WARNING) uses warning emoji", () => {
     const { enhanced } = translateGfmToEnhancedMarkdown("> [!WARNING]\n> warning body");
-    expect(enhanced).toBe('<callout icon="⚠️">\n\twarning body\n</callout>');
+    expect(enhanced).toBe('<callout icon="⚠️" color="yellow_background">\n\twarning body\n</callout>');
+  });
+
+  it.each([
+    ["NOTE", "💡", "default"],
+    ["TIP", "💡", "green_background"],
+    ["WARNING", "⚠️", "yellow_background"],
+    ["IMPORTANT", "⚠️", "red_background"],
+    ["INFO", "ℹ️", "blue_background"],
+    ["SUCCESS", "✅", "green_background"],
+    ["ERROR", "❌", "red_background"],
+  ])("callout (%s) emits the required icon and color", (marker, icon, color) => {
+    const { enhanced } = translateGfmToEnhancedMarkdown(`> [!${marker}]\n> ${marker.toLowerCase()} body`);
+    expect(enhanced).toBe(`<callout icon="${icon}" color="${color}">\n\t${marker.toLowerCase()} body\n</callout>`);
   });
 
   it("equation: $$expr$$ → block-level $$\\nexpr\\n$$", () => {
@@ -135,6 +148,43 @@ describe("translateGfmToEnhancedMarkdown — per-block-type coverage", () => {
     expect(enhanced).toContain("<tr>");
     expect(enhanced).toContain("<td>A</td>");
     expect(enhanced).toContain("<td>1</td>");
+  });
+
+  it("escapes literal closing callout tags in callout body text", () => {
+    const { enhanced } = translateGfmToEnhancedMarkdown("> [!NOTE]\n> Literal </callout> text");
+    expect(enhanced).toBe('<callout icon="💡" color="default">\n\tLiteral \\</callout\\> text\n</callout>');
+  });
+
+  it("escapes literal XML-like tags in callout body text", () => {
+    const { enhanced } = translateGfmToEnhancedMarkdown("> [!NOTE]\n> Use <tag> here");
+    expect(enhanced).toBe('<callout icon="💡" color="default">\n\tUse \\<tag\\> here\n</callout>');
+  });
+
+  it("escapes XML-like text in details summary and body text", () => {
+    const { enhanced } = translateGfmToEnhancedMarkdown("+++ <summary>\nBody </details> text\n+++");
+    expect(enhanced).toBe("<details>\n<summary>\\<summary\\></summary>\n\tBody \\</details\\> text\n</details>");
+  });
+
+  it("escapes pipe characters in table cells", () => {
+    const input = "| Value |\n| --- |\n| a \\| b |";
+    const { enhanced } = translateGfmToEnhancedMarkdown(input);
+    expect(enhanced).toContain("<td>a \\| b</td>");
+  });
+
+  it("escapes literal closing column tags in column body text", () => {
+    const input = "::: columns\n::: column\nLiteral </column> text\n:::\n:::";
+    const { enhanced } = translateGfmToEnhancedMarkdown(input);
+    expect(enhanced).toContain("\t\tLiteral \\</column\\> text");
+  });
+
+  it("does not escape inline code content inside callout body text", () => {
+    const { enhanced } = translateGfmToEnhancedMarkdown("> [!NOTE]\n> `</callout>`");
+    expect(enhanced).toBe('<callout icon="💡" color="default">\n\t`</callout>`\n</callout>');
+  });
+
+  it("does not escape plain top-level paragraph body text", () => {
+    const { enhanced } = translateGfmToEnhancedMarkdown("Use <tag> here");
+    expect(enhanced).toBe("Use <tag> here");
   });
 
   it("image: ![](url) → markdown form preserved", () => {
