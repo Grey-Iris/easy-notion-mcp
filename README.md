@@ -261,7 +261,7 @@ easy-notion-mcp includes 26 individually-named tools across 5 categories. Each t
 | `create_page` | Create a page from markdown |
 | `read_page` | Read a page as markdown |
 | `append_content` | Append markdown to a page |
-| `replace_content` | Replace all page content (destructive; duplicate_page first for irreplaceable content) |
+| `replace_content` | Replace all page content atomically (preserves block IDs of matched blocks) |
 | `update_section` | Update a section by heading name (destructive; duplicate_page first for irreplaceable content) |
 | `find_replace` | Find and replace text, preserving files |
 | `update_page` | Update title, icon, or cover |
