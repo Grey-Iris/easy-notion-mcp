@@ -103,6 +103,31 @@ describe("replace_content (atomic) handler", () => {
     }
   });
 
+  it("propagates updateMarkdown rejection without destructive side effects", async () => {
+    const notion = makeNotion();
+    notion.pages.updateMarkdown.mockRejectedValueOnce(
+      new Error("validation_error: payload too large"),
+    );
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "replace_content",
+        arguments: { page_id: "p", markdown: "Valid replacement text." },
+      });
+
+      const response = JSON.parse(parseToolText(result));
+      expect(response.success).not.toBe(true);
+      expect(response.error).toMatch(/payload too large/);
+
+      expect(notion.blocks.children.list).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+      expect(notion.pages.updateMarkdown).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
   it("returns {success:true, truncated:true} when API echoes truncated:true", async () => {
     const notion = makeNotion({
       object: "page_markdown",
