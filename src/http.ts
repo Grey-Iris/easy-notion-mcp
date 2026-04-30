@@ -4,6 +4,7 @@ import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createNotionClient } from "./notion-client.js";
 import { createServer } from "./server.js";
+import { isMainModule } from "./main-module.js";
 import { randomUUID, timingSafeEqual } from "crypto";
 
 const PORT = parseInt(process.env.PORT ?? "3333", 10);
@@ -291,12 +292,7 @@ async function startServer() {
 }
 
 // Only auto-start when run directly (not when imported by tests)
-const isMainModule =
-  process.argv[1] &&
-  (import.meta.url === `file://${process.argv[1]}` ||
-    import.meta.url === `file://${process.argv[1].replace(/\.ts$/, ".js")}`);
-
-if (isMainModule) {
+if (isMainModule(process.argv[1], import.meta.url)) {
   startServer().catch((error) => {
     console.error("Fatal:", error);
     process.exit(1);
