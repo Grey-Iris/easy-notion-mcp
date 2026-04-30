@@ -5,7 +5,7 @@
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
 
-26 tools · 25 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
+28 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
@@ -25,16 +25,16 @@ npx easy-notion-mcp
 
 ---
 
-**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Config](#configuration) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
+**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
 | Feature | easy-notion-mcp | Official Notion MCP (npm) | better-notion-mcp |
 |---|---|---|---|
 | **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
-| **Block types** | ✅ 25 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
+| **Block types** | ✅ 24 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
 | **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
-| **Tools** | 26 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
+| **Tools** | 28 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
 | **Database entry format** | Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
@@ -47,43 +47,13 @@ npx easy-notion-mcp
 | Page read | **291 tokens** | ⚠️ 236 tokens | 6,536 tokens | **95.5%** |
 | DB query (5 rows) | **347 tokens** | 704 tokens | 2,983 tokens | **88.4%** |
 | Search (3 results) | **298 tokens** | 347 tokens | 1,824 tokens | **83.7%** |
+| **Total (weighted)** | **936 tokens** | 1,287 tokens | 11,343 tokens | **91.7%** |
 
 ⚠️ better-notion-mcp page reads appear smaller because they silently drop 11 block types (callouts, toggles, tables, task lists, equations, bookmarks, embeds). On equal content coverage, easy-notion-mcp is more efficient.
 
 *Measured by running all three MCP servers against the same Notion content and counting tokens with tiktoken cl100k_base. Raw responses saved for verification.*
 
 ## How do I set up easy-notion-mcp?
-
-### With OAuth (recommended)
-
-Run the HTTP server, then connect with any MCP client. OAuth handles authentication — no token to copy-paste.
-
-**Start the server:**
-
-```bash
-npx easy-notion-mcp-http
-```
-
-Requires `NOTION_OAUTH_CLIENT_ID` and `NOTION_OAUTH_CLIENT_SECRET` env vars. See [OAuth setup](#oauth--http-transport) below.
-
-**Claude Code:**
-
-```bash
-claude mcp add notion --transport http http://localhost:3333/mcp
-```
-
-**OpenClaw:**
-
-```bash
-openclaw config set mcpServers.notion.transport "http"
-openclaw config set mcpServers.notion.url "http://localhost:3333/mcp"
-```
-
-**Claude Desktop:**
-
-Go to Settings → Connectors → Add custom connector, enter `http://localhost:3333/mcp`.
-
-Your browser will open to Notion's authorization page. Pick the pages to share, click Allow, done.
 
 ### With API token
 
@@ -97,13 +67,13 @@ claude mcp add notion -s user \
   -- npx -y easy-notion-mcp
 ```
 
-This registers the server in your Claude Code **user-level** config (`-s user`) and passes `NOTION_TOKEN` directly to the MCP child process via `-e`. Your shell environment and rcfiles are untouched — the token lives in Claude Code's config file, scoped to this server, and is not visible to other processes. To set a default parent page for `create_page`, add `-e NOTION_ROOT_PAGE_ID=<page-id-or-url>` to the same command.
+This registers the server in your Claude Code **user-level** config (`-s user`) and passes `NOTION_TOKEN` directly to the MCP child process via `-e`. Your shell environment and rcfiles are untouched — the token lives in Claude Code's config file, scoped to this server, and is not visible to other processes. To set a default parent page for `create_page`, add `-e NOTION_ROOT_PAGE_ID=<page-id>` to the same command.
 
 **OpenClaw:**
 
 ```bash
 openclaw config set mcpServers.notion.command "npx"
-openclaw config set mcpServers.notion.args '["easy-notion-mcp"]'
+openclaw config set mcpServers.notion.args '["-y","easy-notion-mcp"]'
 ```
 
 Then provide the token via the parent shell environment before starting OpenClaw:
@@ -150,6 +120,37 @@ Config file locations: Claude Desktop → `claude_desktop_config.json` · Cursor
 
 </details>
 
+### With OAuth
+
+API-token + stdio is the lower-friction default. If you're running a shared deployment or want per-user access, OAuth handles authentication with no token to copy-paste.
+
+**Start the server:**
+
+```bash
+npx easy-notion-mcp-http
+```
+
+Requires `NOTION_OAUTH_CLIENT_ID` and `NOTION_OAUTH_CLIENT_SECRET` env vars. See [OAuth setup](#oauth--http-transport) below.
+
+**Claude Code:**
+
+```bash
+claude mcp add notion --transport http http://localhost:3333/mcp
+```
+
+**OpenClaw:**
+
+```bash
+openclaw config set mcpServers.notion.transport "http"
+openclaw config set mcpServers.notion.url "http://localhost:3333/mcp"
+```
+
+**Claude Desktop:**
+
+Go to Settings → Connectors → Add custom connector, enter `http://localhost:3333/mcp`.
+
+Your browser will open to Notion's authorization page. Pick the pages to share, click Allow, done.
+
 <details><summary><strong>Manual project-scoped install (advanced)</strong> — register easy-notion-mcp per-project by placing <code>.mcp.json</code> at your project root</summary>
 
 If you want to register `easy-notion-mcp` per-project instead of user-wide, paste the following into a `.mcp.json` file at **your** project's root:
@@ -194,11 +195,61 @@ Authorization: Bearer <your NOTION_MCP_BEARER value>
 
 > **Why not localhost?** These platforms typically run in Docker. `localhost` inside a container refers to the container itself, not your host machine. `host.docker.internal` bridges the gap.
 >
-> **v0.3.0 migration:** as of v0.3.0 the HTTP server binds `127.0.0.1` by default and static-token mode requires `NOTION_MCP_BEARER`. `host.docker.internal` reaches the host's bridge IP, so you need `NOTION_MCP_BIND_HOST=0.0.0.0` on the host and the bearer header on every client request. OAuth mode (which issues its own per-user bearers) is the recommended alternative for shared Docker deployments.
+> **HTTP host and bearer:** The HTTP server binds `127.0.0.1` by default and static-token mode requires `NOTION_MCP_BEARER`. `host.docker.internal` reaches the host's bridge IP, so set `NOTION_MCP_BIND_HOST=0.0.0.0` on the host and send the bearer header on every client request. OAuth mode, which issues per-user bearers, is the alternative for shared Docker deployments.
 
 easy-notion-mcp works with any MCP-compatible client. The server runs via stdio (API token mode) or HTTP (OAuth or API token mode).
 
 If you run into questions during setup, the [Discord community](https://discord.gg/S8cghJSVBU) is a good place to ask. The `#easy-notion-mcp` channel covers setup and design discussion. Bugs go on [GitHub issues](https://github.com/Grey-Iris/easy-notion-mcp/issues).
+
+## Configuration
+
+### Stdio mode (API token)
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `NOTION_TOKEN` | Yes | — | Notion API integration token |
+| `NOTION_ROOT_PAGE_ID` | No | — | Default parent page ID |
+| `NOTION_TRUST_CONTENT` | No | `false` | Skip content notice on `read_page` responses |
+
+> **About `.env` files (contributors only):** easy-notion-mcp loads a `.env` file from the current working directory via `dotenv`. In practice this means `.env` only "just works" when you run the server from a cloned repo checkout (`node dist/index.js` after `npm install && npm run build`), because the repo root is your cwd. It is **not** loaded when the package is invoked via `npx easy-notion-mcp` or a global install from an arbitrary directory — that is standard npm CLI behavior. For the `npx` path, pass `NOTION_TOKEN` via the `-e` flag in the [Claude Code setup](#with-api-token) above, or via your MCP client's config `env` block.
+
+### OAuth / HTTP transport
+
+Run `npx easy-notion-mcp-http` to start the HTTP server with OAuth support.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `NOTION_OAUTH_CLIENT_ID` | Yes (OAuth mode) | — | Notion public integration OAuth client ID |
+| `NOTION_OAUTH_CLIENT_SECRET` | Yes (OAuth mode) | — | Notion public integration OAuth client secret |
+| `PORT` | No | `3333` | HTTP server port |
+| `OAUTH_REDIRECT_URI` | No | `http://localhost:{PORT}/callback` | OAuth callback URL |
+| `NOTION_MCP_BIND_HOST` | No | `127.0.0.1` | Bind address. Default is loopback; set `0.0.0.0` for network-reachable, or a specific interface like `192.168.1.5`. |
+| `NOTION_MCP_BEARER` | Yes (static-token mode) | — | Shared-secret bearer required by clients in static-token HTTP mode. Server refuses to start without it. Not required in OAuth mode. |
+
+To get OAuth credentials, create a **public integration** at [notion.so/profile/integrations](https://www.notion.so/profile/integrations) and configure `http://localhost:3333/callback` as the redirect URI.
+
+In OAuth mode, `create_page` works without `NOTION_ROOT_PAGE_ID` — pages are created in the user's private workspace section by default.
+
+### HTTP mode security posture
+
+The HTTP transport is designed for **trusted networks**: single-operator self-hosting with a bearer secret, or OAuth for shared deployments. It is not hardened for direct exposure to the open internet; put a reverse proxy with TLS in front of it if you need remote access.
+
+**Static-token mode requires a bearer.** Starting `npx easy-notion-mcp-http` with only `NOTION_TOKEN` set will refuse to start. Set a shared-secret bearer in the server's environment, then configure your MCP client to send it as `Authorization: Bearer <secret>` on every `/mcp` request:
+
+```bash
+export NOTION_MCP_BEARER=$(openssl rand -hex 32)
+NOTION_TOKEN=ntn_your_integration_token npx easy-notion-mcp-http
+```
+
+The bearer is compared with `crypto.timingSafeEqual`. Missing or wrong bearers get `401 { "error": "invalid_token" }`. Rotate the secret by restarting the server with a new value.
+
+**Default bind is loopback.** The server binds `127.0.0.1` by default — local processes only. Set `NOTION_MCP_BIND_HOST=0.0.0.0` to expose all interfaces, or a specific IP like `192.168.1.5` to expose one. Bearer is required regardless of bind.
+
+**Bearer-always is the trust boundary.** DNS-rebinding protection is not wired on the `/mcp` endpoint, and CORS on the OAuth registration/token endpoints (`/register`, `/token`, `/revoke`) is permissive. Treat the bearer, or OAuth's per-user bearer, as the only thing standing between the network and your Notion workspace. Keep it set even for loopback-only deployments. If you need to expose this server beyond a trusted network, put it behind a reverse proxy that handles TLS and origin checks.
+
+**OAuth mode for multi-user / remote.** OAuth has its own per-user bearer enforcement; `NOTION_MCP_BEARER` is not required in OAuth mode. For shared deployments, OAuth's per-user identity model is the right shape — static-token + bearer is intended for single-operator self-hosting.
+
+**`file://` uploads are stdio-only.** Markdown passed to `create_page`, `append_content`, `replace_content`, `update_section`, or `update_page.cover` with `file://` URLs is rejected over HTTP. Use stdio mode for local-file workflows (`create_page_from_file` is also stdio-only), or host the file at an HTTPS URL and use that URL in the markdown.
 
 ![](assets/papercraft-divider.png)
 
@@ -206,7 +257,7 @@ If you run into questions during setup, the [Discord community](https://discord.
 
 The official Notion MCP npm package returns raw API JSON — deeply nested block objects with ~120 tokens of metadata per block. Other servers convert to markdown but support only a handful of block types, silently dropping callouts, toggles, tables, equations, and more.
 
-easy-notion-mcp uses standard GFM markdown that agents already know. There's nothing new to learn, no custom tag syntax, no block objects to construct. The agent writes markdown, easy-notion-mcp handles the conversion to Notion's block API — and back again, with 25 block types preserved.
+easy-notion-mcp uses standard GFM markdown that agents already know. There's nothing new to learn, no custom tag syntax, no block objects to construct. The agent writes markdown, easy-notion-mcp handles the conversion to Notion's block API — and back again, with 24 block types preserved.
 
 This means agents can **edit existing content**. Read a page, get markdown back, modify the string, write it back. Nothing is lost. Agents edit Notion pages the same way they edit code — as text.
 
@@ -238,7 +289,7 @@ Modify the string, call `replace_content`, done. Or target a single section by h
 ```javascript
 add_database_entry({
   database_id: "...",
-  properties: { "Status": "Done", "Priority": "High", "Due": "2025-03-20", "Tags": ["v2", "launch"] }
+  properties: { "Status": "Done", "Priority": "High", "Due": "2026-05-15", "Tags": ["v2", "launch"] }
 })
 ```
 
@@ -252,13 +303,14 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 26 individually-named tools across 5 categories. Each tool is self-documenting with complete usage examples — agents know exactly how to use every tool from the first message, with no extra round-trips needed.
+easy-notion-mcp includes 28 individually-named tools across 5 categories. Each tool is self-documenting with complete usage examples — agents know exactly how to use every tool from the first message, with no extra round-trips needed.
 
-### Pages (11 tools)
+### Pages (12 tools)
 
 | Tool | Description |
 |---|---|
 | `create_page` | Create a page from markdown |
+| `create_page_from_file` | Create a page from a local markdown file (stdio only) |
 | `read_page` | Read a page as markdown |
 | `append_content` | Append markdown to a page |
 | `replace_content` | Replace all page content (destructive; duplicate_page first for irreplaceable content) |
@@ -278,11 +330,12 @@ easy-notion-mcp includes 26 individually-named tools across 5 categories. Each t
 | `search` | Search pages and databases |
 | `share_page` | Get the shareable URL |
 
-### Databases (8 tools)
+### Databases (9 tools)
 
 | Tool | Description |
 |---|---|
 | `create_database` | Create a database with typed schema |
+| `update_data_source` | Update database schema (add, rename, or remove properties; change title; trash or restore) |
 | `get_database` | Get database schema, property names, and options |
 | `list_databases` | List all databases the integration can access |
 | `query_database` | Query with filters, sorts, or text search |
@@ -291,7 +344,7 @@ easy-notion-mcp includes 26 individually-named tools across 5 categories. Each t
 | `update_database_entry` | Update a row using simple key-value pairs |
 | `delete_database_entry` | Delete (archive) a database entry |
 
-> **As of v0.3.0, database write tools reject unknown property names and unsupported property types with a clear error instead of silently dropping them.** Call `get_database` first to confirm property names and types. Supported property types for writes: `title`, `rich_text`, `number`, `select`, `multi_select`, `date`, `checkbox`, `url`, `email`, `phone`, `status`, `relation`. Other types (`people`, `files`, `formula`, `rollup`, and computed types like `created_time` / `unique_id`) are rejected; support for `people` / `files` is planned for future releases. For relation writes, pass either a single page-ID string (`"Projects": "page-id"`) or an array (`"Projects": ["id-a", "id-b"]`); an empty array clears the relation.
+> **Database write tools reject unknown property names and unsupported property types with a clear error instead of silently dropping them.** Call `get_database` first to confirm property names and types. Supported property types for writes: `title`, `rich_text`, `number`, `select`, `multi_select`, `date`, `checkbox`, `url`, `email`, `phone`, `status`, `relation`, `people`. For `people`, pass a single user-ID string or an array of user IDs. Computed types (`formula`, `rollup`, `unique_id`, `created_time`, `last_edited_time`, `created_by`, `last_edited_by`) are populated by Notion and cannot be set via API. Value writes are also rejected for `files`, `verification`, `place`, `location`, and `button`. For relation writes, pass either a single page-ID string (`"Projects": "page-id"`) or an array (`"Projects": ["id-a", "id-b"]`); an empty array clears the relation.
 
 easy-notion-mcp fetches the database schema, maps values to Notion's property format, and handles type conversion automatically when agents pass simple key-value pairs like `{ "Status": "Done" }`. Schema is cached for 5 minutes to avoid redundant API calls during batch operations.
 
@@ -311,7 +364,7 @@ easy-notion-mcp fetches the database schema, maps values to Notion's property fo
 
 ## What block types does easy-notion-mcp support?
 
-easy-notion-mcp supports 25 block types using standard markdown syntax extended with conventions for Notion-specific blocks like toggles, columns, and callouts. Agents write familiar markdown — easy-notion-mcp handles the conversion to and from Notion's block format.
+easy-notion-mcp supports 24 Notion block types using standard markdown syntax extended with conventions for Notion-specific blocks like toggles, columns, and callouts. Agents write familiar markdown — easy-notion-mcp handles the conversion to and from Notion's block format.
 
 ### Standard markdown
 
@@ -356,6 +409,8 @@ Yes. Round-trip fidelity is a core design guarantee of easy-notion-mcp, not a si
 
 What you write is what you read back. `read_page` returns the exact same markdown syntax that `create_page` accepts — headings, lists, tables, callouts, toggles, columns, equations, all of it.
 
+When a page contains Notion block types this server does not yet represent, such as `synced_block`, `child_database`, `child_page`, or `link_to_page`, `read_page` includes a `warnings` field with the omitted block IDs and types. Round-tripping that markdown through `replace_content` would delete those blocks, so the warning lets agents avoid unsafe rewrites.
+
 easy-notion-mcp enables agents to read a page, modify the markdown string, and write it back without losing formatting, structure, or content. No format translation. No block reconstruction. Agents edit Notion pages the same way they edit code — as text.
 
 ### What's the difference between find_replace and replace_content?
@@ -368,59 +423,9 @@ easy-notion-mcp provides three editing strategies for different use cases:
 
 ## How does easy-notion-mcp handle databases?
 
-easy-notion-mcp provides 8 database tools that abstract away Notion's complex property format. Agents pass simple key-value pairs like `{ "Status": "Done", "Priority": "High" }` — easy-notion-mcp fetches the database schema at runtime and converts to Notion's property format automatically.
+easy-notion-mcp provides 9 database tools that abstract away Notion's complex property format. Agents pass simple key-value pairs like `{ "Status": "Done", "Priority": "High" }`; easy-notion-mcp fetches the database schema at runtime, caches it for 5 minutes, and converts to Notion's property format automatically.
 
-easy-notion-mcp supports creating databases with typed schemas, querying with filters and sorts, and bulk operations via `add_database_entries` (multiple rows in one call). Schema is cached for 5 minutes to avoid redundant API calls during batch operations.
-
-## Configuration
-
-### Stdio mode (API token)
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `NOTION_TOKEN` | Yes | — | Notion API integration token |
-| `NOTION_ROOT_PAGE_ID` | No | — | Default parent page ID |
-| `NOTION_TRUST_CONTENT` | No | `false` | Skip content notice on `read_page` responses |
-
-> **About `.env` files (contributors only):** easy-notion-mcp loads a `.env` file from the current working directory via `dotenv`. In practice this means `.env` only "just works" when you run the server from a cloned repo checkout (`node dist/index.js` after `npm install && npm run build`), because the repo root is your cwd. It is **not** loaded when the package is invoked via `npx easy-notion-mcp` or a global install from an arbitrary directory — that is standard npm CLI behavior. For the `npx` path, pass `NOTION_TOKEN` via the `-e` flag in the [Claude Code setup](#with-api-token) above, or via your MCP client's config `env` block.
-
-### OAuth / HTTP transport
-
-Run `npx easy-notion-mcp-http` to start the HTTP server with OAuth support.
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `NOTION_OAUTH_CLIENT_ID` | Yes (OAuth mode) | — | Notion public integration OAuth client ID |
-| `NOTION_OAUTH_CLIENT_SECRET` | Yes (OAuth mode) | — | Notion public integration OAuth client secret |
-| `PORT` | No | `3333` | HTTP server port |
-| `OAUTH_REDIRECT_URI` | No | `http://localhost:{PORT}/callback` | OAuth callback URL |
-| `NOTION_MCP_BIND_HOST` | No | `127.0.0.1` | Bind address. Default is loopback; set `0.0.0.0` for network-reachable, or a specific interface like `192.168.1.5`. |
-| `NOTION_MCP_BEARER` | Yes (static-token mode) | — | Shared-secret bearer required by clients in static-token HTTP mode. Server refuses to start without it. Not required in OAuth mode. |
-
-To get OAuth credentials, create a **public integration** at [notion.so/profile/integrations](https://www.notion.so/profile/integrations) and configure `http://localhost:3333/callback` as the redirect URI.
-
-In OAuth mode, `create_page` works without `NOTION_ROOT_PAGE_ID` — pages are created in the user's private workspace section by default.
-
-### HTTP mode security posture
-
-The HTTP transport in v0.3.0 is designed for **trusted networks** — single-operator self-hosting with a bearer secret, or OAuth for shared deployments. It is not hardened for direct exposure to the open internet; put a reverse proxy with TLS in front of it if you need remote access.
-
-**Static-token mode requires a bearer.** Starting `npx easy-notion-mcp-http` with only `NOTION_TOKEN` set will refuse to start in v0.3.0+. Set a shared-secret bearer in the server's environment, then configure your MCP client to send it as `Authorization: Bearer <secret>` on every `/mcp` request:
-
-```bash
-export NOTION_MCP_BEARER=$(openssl rand -hex 32)
-NOTION_TOKEN=ntn_your_integration_token npx easy-notion-mcp-http
-```
-
-The bearer is compared with `crypto.timingSafeEqual`. Missing or wrong bearers get `401 { "error": "invalid_token" }`. Rotate the secret by restarting the server with a new value.
-
-**Default bind is loopback.** The server binds `127.0.0.1` by default — local processes only. Set `NOTION_MCP_BIND_HOST=0.0.0.0` to expose all interfaces, or a specific IP like `192.168.1.5` to expose one. Bearer is required regardless of bind.
-
-**Known v0.3.0 limits (full fix in v0.3.1):** DNS-rebinding protection is not yet wired for the MCP endpoint, and CORS on the OAuth endpoints (`/register`, `/token`, `/revoke`) is permissive. Until v0.3.1, bearer-always is the trust boundary — don't remove it even for loopback-only deployments.
-
-**OAuth mode for multi-user / remote.** OAuth has its own per-user bearer enforcement; `NOTION_MCP_BEARER` is not required in OAuth mode. For shared deployments, OAuth's per-user identity model is the right shape — static-token + bearer is intended for single-operator self-hosting.
-
-**`file://` uploads are stdio-only.** Markdown passed to `create_page`, `append_content`, `replace_content`, `update_section`, or `update_page.cover` with `file://` URLs is rejected over HTTP. Use stdio mode for local-file workflows (`create_page_from_file` is also stdio-only), or host the file at an HTTPS URL and use that URL in the markdown.
+easy-notion-mcp supports creating and updating databases with typed schemas, querying with filters and sorts, and bulk operations via `add_database_entries` (multiple rows in one call).
 
 ## What about security and prompt injection?
 
@@ -436,7 +441,7 @@ easy-notion-mcp includes two layers of security for production deployments:
 
 ### How is easy-notion-mcp different from the official Notion MCP server?
 
-The official Notion MCP npm package (`@notionhq/notion-mcp-server`) is a raw API proxy — it returns unmodified Notion JSON, costing ~90% more tokens per operation. easy-notion-mcp converts everything to standard GFM markdown that agents already know, supports 25 block types with round-trip fidelity, and includes prompt injection defense. Notion also offers a separate hosted remote MCP server (OAuth-based) that uses a custom HTML-tag-based markdown format — easy-notion-mcp uses standard markdown syntax instead.
+The official Notion MCP npm package (`@notionhq/notion-mcp-server`) is a raw API proxy — it returns unmodified Notion JSON, costing ~90% more tokens per operation. easy-notion-mcp converts everything to standard GFM markdown that agents already know, supports 24 block types with round-trip fidelity, and includes prompt injection defense. Notion also offers a separate hosted remote MCP server (OAuth-based) that uses a custom HTML-tag-based markdown format — easy-notion-mcp uses standard markdown syntax instead.
 
 ### What MCP clients does easy-notion-mcp work with?
 
