@@ -5,7 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-05-01
+
+### Breaking changes
+
+- **`replace_content` now uses Notion's atomic `pages.updateMarkdown` endpoint
+  (`type: "replace_content"`) instead of the previous delete-children +
+  append-children loop.** Block IDs, deep-link anchors, and inline-comment
+  threads on matched blocks are now preserved across `replace_content`. Side
+  effect of the previous delete-then-append: callers that relied on
+  `replace_content` to wipe a page clean of block types the parser doesn't
+  represent (`synced_block`, `child_page`, `child_database`, `link_to_page`)
+  no longer get the *atomic* wipe of those types — they are simply not
+  present in the new content. Use the Notion UI for those types or
+  duplicate_page to preserve them.
+- **Response shape on `replace_content` changed.** Previously
+  `{ deleted: number, appended: number }`; now
+  `{ success: true, truncated?: true, warnings?: Array<{code, ...}> }`. The
+  warnings array surfaces `unmatched_blocks` (when Notion's
+  `unknown_block_ids` is non-empty) and `bookmark_lost_on_atomic_replace` /
+  `embed_lost_on_atomic_replace` (Enhanced Markdown has no input form for
+  bookmarks/embeds; we emit bare URLs and warn).
+- **`replace_content` description softened.** Previously labeled
+  DESTRUCTIVE with no rollback; now describes block-ID preservation honestly
+  and names the block types that don't survive (child_page, synced_block,
+  child_database, link_to_page).
+
+### Added
+
+- **New tool `update_block`.** Surgical single-block edits via markdown,
+  preserving the block's identity (deep-link anchors and inline-comment
+  threads survive). Updatable block types: paragraph, heading_1/2/3,
+  bulleted_list_item, numbered_list_item, toggle, quote, callout, to_do,
+  code, equation. Pre-fetches `blocks.retrieve` to validate the existing
+  block type and return a friendly error on type mismatch instead of
+  forwarding the raw Notion API error. Supports `archived: true` to delete
+  any block.
+- **GFM-with-extensions → Notion Enhanced Markdown translator**
+  (`src/markdown-to-enhanced.ts`). Translates this server's input dialect
+  (`+++` toggles, `::: columns`, `> [!NOTE]` callouts, `[toc]`,
+  `$$equation$$`, bare-URL bookmarks) to the Enhanced Markdown XML form
+  Notion's atomic endpoints actually parse. Ground truth from the published
+  spec at `developers.notion.com/guides/data-apis/enhanced-markdown` plus
+  the live probes documented in
+  `.meta/research/pr3-live-probe-findings-2026-04-28.md`.
+- **`find_replace` now surfaces `unknown_block_ids`** from the API response
+  as a `warnings: [{ code: "unmatched_blocks", block_ids: [...] }]` entry
+  instead of discarding the field. Aligns with the parallel surfacing on
+  `replace_content`.
+
+## [0.5.1] - 2026-04-30
+
+### Fixed
+
+- **`easy-notion-mcp-http` exited silently when launched via `npx`, `bunx`, or
+  any `node_modules/.bin/` shim path.** The HTTP entry's main-module guard
+  compared `process.argv[1]` (shim path) directly with `import.meta.url`
+  (resolved file); under bin-shim invocation those don't match, so
+  `startServer()` never ran and the process exited 0 with no error. The
+  predicate is now extracted to `src/main-module.ts`, realpath-resolves
+  `argv[1]` before comparing, and absorbs realpath errors as false. Filed as
+  [#53](https://github.com/Grey-Iris/easy-notion-mcp/issues/53), shipped via
+  [#55](https://github.com/Grey-Iris/easy-notion-mcp/pull/55). The stdio entry
+  (`src/index.ts`) has no main-module guard and is intentionally unaffected by
+  this bug class.
+
+### Notes
+
+- Retroactive entry — the v0.5.1 release commit (`e8a9e21`) bumped package
+  versions but did not update CHANGELOG. Added during v0.6.0 release prep.
 
 ## [0.5.0] - 2026-04-23
 

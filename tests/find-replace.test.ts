@@ -256,7 +256,7 @@ describe("find_replace handler (synthesis C6)", () => {
     }
   });
 
-  it("KNOWN GAP: discards unknown_block_ids and markdown fields from the API response shape", async () => {
+  it("surfaces unknown_block_ids from the API response as a warnings entry (PR3, DP6=A)", async () => {
     const notion = makeNotion({
       object: "page_markdown",
       id: "page-1",
@@ -275,15 +275,17 @@ describe("find_replace handler (synthesis C6)", () => {
         },
       });
 
-      // KNOWN GAP (planner-observed 2026-04-20).
-      // The Notion type contract proves `markdown` and `unknown_block_ids`
-      // exist on PageMarkdownResponse, but it does not prove the runtime rules
-      // for what populates `unknown_block_ids`. Today we simply drop both
-      // fields. This assertion should flip when a follow-up surfaces them in a
-      // warnings/result shape instead of discarding them.
+      // PR3 (DP6=A): we surface `unknown_block_ids` from the Notion response as
+      // a non-fatal warning so callers learn which blocks the parser couldn't
+      // represent. Mirrors the parallel behavior shipped on `replace_content`
+      // in the same PR. Replaces the prior "KNOWN GAP" assertion that the
+      // field was discarded.
       const response = JSON.parse(parseToolText(result));
       expect(notion.pages.updateMarkdown).toHaveBeenCalledOnce();
-      expect(response).toEqual({ success: true });
+      expect(response).toEqual({
+        success: true,
+        warnings: [{ code: "unmatched_blocks", block_ids: ["block-aaa", "block-bbb"] }],
+      });
     } finally {
       await close();
     }

@@ -828,6 +828,34 @@ export async function deleteBlock(client: Client, blockId: string) {
   return client.blocks.delete({ block_id: blockId });
 }
 
+export async function retrieveBlock(client: Client, blockId: string) {
+  return client.blocks.retrieve({ block_id: blockId });
+}
+
+export async function replacePageMarkdown(
+  client: Client,
+  pageId: string,
+  newStr: string,
+  options: { allowDeletingContent?: boolean } = {},
+) {
+  return (client as any).pages.updateMarkdown({
+    page_id: pageId,
+    type: "replace_content",
+    replace_content: {
+      new_str: newStr,
+      allow_deleting_content: options.allowDeletingContent ?? true,
+    },
+  });
+}
+
+export async function updateBlock(
+  client: Client,
+  blockId: string,
+  payload: Record<string, unknown>,
+) {
+  return (client.blocks as any).update({ block_id: blockId, ...payload });
+}
+
 export async function getPage(client: Client, pageId: string) {
   return client.pages.retrieve({ page_id: pageId });
 }

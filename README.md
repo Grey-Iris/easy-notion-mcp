@@ -303,9 +303,9 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 28 individually-named tools across 5 categories. Each tool is self-documenting with complete usage examples — agents know exactly how to use every tool from the first message, with no extra round-trips needed.
+easy-notion-mcp includes 29 individually-named tools across 5 categories. Each tool is self-documenting with complete usage examples — agents know exactly how to use every tool from the first message, with no extra round-trips needed.
 
-### Pages (12 tools)
+### Pages (13 tools)
 
 | Tool | Description |
 |---|---|
@@ -313,9 +313,10 @@ easy-notion-mcp includes 28 individually-named tools across 5 categories. Each t
 | `create_page_from_file` | Create a page from a local markdown file (stdio only) |
 | `read_page` | Read a page as markdown |
 | `append_content` | Append markdown to a page |
-| `replace_content` | Replace all page content (destructive; duplicate_page first for irreplaceable content) |
+| `replace_content` | Replace all page content atomically (preserves block IDs of matched blocks) |
 | `update_section` | Update a section by heading name (destructive; duplicate_page first for irreplaceable content) |
 | `find_replace` | Find and replace text, preserving files |
+| `update_block` | Update a single block by ID (preserves block identity for deep links and comments) |
 | `update_page` | Update title, icon, or cover |
 | `duplicate_page` | Copy a page and its content |
 | `archive_page` | Move a page to trash |
