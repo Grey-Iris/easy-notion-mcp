@@ -6,6 +6,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
+    "easy-notion": "dist/cli.js",
     "easy-notion-mcp": "dist/index.js",
     "easy-notion-mcp-http": "dist/http.js"
   },

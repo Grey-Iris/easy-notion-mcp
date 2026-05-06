@@ -162,7 +162,7 @@ function textResponse(result: unknown) {
   };
 }
 
-function getPageTitle(page: any): string | undefined {
+export function getPageTitle(page: any): string | undefined {
   const titleProperty = Object.values(page.properties ?? {}).find(
     (property: any) => property?.type === "title",
   ) as any;
@@ -536,7 +536,7 @@ function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
   }
 }
 
-async function fetchBlocksRecursive(
+export async function fetchBlocksRecursive(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
   ctx?: FetchContext,
@@ -566,7 +566,7 @@ async function fetchBlocksRecursive(
   return results;
 }
 
-async function fetchBlocksWithLimit(
+export async function fetchBlocksWithLimit(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
   maxBlocks: number,
