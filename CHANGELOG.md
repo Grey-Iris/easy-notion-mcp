@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`meeting_notes` blocks are explicitly reported as omitted on reads.**
+  Notion's renamed transcription block type remains read-only in this
+  markdown dialect; read responses surface it through `omitted_block_types`
+  warnings instead of silently dropping it.
 - **Warning documentation resource matches runtime contracts.** The warnings
   resource documents the emitted `truncated_properties`,
   `bookmark_lost_on_atomic_replace`, and `embed_lost_on_atomic_replace` shapes.

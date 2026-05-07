@@ -18,6 +18,7 @@
 import "dotenv/config";
 
 import { Client } from "@notionhq/client";
+import { NOTION_VERSION } from "../../src/notion-version.js";
 
 type ProbeResult = {
   name: string;
@@ -376,7 +377,7 @@ async function main() {
   if (!token) throw new Error("NOTION_TOKEN required");
   if (!parentPageId) throw new Error("BENCH_ROOT_PAGE_ID or E2E_ROOT_PAGE_ID required");
 
-  const client = new Client({ auth: token, notionVersion: "2025-09-03" });
+  const client = new Client({ auth: token, notionVersion: NOTION_VERSION });
 
   results.push(await probe1AllowDeletingContent(client, parentPageId));
   results.push(await probe2CustomSyntax(client, parentPageId));

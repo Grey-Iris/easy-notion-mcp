@@ -1,4 +1,5 @@
 import { Client } from "@notionhq/client";
+import { NOTION_VERSION } from "../src/notion-version.js";
 
 const token = process.env.NOTION_TOKEN!;
 const rootPageId = process.env.NOTION_ROOT_PAGE_ID!;
@@ -8,7 +9,7 @@ if (!token || !rootPageId) {
   process.exit(1);
 }
 
-const notion = new Client({ auth: token, notionVersion: "2025-09-03" });
+const notion = new Client({ auth: token, notionVersion: NOTION_VERSION });
 
 // Import the functions we need to test
 import {

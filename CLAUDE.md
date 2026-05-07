@@ -136,7 +136,7 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 ## Key decisions
 
 - **`marked`** for markdown parsing (nested token tree, bundled TS types, simpler than remark/unified)
-- **`@notionhq/client` v5.13.x** — matches Notion-Version: 2025-09-03
+- **`@notionhq/client` v5.20.x** — matches Notion-Version: 2026-03-11
 - **Markdown as the interface** — agents never construct Notion block objects. This keeps tool usage simple and lets the conversion logic evolve independently
 - **Database entry conversion** — fetches database schema at runtime to correctly map simple key-value pairs to Notion property format
 - **Schema caching** — database schemas are cached in-memory with a 5-minute TTL to avoid redundant API calls during batch operations

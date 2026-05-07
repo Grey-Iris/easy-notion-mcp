@@ -221,7 +221,7 @@ Shape:
 \`\`\`json
 {
   "code": "omitted_block_types",
-  "blocks": [{ "id": "block-id", "type": "synced_block" }]
+  "blocks": [{ "id": "block-id", "type": "meeting_notes" }]
 }
 \`\`\`
 
@@ -1232,7 +1232,7 @@ Long titles are paginated with max_property_items. For markdown conventions, war
   },
   {
     name: "duplicate_page",
-    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a \`warnings\` field. Deep-duplication of subpages is not yet supported.`,
+    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page, meeting_notes), those are omitted from the duplicate AND listed in a \`warnings\` field. Deep-duplication of subpages is not yet supported.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -2185,8 +2185,8 @@ export function createServer(
           ) as any;
           // Derive the response's properties list from what we actually sent
           // to Notion (schemaToProperties silently drops unsupported types).
-          // databases.create under API 2025-09-03 does not populate
-          // result.properties on the response — properties live on the data
+          // databases.create does not populate result.properties on the
+          // response — properties live on the data
           // source, not the database — so reading from `result` would always
           // return []. Mirroring schemaToProperties' output gives the truthful
           // "what Notion created" shape without an extra round-trip (G-4c).

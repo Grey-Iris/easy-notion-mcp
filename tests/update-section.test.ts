@@ -13,6 +13,10 @@ function richText(text: string) {
   return [{ plain_text: text, text: { content: text } }];
 }
 
+function appendPositionId(args: any) {
+  return args.position?.type === "after_block" ? args.position.after_block.id : "";
+}
+
 async function connect(notion: any) {
   const server = createServer(() => notion, {});
   const client = new McpClient(
@@ -59,7 +63,7 @@ function makeUpdateSectionNotion(
           has_more: false,
         })),
         append: vi.fn(async (args: any) => {
-          mutations.push(`append:${args.block_id}:${args.after ?? ""}`);
+          mutations.push(`append:${args.block_id}:${appendPositionId(args)}`);
           return {
             results: args.children.map((child: any, index: number) => ({
               id: `new-${index}`,
@@ -212,7 +216,7 @@ describe("update_section handler", () => {
       expect(notion.blocks.delete).toHaveBeenCalledWith({ block_id: "old-body" });
       expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
         block_id: "page-1",
-        after: "h2-target",
+        position: { type: "after_block", after_block: { id: "h2-target" } },
       }));
       expect(notion.blocks.children.append.mock.calls[0][0].children[0]).toEqual(expect.objectContaining({
         type: "paragraph",

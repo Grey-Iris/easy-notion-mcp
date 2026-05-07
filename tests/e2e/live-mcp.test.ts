@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { markdownToBlocks } from "../../src/markdown-to-blocks.js";
+import { NOTION_VERSION } from "../../src/notion-version.js";
 import type { NotionBlock } from "../../src/types.js";
 import { checkE2eEnv } from "./helpers/env-gate.js";
 import { McpStdioClient } from "./helpers/mcp-stdio-client.js";
@@ -986,7 +987,7 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(created.id);
 
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const before = await liveClient.blocks.children.list({ block_id: created.id });
       const beforeIds = before.results.map((b: any) => b.id);
       const beforeTypes = before.results.map((b: any) => b.type);
@@ -1057,7 +1058,7 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(created.id);
 
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const before = await liveClient.blocks.children.list({ block_id: created.id });
       const anchorBlock = before.results.find((b: any) => {
         const text = b?.paragraph?.rich_text?.map((t: any) => t.plain_text).join("");
@@ -1118,7 +1119,7 @@ describe.skipIf(!env.shouldRun)(
 
       // Pull the block IDs directly via the same Notion client the e2e harness uses.
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const beforeList = await liveClient.blocks.children.list({ block_id: created.id });
       const middleBlock = beforeList.results.find((b: any) => {
         const text = b?.paragraph?.rich_text?.map((t: any) => t.plain_text).join("");
@@ -1162,7 +1163,7 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(created.id);
 
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const before = await liveClient.blocks.children.list({ block_id: created.id });
       const todoBlock = before.results.find((b: any) => b.type === "to_do") as any;
       expect(todoBlock).toBeDefined();

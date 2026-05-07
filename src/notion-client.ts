@@ -1,8 +1,12 @@
 import { Client } from "@notionhq/client";
-import type { UpdateDataSourceParameters } from "@notionhq/client/build/src/api-endpoints.js";
+import type {
+  AppendBlockChildrenParameters,
+  UpdateDataSourceParameters,
+} from "@notionhq/client/build/src/api-endpoints.js";
 import { readFile, realpath, stat } from "fs/promises";
 import { basename, extname, isAbsolute, resolve as pathResolve, sep } from "path";
 import { fileURLToPath } from "url";
+import { NOTION_VERSION } from "./notion-version.js";
 import {
   normalizeBlockRichTextForWrite,
   normalizeBlockUpdatePayloadRichTextForWrite,
@@ -15,7 +19,7 @@ export type PageParent =
   | { type: "workspace"; workspace: true };
 
 export function createNotionClient(token: string) {
-  return new Client({ auth: token, notionVersion: "2025-09-03" });
+  return new Client({ auth: token, notionVersion: NOTION_VERSION });
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
@@ -284,11 +288,14 @@ async function appendPreparedBlocks(
 
   for (let index = 0; index < blocks.length; index += NOTION_BLOCK_CHILDREN_LIMIT) {
     const chunk = blocks.slice(index, index + NOTION_BLOCK_CHILDREN_LIMIT);
-    const response = await client.blocks.children.append({
+    const appendRequest: AppendBlockChildrenParameters = {
       block_id: parentBlockId,
-      children: chunk.map((block) => prepareBlockForWrite(block)) as any[],
-      ...(afterBlockId ? { after: afterBlockId } : {}),
-    } as any);
+      children: chunk.map((block) => prepareBlockForWrite(block)) as AppendBlockChildrenParameters["children"],
+      ...(afterBlockId
+        ? { position: { type: "after_block", after_block: { id: afterBlockId } } }
+        : {}),
+    };
+    const response = await client.blocks.children.append(appendRequest);
     results.push(...response.results);
 
     if (response.results.length > 0) {
@@ -533,7 +540,7 @@ async function getDataSourceId(client: Client, dbId: string): Promise<string> {
 
 /**
  * Get cached schema (properties) for a database.
- * In API 2025-09-03, properties live on the data source, not the database.
+ * Database properties live on the data source, not the database container.
  */
 export async function getCachedSchema(client: Client, dbId: string) {
   const cached = schemaCache.get(dbId);

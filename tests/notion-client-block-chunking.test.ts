@@ -194,6 +194,11 @@ function makeNotionClient() {
 }
 
 describe("notion-client block append chunking", () => {
+  const afterBlockPosition = (id: string) => ({
+    type: "after_block",
+    after_block: { id },
+  });
+
   it("splits long paragraph rich_text in page creation payloads while preserving metadata", async () => {
     const notion = makeNotionClient();
     const content = "a".repeat(4501);
@@ -514,7 +519,7 @@ describe("notion-client block append chunking", () => {
     });
   });
 
-  it("appendBlocksAfter chunks at 100 blocks and carries the after cursor forward", async () => {
+  it("appendBlocksAfter chunks at 100 blocks and carries the append position forward", async () => {
     const notion = makeNotionClient();
     const blocks = makeBlocks(250);
 
@@ -522,15 +527,15 @@ describe("notion-client block append chunking", () => {
 
     expect(notion.blocks.children.append).toHaveBeenCalledTimes(3);
     expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.children.length)).toEqual([100, 100, 50]);
-    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.after)).toEqual([
-      "after-block-id",
-      "Block 99",
-      "Block 199",
+    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.position)).toEqual([
+      afterBlockPosition("after-block-id"),
+      afterBlockPosition("Block 99"),
+      afterBlockPosition("Block 199"),
     ]);
     expect(results.map((result: any) => result.id)).toEqual(blocks.map(blockText));
   });
 
-  it("appendBlocksAfter preserves the top-level after cursor when nested children are deferred", async () => {
+  it("appendBlocksAfter preserves the top-level append position when nested children are deferred", async () => {
     const notion = makeNotionClient();
     const blocks = [
       bullet("Parent", [paragraph(999)]),
@@ -546,10 +551,10 @@ describe("notion-client block append chunking", () => {
       "Parent",
       "page-id",
     ]);
-    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.after)).toEqual([
-      "after-block-id",
+    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.position)).toEqual([
+      afterBlockPosition("after-block-id"),
       undefined,
-      "Block 98",
+      afterBlockPosition("Block 98"),
     ]);
   });
 });

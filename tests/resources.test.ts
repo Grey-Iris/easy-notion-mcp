@@ -78,7 +78,7 @@ describe("MCP documentation resources", () => {
     const expectedShapes = [
       [
         "omitted_block_types",
-        '"blocks": [{ "id": "block-id", "type": "synced_block" }]',
+        '"blocks": [{ "id": "block-id", "type": "meeting_notes" }]',
       ],
       [
         "truncated_properties",
