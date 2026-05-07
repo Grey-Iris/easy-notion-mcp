@@ -275,7 +275,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking changes
 
 - **Static-token HTTP mode now requires `NOTION_MCP_BEARER`.** Starting
-  `npx easy-notion-mcp-http` (or `node dist/http.js`) with only
+  `npx -p easy-notion-mcp easy-notion-mcp-http` (or `node dist/http.js`) with only
   `NOTION_TOKEN` set refuses to boot. Set a shared-secret bearer and
   configure every MCP client to send it on the `Authorization` header:
 

@@ -127,7 +127,7 @@ API-token + stdio is the lower-friction default. If you're running a shared depl
 **Start the server:**
 
 ```bash
-npx easy-notion-mcp-http
+npx -p easy-notion-mcp easy-notion-mcp-http
 ```
 
 Requires `NOTION_OAUTH_CLIENT_ID` and `NOTION_OAUTH_CLIENT_SECRET` env vars. See [OAuth setup](#oauth--http-transport) below.
@@ -183,7 +183,7 @@ export NOTION_MCP_BEARER=$(openssl rand -hex 32)
 NOTION_TOKEN=ntn_your_integration_token \
   NOTION_MCP_BIND_HOST=0.0.0.0 \
   NOTION_MCP_BEARER=$NOTION_MCP_BEARER \
-  npx easy-notion-mcp-http
+  npx -p easy-notion-mcp easy-notion-mcp-http
 ```
 
 In your platform's MCP server settings, use `host.docker.internal` instead of `localhost`, and add the bearer to the request headers:
@@ -215,7 +215,7 @@ If you run into questions during setup, the [Discord community](https://discord.
 
 ### OAuth / HTTP transport
 
-Run `npx easy-notion-mcp-http` to start the HTTP server with OAuth support.
+Run `npx -p easy-notion-mcp easy-notion-mcp-http` to start the HTTP server with OAuth support.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -234,11 +234,11 @@ In OAuth mode, `create_page` works without `NOTION_ROOT_PAGE_ID` — pages are c
 
 The HTTP transport is designed for **trusted networks**: single-operator self-hosting with a bearer secret, or OAuth for shared deployments. It is not hardened for direct exposure to the open internet; put a reverse proxy with TLS in front of it if you need remote access.
 
-**Static-token mode requires a bearer.** Starting `npx easy-notion-mcp-http` with only `NOTION_TOKEN` set will refuse to start. Set a shared-secret bearer in the server's environment, then configure your MCP client to send it as `Authorization: Bearer <secret>` on every `/mcp` request:
+**Static-token mode requires a bearer.** Starting `npx -p easy-notion-mcp easy-notion-mcp-http` with only `NOTION_TOKEN` set will refuse to start. Set a shared-secret bearer in the server's environment, then configure your MCP client to send it as `Authorization: Bearer <secret>` on every `/mcp` request:
 
 ```bash
 export NOTION_MCP_BEARER=$(openssl rand -hex 32)
-NOTION_TOKEN=ntn_your_integration_token npx easy-notion-mcp-http
+NOTION_TOKEN=ntn_your_integration_token npx -p easy-notion-mcp easy-notion-mcp-http
 ```
 
 The bearer is compared with `crypto.timingSafeEqual`. Missing or wrong bearers get `401 { "error": "invalid_token" }`. Rotate the secret by restarting the server with a new value.
