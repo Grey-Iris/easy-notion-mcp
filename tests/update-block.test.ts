@@ -87,6 +87,28 @@ describe("update_block handler", () => {
     }
   });
 
+  it("splits long paragraph rich_text in block update payloads", async () => {
+    const notion = makeNotion({ type: "paragraph" });
+    const { client, close } = await connect(notion);
+    try {
+      const markdown = "x".repeat(2001);
+
+      await client.callTool({
+        name: "update_block",
+        arguments: {
+          block_id: "block-1",
+          markdown,
+        },
+      });
+
+      const call = notion.blocks.update.mock.calls[0][0] as any;
+      expect(call.paragraph.rich_text.map((item: any) => item.text.content.length)).toEqual([2000, 1]);
+      expect(call.paragraph.rich_text.map((item: any) => item.text.content).join("")).toBe(markdown);
+    } finally {
+      await close();
+    }
+  });
+
   describe("forwards markdown for each editable type with the correct top-level key", () => {
     const cases: Array<{ existingType: string; markdown: string; key: string; assertContent?: (payload: any) => void }> = [
       {

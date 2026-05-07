@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { appendBlocks, appendBlocksAfter, createPage } from "../src/notion-client.js";
-import type { NotionBlock } from "../src/types.js";
+import type { NotionBlock, RichText } from "../src/types.js";
 
 function paragraph(index: number): NotionBlock {
   return {
@@ -14,6 +14,26 @@ function paragraph(index: number): NotionBlock {
 
 function text(content: string) {
   return [{ type: "text" as const, text: { content } }];
+}
+
+function richText(
+  content: string,
+  options: {
+    link?: string;
+    responseOnly?: Record<string, unknown>;
+    annotations?: RichText["annotations"];
+  } = {},
+): RichText {
+  const segment: RichText & Record<string, unknown> = {
+    type: "text",
+    text: {
+      content,
+      ...(options.link ? { link: { url: options.link } } : {}),
+    },
+    ...options.responseOnly,
+    ...(options.annotations ? { annotations: options.annotations } : {}),
+  };
+  return segment;
 }
 
 function bullet(content: string, children?: NotionBlock[]): NotionBlock {
@@ -65,6 +85,16 @@ function table(rows: NotionBlock[]): NotionBlock {
       has_column_header: true,
       has_row_header: false,
       children: rows,
+    },
+  };
+}
+
+function codeBlock(content: string): NotionBlock {
+  return {
+    type: "code",
+    code: {
+      rich_text: [richText(content)],
+      language: "typescript",
     },
   };
 }
@@ -151,6 +181,70 @@ function makeNotionClient() {
 }
 
 describe("notion-client block append chunking", () => {
+  it("splits long paragraph rich_text in page creation payloads while preserving metadata", async () => {
+    const notion = makeNotionClient();
+    const content = "a".repeat(4501);
+    const link = "https://example.com/long";
+    const annotations = { bold: true, italic: true, color: "red" };
+    const blocks: NotionBlock[] = [{
+      type: "paragraph",
+      paragraph: {
+        rich_text: [richText(content, {
+          link,
+          annotations,
+          responseOnly: { href: link, plain_text: content },
+        })],
+      },
+    }];
+
+    await createPage(notion, "parent-page-id", "Long page", blocks);
+
+    const sentRichText = notion.pages.create.mock.calls[0][0].children[0].paragraph.rich_text;
+    expect(sentRichText.map((item: RichText) => item.text.content.length)).toEqual([2000, 2000, 501]);
+    expect(sentRichText.map((item: RichText) => item.text.content).join("")).toBe(content);
+    expect(sentRichText).toEqual(
+      sentRichText.map((item: RichText) => ({
+        type: "text",
+        text: { content: item.text.content, link: { url: link } },
+        annotations,
+      })),
+    );
+    expect(sentRichText.some((item: Record<string, unknown>) => "href" in item || "plain_text" in item)).toBe(false);
+  });
+
+  it("splits long table cell rich_text before appending", async () => {
+    const notion = makeNotionClient();
+    const content = "b".repeat(2001);
+    const blocks = [
+      table([{
+        type: "table_row",
+        table_row: {
+          cells: [[richText(content, { annotations: { code: true } })]],
+        },
+      }]),
+    ];
+
+    await appendBlocks(notion, "page-id", blocks);
+
+    const sentCells = notion.blocks.children.append.mock.calls[0][0].children[0].table.children[0].table_row.cells;
+    expect(sentCells[0].map((item: RichText) => item.text.content.length)).toEqual([2000, 1]);
+    expect(sentCells[0].map((item: RichText) => item.text.content).join("")).toBe(content);
+    expect(sentCells[0].every((item: RichText) => item.annotations?.code === true)).toBe(true);
+  });
+
+  it("splits long deferred nested code rich_text before appending child blocks", async () => {
+    const notion = makeNotionClient();
+    const content = "c".repeat(4005);
+
+    await appendBlocks(notion, "page-id", [toggle("Toggle", [codeBlock(content)])]);
+
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(2);
+    const sentCode = notion.blocks.children.append.mock.calls[1][0].children[0].code;
+    expect(sentCode.rich_text.map((item: RichText) => item.text.content.length)).toEqual([2000, 2000, 5]);
+    expect(sentCode.rich_text.map((item: RichText) => item.text.content).join("")).toBe(content);
+    expect(sentCode.language).toBe("typescript");
+  });
+
   it("creates a page with at most 100 children and appends the remaining top-level blocks", async () => {
     const notion = makeNotionClient();
     const blocks = makeBlocks(101);

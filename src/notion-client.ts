@@ -3,6 +3,11 @@ import type { UpdateDataSourceParameters } from "@notionhq/client/build/src/api-
 import { readFile, stat } from "fs/promises";
 import { basename, extname } from "path";
 import { fileURLToPath } from "url";
+import {
+  normalizeBlockRichTextForWrite,
+  normalizeBlockUpdatePayloadRichTextForWrite,
+  splitLongRichText,
+} from "./rich-text.js";
 import type { NotionBlock } from "./types.js";
 
 export type PageParent =
@@ -35,7 +40,7 @@ function getMimeType(filePath: string): string {
 }
 
 function titleRichText(content: string) {
-  return [{ type: "text" as const, text: { content } }];
+  return splitLongRichText([{ type: "text" as const, text: { content } }]);
 }
 
 function emptyParagraphBlock(): NotionBlock {
@@ -86,6 +91,8 @@ function usesPlaceholderColumnSeed(block: NotionBlock): boolean {
 }
 
 function prepareBlockForWrite(block: NotionBlock): any {
+  block = normalizeBlockRichTextForWrite(block);
+
   if (isOptionalChildrenContainer(block)) {
     return withoutBlockChildren(block);
   }
@@ -1079,7 +1086,10 @@ export async function updateBlock(
   blockId: string,
   payload: Record<string, unknown>,
 ) {
-  return (client.blocks as any).update({ block_id: blockId, ...payload });
+  return (client.blocks as any).update({
+    block_id: blockId,
+    ...normalizeBlockUpdatePayloadRichTextForWrite(payload),
+  });
 }
 
 export async function getPage(client: Client, pageId: string) {
@@ -1269,8 +1279,8 @@ export async function listComments(client: Client, pageId: string) {
 export async function addComment(client: Client, pageId: string, richText: any[]) {
   return client.comments.create({
     parent: { page_id: pageId },
-    rich_text: richText,
-  });
+    rich_text: splitLongRichText(richText),
+  } as any);
 }
 
 export async function createDatabaseEntry(
