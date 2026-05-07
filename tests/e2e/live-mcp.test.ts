@@ -84,6 +84,34 @@ type AddDatabaseEntryResponse = {
   error?: string;
 };
 
+type AppendContentResponse = {
+  success?: boolean;
+  blocks_added?: number;
+  error?: string;
+};
+
+type FindReplaceResponse = {
+  success?: boolean;
+  truncated?: boolean;
+  warnings?: unknown;
+  error?: string;
+};
+
+type DuplicatePageResponse = {
+  id: string;
+  title?: string;
+  url: string;
+  source_page_id?: string;
+  warnings?: unknown;
+  error?: string;
+};
+
+type AddDatabaseEntriesResponse = {
+  succeeded: Array<{ id: string; url: string }>;
+  failed: Array<{ index: number; error: string }>;
+  error?: string;
+};
+
 type QueryDatabaseWarning = {
   code?: string;
   properties?: Array<Record<string, unknown>>;
@@ -1153,6 +1181,186 @@ describe.skipIf(!env.shouldRun)(
       const afterTodo = after.results.find((b: any) => b.id === todoId) as any;
       expect(afterTodo).toBeDefined();
       expect(afterTodo.to_do.checked).toBe(true);
+    }, 30_000);
+
+    it("G1: append_content appends content to an existing page", async () => {
+      const originalSentinel = "G1 original sentinel";
+      const appendedSentinel = "G1 appended sentinel";
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G1 append_content",
+        markdown: originalSentinel,
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const appended = await callTool<AppendContentResponse>(client, "append_content", {
+        page_id: created.id,
+        markdown: appendedSentinel,
+      });
+
+      expect(appended.error).toBeUndefined();
+      expect(appended.success).toBe(true);
+      expect(appended.blocks_added).toBeGreaterThanOrEqual(1);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      });
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+
+      const body = stripContentNotice(page.markdown);
+      expect(body).toContain(originalSentinel);
+      expect(body).toContain(appendedSentinel);
+      expect(body.indexOf(originalSentinel)).toBeLessThan(body.indexOf(appendedSentinel));
+    }, 30_000);
+
+    it("G2: find_replace updates matching page content through native updateMarkdown", async () => {
+      const oldSentinel = "G2 old sentinel";
+      const replacementSentinel = "G2 replacement sentinel";
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G2 find_replace",
+        markdown: [
+          `First paragraph has ${oldSentinel}.`,
+          "",
+          `Second paragraph has ${oldSentinel}.`,
+        ].join("\n"),
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const replaced = await callTool<FindReplaceResponse>(client, "find_replace", {
+        page_id: created.id,
+        find: oldSentinel,
+        replace: replacementSentinel,
+        replace_all: true,
+      });
+
+      expect(replaced.error).toBeUndefined();
+      expect(replaced.success).toBe(true);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      });
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+
+      const body = stripContentNotice(page.markdown);
+      expect(body).not.toContain(oldSentinel);
+      expect(body.split(replacementSentinel).length - 1).toBe(2);
+    }, 30_000);
+
+    it("G3: duplicate_page copies supported page content", async () => {
+      const sourceSentinel = "G3 duplicate source sentinel";
+      const duplicateTitle = "G3 duplicate copy";
+      const source = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G3 duplicate source",
+        markdown: `## Supported content\n\n${sourceSentinel}`,
+      });
+      expect(source.error).toBeUndefined();
+      ctx.createdPageIds.push(source.id);
+
+      const duplicate = await callTool<DuplicatePageResponse>(client, "duplicate_page", {
+        page_id: source.id,
+        title: duplicateTitle,
+        parent_page_id: ctx.sandboxId!,
+      });
+      if (duplicate.id) {
+        ctx.createdPageIds.push(duplicate.id);
+      }
+
+      expect(duplicate.error).toBeUndefined();
+      expect(duplicate.id).toEqual(expect.any(String));
+      expect(duplicate.source_page_id).toBe(source.id);
+      expect(duplicate.title).toBe(duplicateTitle);
+      assertNoWarnings(duplicate);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: duplicate.id,
+      });
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+      expect(stripContentNotice(page.markdown)).toContain(sourceSentinel);
+    }, 30_000);
+
+    it("G4: update_database_entry updates a row property", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G4 update_database_entry",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Count", type: "number" },
+        ],
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const row = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Title: "G4 row",
+          Count: 1,
+        },
+      });
+      expect(row.error).toBeUndefined();
+      ctx.createdPageIds.push(row.id);
+
+      const updated = await callTool<AddDatabaseEntryResponse>(client, "update_database_entry", {
+        page_id: row.id,
+        properties: {
+          Count: 2,
+        },
+      });
+      expect(updated.error).toBeUndefined();
+      expect(updated.id).toBe(row.id);
+
+      const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
+        database_id: created.id,
+      });
+      const updatedRow = rowsResponse.results.find((candidate) => candidate.Title === "G4 row");
+      expect(updatedRow).toBeDefined();
+      expect(updatedRow?.Count).toBe(2);
+    }, 30_000);
+
+    it("G5: add_database_entries creates multiple rows", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G5 add_database_entries",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Count", type: "number" },
+        ],
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const added = await callTool<AddDatabaseEntriesResponse>(client, "add_database_entries", {
+        database_id: created.id,
+        entries: [
+          { Title: "G5 row one", Count: 10 },
+          { Title: "G5 row two", Count: 20 },
+        ],
+      });
+      for (const entry of added.succeeded ?? []) {
+        ctx.createdPageIds.push(entry.id);
+      }
+
+      expect(added.error).toBeUndefined();
+      expect(added.succeeded).toHaveLength(2);
+      expect(added.failed).toHaveLength(0);
+
+      const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
+        database_id: created.id,
+      });
+      const rowOne = rowsResponse.results.find((candidate) => candidate.Title === "G5 row one");
+      const rowTwo = rowsResponse.results.find((candidate) => candidate.Title === "G5 row two");
+
+      expect(rowOne).toBeDefined();
+      expect(rowOne?.Count).toBe(10);
+      expect(rowTwo).toBeDefined();
+      expect(rowTwo?.Count).toBe(20);
     }, 30_000);
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {
