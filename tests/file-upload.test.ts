@@ -3,6 +3,11 @@ import { getCodeRanges, processFileUploads } from "../src/file-upload.js";
 import { uploadFile } from "../src/notion-client.js";
 
 vi.mock("../src/notion-client.js", () => ({
+  resolveWorkspaceUploadPath: vi.fn(async () => ({
+    filePath: "/tmp/test.png",
+    realFilePath: "/tmp/test.png",
+    fileStat: { isFile: () => true, size: 0 },
+  })),
   uploadFile: vi.fn(),
 }));
 

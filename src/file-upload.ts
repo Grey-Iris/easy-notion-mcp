@@ -1,5 +1,5 @@
 import type { Client } from "@notionhq/client";
-import { uploadFile } from "./notion-client.js";
+import { resolveWorkspaceUploadPath, uploadFile } from "./notion-client.js";
 
 export type FileUploadTransport = "stdio" | "http";
 
@@ -83,6 +83,8 @@ export async function processFileUploads(
   if (transport !== "stdio") {
     throw new Error(FILE_SCHEME_HTTP_ERROR);
   }
+
+  await Promise.all(realMatches.map((m) => resolveWorkspaceUploadPath(m.url)));
 
   // Upload all files in parallel
   const uploads = await Promise.all(

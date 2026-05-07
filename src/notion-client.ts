@@ -1,7 +1,7 @@
 import { Client } from "@notionhq/client";
 import type { UpdateDataSourceParameters } from "@notionhq/client/build/src/api-endpoints.js";
-import { readFile, stat } from "fs/promises";
-import { basename, extname } from "path";
+import { readFile, realpath, stat } from "fs/promises";
+import { basename, extname, isAbsolute, resolve as pathResolve, sep } from "path";
 import { fileURLToPath } from "url";
 import {
   normalizeBlockRichTextForWrite,
@@ -37,6 +37,52 @@ const MIME_TYPES: Record<string, string> = {
 function getMimeType(filePath: string): string {
   const ext = extname(filePath).toLowerCase();
   return MIME_TYPES[ext] ?? "application/octet-stream";
+}
+
+export async function resolveWorkspaceUploadPath(fileUrl: string): Promise<{
+  filePath: string;
+  realFilePath: string;
+  fileStat: Awaited<ReturnType<typeof stat>>;
+}> {
+  const filePath = fileURLToPath(fileUrl);
+  if (!isAbsolute(filePath)) {
+    throw new Error(`uploadFile: file path must be absolute: ${filePath}`);
+  }
+
+  const workspaceRoot = process.env.NOTION_MCP_WORKSPACE_ROOT || process.cwd();
+  let realFilePath: string;
+  let realWorkspaceRoot: string;
+
+  try {
+    realFilePath = await realpath(pathResolve(filePath));
+  } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      throw new Error(`uploadFile: file not found: ${filePath}`);
+    }
+    throw err;
+  }
+
+  try {
+    realWorkspaceRoot = await realpath(pathResolve(workspaceRoot));
+  } catch {
+    throw new Error(`uploadFile: configured workspace root does not resolve: ${workspaceRoot}`);
+  }
+
+  const rootWithSep = realWorkspaceRoot.endsWith(sep)
+    ? realWorkspaceRoot
+    : realWorkspaceRoot + sep;
+  if (
+    realFilePath !== realWorkspaceRoot &&
+    !realFilePath.startsWith(rootWithSep)
+  ) {
+    throw new Error(`uploadFile: file resolves outside the allowed workspace root: ${filePath}`);
+  }
+
+  const fileStat = await stat(realFilePath);
+  if (!fileStat.isFile()) throw new Error(`Not a regular file: ${filePath}`);
+  if (fileStat.size > MAX_FILE_SIZE) throw new Error(`File too large (${Math.round(fileStat.size / 1024 / 1024)}MB). Max 20MB: ${filePath}`);
+
+  return { filePath, realFilePath, fileStat };
 }
 
 function titleRichText(content: string) {
@@ -500,13 +546,9 @@ export async function getCachedSchema(client: Client, dbId: string) {
 }
 
 export async function uploadFile(client: Client, fileUrl: string): Promise<{ id: string; blockType: string }> {
-  const filePath = fileURLToPath(fileUrl);
+  const { filePath, realFilePath } = await resolveWorkspaceUploadPath(fileUrl);
   const filename = basename(filePath);
   const contentType = getMimeType(filePath);
-
-  const fileStat = await stat(filePath);
-  if (!fileStat.isFile()) throw new Error(`Not a regular file: ${filePath}`);
-  if (fileStat.size > MAX_FILE_SIZE) throw new Error(`File too large (${Math.round(fileStat.size / 1024 / 1024)}MB). Max 20MB: ${filePath}`);
 
   const upload = await client.fileUploads.create({
     mode: "single_part",
@@ -514,7 +556,7 @@ export async function uploadFile(client: Client, fileUrl: string): Promise<{ id:
     content_type: contentType,
   });
 
-  const buffer = await readFile(filePath);
+  const buffer = await readFile(realFilePath);
   const blob = new Blob([buffer], { type: contentType });
 
   await client.fileUploads.send({
