@@ -14,6 +14,7 @@ export function createNotionClient(token: string) {
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const NOTION_BLOCK_CHILDREN_LIMIT = 100;
 
 const MIME_TYPES: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -714,18 +715,35 @@ export async function createPage(
   const resolvedParent = typeof parent === "string"
     ? { type: "page_id" as const, page_id: parent }
     : parent;
+  const initialBlocks = blocks.slice(0, NOTION_BLOCK_CHILDREN_LIMIT);
 
-  return client.pages.create({
+  const page = await client.pages.create({
     parent: resolvedParent,
     properties: {
       title: {
         title: titleRichText(title),
       },
     },
-    children: blocks as any[],
+    children: initialBlocks as any[],
     ...(icon ? { icon: { type: "emoji", emoji: icon as any } } : {}),
     ...(cover ? { cover: { type: "external", external: { url: cover } } } : {}),
   } as any);
+
+  const remainingBlocks = blocks.slice(NOTION_BLOCK_CHILDREN_LIMIT);
+  if (remainingBlocks.length > 0) {
+    try {
+      await appendBlocks(client, (page as any).id, remainingBlocks);
+    } catch (error) {
+      try {
+        await client.pages.update({ page_id: (page as any).id, in_trash: true } as any);
+      } catch {
+        // Best-effort rollback: preserve the append failure as the caller-visible error.
+      }
+      throw error;
+    }
+  }
+
+  return page;
 }
 
 export async function findWorkspacePages(
@@ -770,8 +788,8 @@ export async function findWorkspacePages(
 export async function appendBlocks(client: Client, pageId: string, blocks: NotionBlock[]) {
   const results: any[] = [];
 
-  for (let index = 0; index < blocks.length; index += 100) {
-    const chunk = blocks.slice(index, index + 100);
+  for (let index = 0; index < blocks.length; index += NOTION_BLOCK_CHILDREN_LIMIT) {
+    const chunk = blocks.slice(index, index + NOTION_BLOCK_CHILDREN_LIMIT);
     const response = await client.blocks.children.append({
       block_id: pageId,
       children: chunk as any[],
@@ -790,8 +808,8 @@ export async function appendBlocksAfter(
 ) {
   const results: any[] = [];
 
-  for (let index = 0; index < blocks.length; index += 100) {
-    const chunk = blocks.slice(index, index + 100);
+  for (let index = 0; index < blocks.length; index += NOTION_BLOCK_CHILDREN_LIMIT) {
+    const chunk = blocks.slice(index, index + NOTION_BLOCK_CHILDREN_LIMIT);
     const response = await client.blocks.children.append({
       block_id: pageId,
       children: chunk as any[],
