@@ -1,6 +1,6 @@
 {
   "name": "easy-notion-mcp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "mcpName": "io.github.misterwigglesworth/easy-notion",
   "description": "Token-efficient, markdown-first Notion MCP server — agents write markdown, never touch raw Notion JSON",
   "type": "module",
@@ -44,6 +44,7 @@
   },
   "files": [
     "dist",
+    "skills",
     "README.md",
     "LICENSE"
   ],

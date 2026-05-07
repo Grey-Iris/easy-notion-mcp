@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-07
+
+### Added
+
+- **Profile-aware `easy-notion` CLI.** The package now exposes an
+  `easy-notion` binary for low-context Notion access without registering
+  another MCP server. CLI profiles support separate token environment
+  variables, readonly/readwrite modes, optional root page defaults, and
+  commands for users, search, pages, content edits, blocks, comments, and
+  database entries.
+- **Lightweight `easy-notion-cli` skill.** The repository and npm package now
+  include `skills/easy-notion-cli/`, which teaches agents to use the CLI for
+  multi-profile Notion workflows instead of loading multiple MCP tool
+  surfaces.
+- **Expanded live E2E coverage.** The live MCP suite now covers
+  `append_content`, `find_replace`, `duplicate_page`,
+  `update_database_entry`, and `add_database_entries` against real Notion.
+
+### Fixed
+
+- **Large markdown writes are more reliable.** Page creation and append paths
+  chunk more than 100 top-level blocks, defer nested block children that Notion
+  cannot accept inline, and split outgoing rich-text segments at Notion's
+  2,000-character request limit.
+- **`update_section` preserves first-section ordering.** Replacing a section
+  at the start of a page now updates the existing heading in place as the
+  insertion anchor instead of appending replacement content at the end.
+- **README HTTP startup examples now use the installable package name.**
+  Fresh `npx` users should run
+  `npx -p easy-notion-mcp easy-notion-mcp-http`; the HTTP binary is a
+  secondary bin inside `easy-notion-mcp`, not a standalone package.
+- **Vitest ignores agent worktrees.** Test discovery now excludes
+  `.mcp-agents/` worktrees so stale copied tests do not inflate local runs.
+
+### Security
+
+- **`file://` uploads are contained to `NOTION_MCP_WORKSPACE_ROOT`.** Stdio
+  file uploads now resolve real paths, reject symlink/prefix escapes, reject
+  non-files and over-20MB files before Notion side effects, and default the
+  allowed root to the current working directory.
+
 ## [0.6.0] - 2026-05-01
 
 ### Breaking changes

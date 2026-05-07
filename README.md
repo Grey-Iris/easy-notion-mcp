@@ -25,7 +25,7 @@ npx easy-notion-mcp
 
 ---
 
-**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
+**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
@@ -119,6 +119,40 @@ Config file locations: Claude Desktop → `claude_desktop_config.json` · Cursor
 ```
 
 </details>
+
+## CLI profiles for low-context Notion access
+
+Use the `easy-notion` CLI when an agent needs Notion access without loading the full MCP tool surface, or when you want separate Notion integrations for different permission modes. Profiles live in `~/.config/easy-notion-mcp/profiles.json` by default and reference environment variable names, not raw tokens.
+
+```bash
+export NOTION_WORK_READONLY=ntn_readonly_token
+export NOTION_WORK_WRITE=ntn_readwrite_token
+
+npx -y --package easy-notion-mcp easy-notion profile add work-ro \
+  --token-env NOTION_WORK_READONLY \
+  --mode readonly \
+  --default
+
+npx -y --package easy-notion-mcp easy-notion profile add work-rw \
+  --token-env NOTION_WORK_WRITE \
+  --mode readwrite \
+  --root-page-id your_root_page_id
+```
+
+Read commands work with readonly profiles:
+
+```bash
+npx -y --package easy-notion-mcp easy-notion --profile work-ro search "roadmap" --filter pages
+npx -y --package easy-notion-mcp easy-notion --profile work-ro page read PAGE_ID --include-metadata
+```
+
+Mutating commands require a readwrite profile:
+
+```bash
+npx -y --package easy-notion-mcp easy-notion --profile work-rw content append PAGE_ID --markdown "## Update"
+```
+
+The lightweight skill for agent routing is published in this repo at `skills/easy-notion-cli/`. It teaches agents to prefer the CLI for profile-based Notion access instead of registering multiple MCP servers.
 
 ### With OAuth
 
