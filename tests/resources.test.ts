@@ -22,6 +22,14 @@ async function withClient<T>(fn: (client: McpClient) => Promise<T>) {
   }
 }
 
+async function readResourceText(uri: string) {
+  return withClient(async (client) => {
+    const result = await client.readResource({ uri });
+    expect(result.contents).toHaveLength(1);
+    return "text" in result.contents[0] ? result.contents[0].text : "";
+  });
+}
+
 describe("MCP documentation resources", () => {
   it("lists the shared documentation resources", async () => {
     const result = await withClient((client) => client.listResources());
@@ -63,6 +71,38 @@ describe("MCP documentation resources", () => {
     });
     expect("text" in result.contents[0] ? result.contents[0].text : "").toContain("+++ Title");
     expect("text" in result.contents[0] ? result.contents[0].text : "").toContain("file://");
+  });
+
+  it("documents warning shapes using the runtime contract", async () => {
+    const text = await readResourceText("easy-notion://docs/warnings");
+    const expectedShapes = [
+      [
+        "omitted_block_types",
+        '"blocks": [{ "id": "block-id", "type": "synced_block" }]',
+      ],
+      [
+        "truncated_properties",
+        '"properties": [{ "name": "Name", "type": "title", "returned_count": 75, "cap": 75 }]',
+      ],
+      ["unmatched_blocks", '"block_ids": ["block-id"]'],
+      [
+        "bookmark_lost_on_atomic_replace",
+        '{ "code": "bookmark_lost_on_atomic_replace", "url": "https://example.com/some-page" }',
+      ],
+      [
+        "embed_lost_on_atomic_replace",
+        '{ "code": "embed_lost_on_atomic_replace", "url": "https://example.com/embed-target" }',
+      ],
+    ] as const;
+
+    for (const [code, shape] of expectedShapes) {
+      expect(text).toContain(`## ${code}`);
+      expect(text).toContain(`"code": "${code}"`);
+      expect(text).toContain(shape);
+    }
+    expect(text).not.toContain('"property":');
+    expect(text).not.toContain('"returned":');
+    expect(text).not.toContain('"has_more":');
   });
 
   it("keeps safety-critical update_data_source warning inline while pointing to detailed resource", async () => {

@@ -235,7 +235,7 @@ Shape:
 \`\`\`json
 {
   "code": "truncated_properties",
-  "properties": [{ "property": "Name", "type": "title", "returned": 75, "has_more": true }],
+  "properties": [{ "name": "Name", "type": "title", "returned_count": 75, "cap": 75 }],
   "how_to_fetch_all": "Call again with max_property_items: 0 to fetch all items, or raise the cap to a larger number."
 }
 \`\`\`
@@ -251,7 +251,21 @@ Shape:
 
 ## bookmark_lost_on_atomic_replace
 
-Returned by replace_content when bookmark or embed markdown must fall back to plain URL forms because Notion Enhanced Markdown has no stable input tag for those blocks.`,
+Returned by replace_content when bookmark markdown must fall back to a plain URL form because Notion Enhanced Markdown has no stable input tag for bookmark blocks.
+
+Shape:
+\`\`\`json
+{ "code": "bookmark_lost_on_atomic_replace", "url": "https://example.com/some-page" }
+\`\`\`
+
+## embed_lost_on_atomic_replace
+
+Returned by replace_content when embed markdown must fall back to a plain URL form because Notion Enhanced Markdown has no stable input tag for embed blocks.
+
+Shape:
+\`\`\`json
+{ "code": "embed_lost_on_atomic_replace", "url": "https://example.com/embed-target" }
+\`\`\``,
   },
   {
     uri: "easy-notion://docs/property-pagination",
