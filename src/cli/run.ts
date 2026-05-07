@@ -7,11 +7,13 @@ import { translateGfmToEnhancedMarkdown } from "../markdown-to-enhanced.js";
 import {
   addComment,
   appendBlocks,
+  appendBlocksAfter,
   archivePage,
   buildTextFilter,
   createPage,
   createDatabaseEntry,
   createNotionClient,
+  deleteBlock,
   getDatabase,
   getCachedSchema,
   getMe,
@@ -24,13 +26,22 @@ import {
   queryDatabase,
   replacePageMarkdown,
   restorePage,
+  retrieveBlock,
   searchNotion,
+  updateBlock,
   updatePage,
   updateDatabaseEntry,
   uploadFile,
   type PageParent,
 } from "../notion-client.js";
-import { fetchBlocksRecursive, fetchBlocksWithLimit, getPageTitle, simplifyProperty } from "../server.js";
+import {
+  buildUpdateBlockPayload,
+  fetchBlocksRecursive,
+  fetchBlocksWithLimit,
+  getPageTitle,
+  simplifyProperty,
+  UPDATABLE_BLOCK_TYPES,
+} from "../server.js";
 import {
   assertValidProfileName,
   assertValidTokenEnv,
@@ -113,6 +124,15 @@ type NotionOps = {
   ): Promise<{ blocks: unknown[]; hasMore: boolean }>;
   processFileUploads(client: Client, markdown: string): Promise<string>;
   appendBlocks(client: Client, pageId: string, blocks: ReturnType<typeof markdownToBlocks>): Promise<unknown[]>;
+  appendBlocksAfter(
+    client: Client,
+    pageId: string,
+    blocks: ReturnType<typeof markdownToBlocks>,
+    afterBlockId?: string,
+  ): Promise<unknown[]>;
+  deleteBlock(client: Client, blockId: string): Promise<unknown>;
+  retrieveBlock(client: Client, blockId: string): Promise<unknown>;
+  updateBlock(client: Client, blockId: string, payload: Record<string, unknown>): Promise<unknown>;
   replacePageMarkdown(
     client: Client,
     pageId: string,
@@ -155,6 +175,10 @@ const DEFAULT_OPS: NotionOps = {
   fetchBlocksWithLimit: fetchBlocksWithLimit as NotionOps["fetchBlocksWithLimit"],
   processFileUploads: (client, markdown) => processFileUploads(client, markdown, "stdio"),
   appendBlocks,
+  appendBlocksAfter,
+  deleteBlock,
+  retrieveBlock,
+  updateBlock,
   replacePageMarkdown,
   updateMarkdown: (client, payload) => (client as any).pages.updateMarkdown(payload),
 };
@@ -183,7 +207,9 @@ function helpText(): string {
     "  page move <page_id> --parent <new_parent_id>",
     "  content append <page> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content replace <page_id> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content update-section <page_id> --heading <heading> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content find-replace <page_id> --find <text> --replace <text> [--all]",
+    "  block update <block_id> (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
     "  comment list <page_id>",
     "  comment add <page_id> --text <text>",
     "  database get <database_id>",
@@ -381,6 +407,36 @@ function mapChildPage(block: any) {
     id: block.id,
     title: block.child_page?.title,
   };
+}
+
+function getBlockHeadingText(block: any): string | null {
+  const type = block.type;
+  if (type === "heading_1" || type === "heading_2" || type === "heading_3") {
+    const richText = block[type]?.rich_text ?? [];
+    return richText.map((text: any) => text.plain_text ?? text.text?.content ?? "").join("").trim();
+  }
+  return null;
+}
+
+function getHeadingLevel(type: string): number {
+  if (type === "heading_1") return 1;
+  if (type === "heading_2") return 2;
+  if (type === "heading_3") return 3;
+  return 0;
+}
+
+function parseOptionalBooleanFlag(args: string[], flag: string): boolean | undefined {
+  const value = readFlag(args, flag);
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  throw new CliError("invalid_argument", `${flag} must be true or false.`);
 }
 
 function mapDatabaseListResult(result: any) {
@@ -877,6 +933,58 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     });
   }
 
+  if (subcommand === "update-section") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content update-section requires a page id.");
+    }
+    const heading = readFlag(args, "--heading");
+    if (heading === undefined) {
+      throw new CliError("missing_argument", "content update-section requires --heading.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "content update-section");
+    const client = clientFor(resolved, ops);
+    const allBlocks = await ops.listChildren(client, pageId);
+    const normalizedHeading = heading.trim().toLowerCase();
+    const headingIndex = allBlocks.findIndex((block: any) => {
+      const blockHeading = getBlockHeadingText(block);
+      return blockHeading !== null && blockHeading.toLowerCase() === normalizedHeading;
+    });
+
+    if (headingIndex === -1) {
+      const availableHeadings = allBlocks
+        .map((block: any) => getBlockHeadingText(block))
+        .filter((blockHeading: string | null): blockHeading is string => blockHeading !== null);
+      throw new CliError(
+        "heading_not_found",
+        `Heading not found: '${heading}'. Available headings: ${JSON.stringify(availableHeadings)}`,
+      );
+    }
+
+    const headingBlock = allBlocks[headingIndex] as any;
+    const headingLevel = getHeadingLevel(headingBlock.type);
+    let sectionEnd = allBlocks.length;
+    for (let index = headingIndex + 1; index < allBlocks.length; index += 1) {
+      const level = getHeadingLevel((allBlocks[index] as any).type);
+      if (level > 0 && (headingLevel === 1 || level <= headingLevel)) {
+        sectionEnd = index;
+        break;
+      }
+    }
+
+    const sectionBlocks = allBlocks.slice(headingIndex, sectionEnd) as any[];
+    const afterBlockId = headingIndex > 0 ? (allBlocks[headingIndex - 1] as any).id : undefined;
+    const markdown = await readMarkdownInput(args, io);
+    for (const block of sectionBlocks) {
+      await ops.deleteBlock(client, block.id);
+    }
+
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const appended = await ops.appendBlocksAfter(client, pageId, markdownToBlocks(processedMarkdown), afterBlockId);
+    return success({ deleted: sectionBlocks.length, appended: appended.length });
+  }
+
   if (subcommand === "find-replace") {
     const pageId = args[1];
     if (!pageId) {
@@ -914,6 +1022,74 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
   }
 
   throw new CliError("unknown_command", `Unknown content command '${subcommand ?? ""}'.`);
+}
+
+async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, configDir: string, ops: NotionOps) {
+  const subcommand = args[0];
+
+  if (subcommand === "update") {
+    const blockId = args[1];
+    if (!blockId) {
+      throw new CliError("missing_argument", "block update requires a block id.");
+    }
+    const hasMarkdown = readFlag(args, "--markdown") !== undefined
+      || readFlag(args, "--markdown-file") !== undefined
+      || hasFlag(args, "--stdin");
+    const hasArchived = hasFlag(args, "--archived");
+    if (!hasMarkdown && !hasArchived) {
+      throw new CliError("missing_argument", "block update requires markdown input or --archived.");
+    }
+    if (hasMarkdown && hasArchived) {
+      throw new CliError("invalid_argument", "block update accepts either markdown input or --archived, not both.");
+    }
+    const inlineMarkdown = readFlag(args, "--markdown");
+    if (!hasArchived && inlineMarkdown !== undefined && !inlineMarkdown.trim()) {
+      throw new CliError(
+        "empty_markdown",
+        "update_block: markdown is empty. Pass non-empty markdown, or use --archived to delete the block.",
+      );
+    }
+
+    const checked = parseOptionalBooleanFlag(args, "--checked");
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "block update");
+    const client = clientFor(resolved, ops);
+    const existing = await ops.retrieveBlock(client, blockId) as any;
+    const existingType = existing?.type as string | undefined;
+    if (!existingType) {
+      throw new CliError("block_type_missing", `update_block: could not read existing block type for ${blockId}.`);
+    }
+
+    if (hasArchived) {
+      await ops.updateBlock(client, blockId, { in_trash: true });
+      return success({ id: blockId, type: existingType, archived: true });
+    }
+
+    if (!UPDATABLE_BLOCK_TYPES.has(existingType)) {
+      throw new CliError(
+        "non_updatable_block_type",
+        `update_block: existing block type '${existingType}' has no markdown content edit. Use --archived to delete it, or use content replace to rewrite the surrounding section.`,
+      );
+    }
+
+    const markdown = await readMarkdownInput(args, io);
+    if (!markdown.trim()) {
+      throw new CliError(
+        "empty_markdown",
+        "update_block: markdown is empty. Pass non-empty markdown, or use --archived to delete the block.",
+      );
+    }
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const parsed = markdownToBlocks(processedMarkdown);
+    const built = buildUpdateBlockPayload(parsed, existingType, { checked });
+    if (!built.ok) {
+      throw new CliError("invalid_update_block_markdown", built.error);
+    }
+    await ops.updateBlock(client, blockId, built.payload);
+    return success({ id: blockId, type: existingType, updated: true });
+  }
+
+  throw new CliError("unknown_command", `Unknown block command '${subcommand ?? ""}'.`);
 }
 
 async function handleComment(args: string[], options: GlobalOptions, io: CliIO, configDir: string, ops: NotionOps) {
@@ -1109,6 +1285,8 @@ async function dispatch(
       return handlePage(args, options, io, configDir, ops);
     case "content":
       return handleContent(args, options, io, configDir, ops);
+    case "block":
+      return handleBlock(args, options, io, configDir, ops);
     case "comment":
       return handleComment(args, options, io, configDir, ops);
     case "database":

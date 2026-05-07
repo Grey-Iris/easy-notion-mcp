@@ -132,6 +132,14 @@ function createOps(overrides: CliDeps["ops"] = {}): CliDeps["ops"] {
     })),
     processFileUploads: vi.fn(async (_client, markdown) => markdown),
     appendBlocks: vi.fn(async (_client, _pageId, blocks) => blocks.map((_, index) => ({ id: `block-${index}` }))),
+    appendBlocksAfter: vi.fn(async (_client, _pageId, blocks) => blocks.map((_, index) => ({ id: `after-block-${index}` }))),
+    deleteBlock: vi.fn(async (_client, blockId) => ({ id: blockId })),
+    retrieveBlock: vi.fn(async (_client, blockId) => ({
+      id: blockId,
+      type: "paragraph",
+      paragraph: { rich_text: [{ plain_text: "Old" }] },
+    })),
+    updateBlock: vi.fn(async (_client, blockId, payload) => ({ id: blockId, ...payload })),
     replacePageMarkdown: vi.fn(async () => ({ truncated: false })),
     updateMarkdown: vi.fn(async () => ({ truncated: false })),
     ...overrides,
@@ -1219,6 +1227,254 @@ describe("easy-notion CLI", () => {
       expect(ops?.createPage).not.toHaveBeenCalled();
       expect(ops?.processFileUploads).not.toHaveBeenCalled();
     }
+  });
+
+  it("updates a content section by heading and appends replacement markdown after the previous block", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const blocks = [
+      { id: "intro", type: "paragraph", paragraph: { rich_text: [{ plain_text: "Intro" }] } },
+      { id: "h2-a", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Target" }] } },
+      { id: "body-a", type: "paragraph", paragraph: { rich_text: [{ plain_text: "Old" }] } },
+      { id: "h3-a", type: "heading_3", heading_3: { rich_text: [{ plain_text: "Nested" }] } },
+      { id: "body-b", type: "paragraph", paragraph: { rich_text: [{ plain_text: "Nested body" }] } },
+      { id: "h2-b", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Next" }] } },
+    ];
+    const ops = createOps({
+      listChildren: vi.fn(async () => blocks),
+      processFileUploads: vi.fn(async () => "Processed body"),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-section", "page-1", "--heading", " target ", "--markdown", "New body",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({ ok: true, result: { deleted: 4, appended: 1 } });
+    expect(ops?.deleteBlock).toHaveBeenCalledTimes(4);
+    expect(ops?.deleteBlock).toHaveBeenNthCalledWith(1, expect.anything(), "h2-a");
+    expect(ops?.deleteBlock).toHaveBeenNthCalledWith(4, expect.anything(), "body-b");
+    expect(ops?.processFileUploads).toHaveBeenCalledWith(expect.anything(), "New body");
+    expect(ops?.appendBlocksAfter).toHaveBeenCalledWith(
+      expect.anything(),
+      "page-1",
+      expect.arrayContaining([expect.objectContaining({
+        type: "paragraph",
+        paragraph: { rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Processed body" } })]) },
+      })]),
+      "intro",
+    );
+  });
+
+  it("returns available headings when content update-section cannot find a heading", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      listChildren: vi.fn(async () => [
+        { id: "h1", type: "heading_1", heading_1: { rich_text: [{ plain_text: "Overview" }] } },
+        { id: "h2", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Details" }] } },
+      ]),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-section", "page-1", "--heading", "Missing", "--markdown-file", join(configDir, "missing.md"),
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "heading_not_found",
+        message: `Heading not found: 'Missing'. Available headings: ["Overview","Details"]`,
+      },
+    });
+    expect(ops?.listChildren).toHaveBeenCalledWith(expect.anything(), "page-1");
+    expect(ops?.processFileUploads).not.toHaveBeenCalled();
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocksAfter).not.toHaveBeenCalled();
+  });
+
+  it("blocks content update-section readonly profiles before creating a Notion client", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-section", "page-1", "--heading", "Target", "--markdown", "New",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "readonly_profile",
+        message: "Profile 'work-ro' is readonly and cannot run mutating command 'content update-section'.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+    expect(ops?.listChildren).not.toHaveBeenCalled();
+  });
+
+  it("updates blocks through archived and markdown paths", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      processFileUploads: vi.fn(async () => "Processed replacement"),
+    });
+    const archivedIo = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli(["block", "update", "block-1", "--archived"], archivedIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(archivedIo.stdout)).toEqual({
+      ok: true,
+      result: { id: "block-1", type: "paragraph", archived: true },
+    });
+    expect(ops?.retrieveBlock).toHaveBeenCalledWith(expect.anything(), "block-1");
+    expect(ops?.updateBlock).toHaveBeenLastCalledWith(expect.anything(), "block-1", { in_trash: true });
+    expect(ops?.processFileUploads).not.toHaveBeenCalled();
+
+    const markdownIo = createIo({ WORK_TOKEN: "secret-token-value" });
+    expect(await runCli(["block", "update", "block-1", "--markdown", "Replacement"], markdownIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(markdownIo.stdout)).toEqual({
+      ok: true,
+      result: { id: "block-1", type: "paragraph", updated: true },
+    });
+    expect(ops?.processFileUploads).toHaveBeenLastCalledWith(expect.anything(), "Replacement");
+    expect(ops?.updateBlock).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "block-1",
+      { paragraph: { rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Processed replacement" } })]) } },
+    );
+    expect((ops?.retrieveBlock as any).mock.invocationCallOrder[1]).toBeLessThan(
+      (ops?.processFileUploads as any).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("preserves block update checked false override for to_do blocks", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      retrieveBlock: vi.fn(async () => ({ id: "todo-1", type: "to_do", to_do: { checked: true } })),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "block", "update", "todo-1", "--markdown", "- [x] Done", "--checked", "false",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(ops?.updateBlock).toHaveBeenCalledWith(
+      expect.anything(),
+      "todo-1",
+      { to_do: { rich_text: expect.any(Array), checked: false } },
+    );
+  });
+
+  it("rejects invalid block update inputs before Notion mutations", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+
+    for (const [argv, codeName] of [
+      [["block", "update", "block-1", "--markdown", "Text", "--archived"], "invalid_argument"],
+      [["block", "update", "block-1", "--markdown", "   "], "empty_markdown"],
+    ] as const) {
+      const ops = createOps();
+      const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+      const code = await runCli(argv, io.io, { configDir, ops });
+
+      expect(code).toBe(1);
+      expect(jsonFrom(io.stdout).error.code).toBe(codeName);
+      if (codeName === "invalid_argument") {
+        expect(ops?.createClient).not.toHaveBeenCalled();
+      }
+      expect(ops?.retrieveBlock).not.toHaveBeenCalled();
+      expect(ops?.updateBlock).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects markdown updates for non-updatable existing block types", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      retrieveBlock: vi.fn(async () => ({ id: "table-1", type: "table" })),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "block", "update", "table-1", "--markdown-file", join(configDir, "missing.md"),
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout).error).toEqual({
+      code: "non_updatable_block_type",
+      message: "update_block: existing block type 'table' has no markdown content edit. Use --archived to delete it, or use content replace to rewrite the surrounding section.",
+    });
+    expect(ops?.retrieveBlock).toHaveBeenCalledWith(expect.anything(), "table-1");
+    expect(ops?.processFileUploads).not.toHaveBeenCalled();
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
+  });
+
+  it("blocks block update readonly profiles before creating a Notion client", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli(["block", "update", "block-1", "--archived"], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "readonly_profile",
+        message: "Profile 'work-ro' is readonly and cannot run mutating command 'block update'.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+    expect(ops?.retrieveBlock).not.toHaveBeenCalled();
   });
 
   it("returns stable JSON errors for argument failures", async () => {

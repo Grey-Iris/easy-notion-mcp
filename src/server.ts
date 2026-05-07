@@ -209,7 +209,7 @@ export const SUPPORTED_BLOCK_TYPES = new Set<string>([
  * meaningful update would change their children (which `blocks.update` cannot
  * do — see plan §3.3) and read-only types whose content has no useful edit.
  */
-const UPDATABLE_BLOCK_TYPES = new Set<string>([
+export const UPDATABLE_BLOCK_TYPES = new Set<string>([
   "paragraph", "heading_1", "heading_2", "heading_3",
   "bulleted_list_item", "numbered_list_item",
   "toggle", "quote", "callout", "to_do", "code", "equation",
@@ -225,7 +225,7 @@ const UPDATABLE_BLOCK_TYPES = new Set<string>([
  * SDK-shaped variant body (e.g. `{ paragraph: { rich_text: [...] } }`) with no
  * `block_id`, `in_trash`, or `archived` keys — those are added by the caller.
  */
-function buildUpdateBlockPayload(
+export function buildUpdateBlockPayload(
   parsed: NotionBlock[],
   existingType: string,
   options: { checked?: boolean } = {},
