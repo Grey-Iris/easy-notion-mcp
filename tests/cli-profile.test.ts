@@ -378,6 +378,67 @@ describe("easy-notion CLI", () => {
     expect(jsonFrom(appendIo.stdout).result).toEqual({ success: true, blocks_added: 1 });
   });
 
+  it("accepts content flag values that look like options", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+        explicit: { token_env: "EXPLICIT_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      updateMarkdown: vi.fn(async () => ({ truncated: false })),
+    });
+    const env = { WORK_TOKEN: "secret-token-value", EXPLICIT_TOKEN: "explicit-secret" };
+
+    const explicitProfileIo = createIo(env);
+    expect(await runCli([
+      "--profile", "explicit", "content", "append", "page-1", "--markdown", "Body",
+    ], explicitProfileIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.createClient).toHaveBeenLastCalledWith("explicit-secret");
+
+    const dividerIo = createIo(env);
+    expect(await runCli([
+      "content", "append", "page-1", "--markdown", "---",
+    ], dividerIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.processFileUploads).toHaveBeenLastCalledWith(expect.anything(), "---");
+    expect(ops?.appendBlocks).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "page-1",
+      [{ type: "divider", divider: {} }],
+    );
+
+    const globalLookingIo = createIo(env);
+    expect(await runCli([
+      "content", "append", "page-1", "--markdown", "--profile",
+    ], globalLookingIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.processFileUploads).toHaveBeenLastCalledWith(expect.anything(), "--profile");
+
+    const sentinelIo = createIo(env);
+    expect(await runCli([
+      "--", "content", "append", "page-1", "--markdown", "--format",
+    ], sentinelIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.processFileUploads).toHaveBeenLastCalledWith(expect.anything(), "--format");
+
+    const replaceIo = createIo(env);
+    expect(await runCli([
+      "content", "find-replace", "page-1",
+      "--find", "old",
+      "--replace", "--new",
+    ], replaceIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.updateMarkdown).toHaveBeenLastCalledWith(expect.anything(), {
+      page_id: "page-1",
+      type: "update_content",
+      update_content: {
+        content_updates: [{
+          old_str: "old",
+          new_str: "--new",
+        }],
+      },
+    });
+  });
+
   it("routes database get, list, query, add, add-many, and update as JSON commands", async () => {
     const configDir = await makeTempDir();
     await saveProfileConfig(configDir, {
