@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Targeted read tools.** Agents can read individual sections, blocks, and
+  toggles without fetching an entire page.
+- **MCP documentation resources.** Tool descriptions can point to shared
+  markdown syntax, warnings, property pagination, and data-source examples
+  instead of repeating long reference text inline.
+
+### Fixed
+
+- **Warning documentation resource matches runtime contracts.** The warnings
+  resource documents the emitted `truncated_properties`,
+  `bookmark_lost_on_atomic_replace`, and `embed_lost_on_atomic_replace` shapes.
+- **CLI accepts option-like markdown and text values.** Values such as `---`,
+  `--new`, and `--profile` are treated as command values when provided in value
+  positions.
+- **Callout child writes are shaped safely.** Nested callout children are
+  normalized, deferred, and split consistently with other child containers.
+
 ## [0.7.0] - 2026-05-07
 
 ### Added
