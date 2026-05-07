@@ -38,6 +38,224 @@ function titleRichText(content: string) {
   return [{ type: "text" as const, text: { content } }];
 }
 
+function emptyParagraphBlock(): NotionBlock {
+  return {
+    type: "paragraph",
+    paragraph: { rich_text: [] },
+  };
+}
+
+function getBlockChildren(block: NotionBlock): NotionBlock[] {
+  const body = (block as any)[block.type];
+  return Array.isArray(body?.children) ? body.children : [];
+}
+
+function withoutBlockChildren(block: NotionBlock): any {
+  const body = { ...((block as any)[block.type] ?? {}) };
+  delete body.children;
+  return { ...block, [block.type]: body };
+}
+
+function isOptionalChildrenContainer(block: NotionBlock): boolean {
+  switch (block.type) {
+    case "bulleted_list_item":
+    case "numbered_list_item":
+    case "toggle":
+      return true;
+    case "heading_1":
+      return block.heading_1.is_toggleable === true;
+    case "heading_2":
+      return block.heading_2.is_toggleable === true;
+    case "heading_3":
+      return block.heading_3.is_toggleable === true;
+    default:
+      return false;
+  }
+}
+
+function canUseAsColumnSeed(block: NotionBlock): boolean {
+  return block.type !== "table" && block.type !== "column_list";
+}
+
+function usesPlaceholderColumnSeed(block: NotionBlock): boolean {
+  if (block.type !== "column") {
+    return false;
+  }
+  const firstChild = getBlockChildren(block)[0];
+  return firstChild !== undefined && !canUseAsColumnSeed(firstChild);
+}
+
+function prepareBlockForWrite(block: NotionBlock): any {
+  if (isOptionalChildrenContainer(block)) {
+    return withoutBlockChildren(block);
+  }
+
+  if (block.type === "table") {
+    const rows = getBlockChildren(block);
+    const table = { ...block.table };
+    delete (table as any).children;
+    if (rows.length > 0) {
+      table.children = [prepareBlockForWrite(rows[0])];
+    }
+    return { ...block, table };
+  }
+
+  if (block.type === "column_list") {
+    return {
+      ...block,
+      column_list: {
+        ...block.column_list,
+        children: getBlockChildren(block).map((child) => prepareBlockForWrite(child)),
+      },
+    };
+  }
+
+  if (block.type === "column") {
+    const children = getBlockChildren(block);
+    const column = { ...block.column };
+    delete (column as any).children;
+    const seed = children[0] && canUseAsColumnSeed(children[0])
+      ? children[0]
+      : emptyParagraphBlock();
+    column.children = [prepareBlockForWrite(seed)];
+    return { ...block, column };
+  }
+
+  return block;
+}
+
+function needsDeferredChildWrites(block: NotionBlock): boolean {
+  const children = getBlockChildren(block);
+
+  if (isOptionalChildrenContainer(block)) {
+    return children.length > 0;
+  }
+
+  if (block.type === "table") {
+    return children.length > 1;
+  }
+
+  if (block.type === "column") {
+    return usesPlaceholderColumnSeed(block) ||
+      children.length > 1 ||
+      (children[0] ? needsDeferredChildWrites(children[0]) : false);
+  }
+
+  if (block.type === "column_list") {
+    return children.some((child) => needsDeferredChildWrites(child));
+  }
+
+  return false;
+}
+
+async function requireCreatedChildId(
+  client: Client,
+  parentId: string,
+  index: number,
+  context: string,
+): Promise<string> {
+  const children = await listChildren(client, parentId);
+  const childId = (children[index] as any)?.id;
+  if (typeof childId !== "string" || childId.length === 0) {
+    throw new Error(`Notion append returned no id for ${context}`);
+  }
+  return childId;
+}
+
+async function appendDeferredChildren(client: Client, blockId: string, sourceBlock: NotionBlock): Promise<void> {
+  const children = getBlockChildren(sourceBlock);
+
+  if (isOptionalChildrenContainer(sourceBlock)) {
+    if (children.length > 0) {
+      await appendBlocks(client, blockId, children);
+    }
+    return;
+  }
+
+  if (sourceBlock.type === "table") {
+    if (children.length > 1) {
+      await appendBlocks(client, blockId, children.slice(1));
+    }
+    return;
+  }
+
+  if (sourceBlock.type === "column") {
+    if (children.length === 0) {
+      return;
+    }
+
+    if (usesPlaceholderColumnSeed(sourceBlock)) {
+      await appendBlocks(client, blockId, children);
+      return;
+    }
+
+    if (needsDeferredChildWrites(children[0])) {
+      const firstChildId = await requireCreatedChildId(client, blockId, 0, "column child block");
+      await appendDeferredChildren(client, firstChildId, children[0]);
+    }
+
+    if (children.length > 1) {
+      await appendBlocks(client, blockId, children.slice(1));
+    }
+    return;
+  }
+
+  if (sourceBlock.type === "column_list") {
+    const columns = children.filter((child): child is Extract<NotionBlock, { type: "column" }> => child.type === "column");
+    if (columns.length === 0 || !columns.some((column) => needsDeferredChildWrites(column))) {
+      return;
+    }
+
+    const createdColumns = await listChildren(client, blockId);
+    for (let index = 0; index < columns.length; index += 1) {
+      if (!needsDeferredChildWrites(columns[index])) {
+        continue;
+      }
+      const columnId = (createdColumns[index] as any)?.id;
+      if (typeof columnId !== "string" || columnId.length === 0) {
+        throw new Error("Notion append returned no id for column block");
+      }
+      await appendDeferredChildren(client, columnId, columns[index]);
+    }
+  }
+}
+
+async function appendPreparedBlocks(
+  client: Client,
+  parentBlockId: string,
+  blocks: NotionBlock[],
+  afterBlockId?: string,
+) {
+  const results: any[] = [];
+
+  for (let index = 0; index < blocks.length; index += NOTION_BLOCK_CHILDREN_LIMIT) {
+    const chunk = blocks.slice(index, index + NOTION_BLOCK_CHILDREN_LIMIT);
+    const response = await client.blocks.children.append({
+      block_id: parentBlockId,
+      children: chunk.map((block) => prepareBlockForWrite(block)) as any[],
+      ...(afterBlockId ? { after: afterBlockId } : {}),
+    } as any);
+    results.push(...response.results);
+
+    if (response.results.length > 0) {
+      afterBlockId = (response.results[response.results.length - 1] as any).id;
+    }
+
+    for (let offset = 0; offset < chunk.length; offset += 1) {
+      if (!needsDeferredChildWrites(chunk[offset])) {
+        continue;
+      }
+      const createdBlockId = (response.results[offset] as any)?.id;
+      if (typeof createdBlockId !== "string" || createdBlockId.length === 0) {
+        throw new Error("Notion append returned no id for child block");
+      }
+      await appendDeferredChildren(client, createdBlockId, chunk[offset]);
+    }
+  }
+
+  return results;
+}
+
 type PropertiesUpdate = UpdateDataSourceParameters["properties"];
 export type PaginatedPropertyType = "title" | "rich_text" | "relation" | "people";
 
@@ -716,6 +934,7 @@ export async function createPage(
     ? { type: "page_id" as const, page_id: parent }
     : parent;
   const initialBlocks = blocks.slice(0, NOTION_BLOCK_CHILDREN_LIMIT);
+  const initialBlocksNeedDeferredWrites = initialBlocks.some((block) => needsDeferredChildWrites(block));
 
   const page = await client.pages.create({
     parent: resolvedParent,
@@ -724,15 +943,31 @@ export async function createPage(
         title: titleRichText(title),
       },
     },
-    children: initialBlocks as any[],
+    children: initialBlocks.map((block) => prepareBlockForWrite(block)) as any[],
     ...(icon ? { icon: { type: "emoji", emoji: icon as any } } : {}),
     ...(cover ? { cover: { type: "external", external: { url: cover } } } : {}),
   } as any);
 
   const remainingBlocks = blocks.slice(NOTION_BLOCK_CHILDREN_LIMIT);
-  if (remainingBlocks.length > 0) {
+  if (initialBlocksNeedDeferredWrites || remainingBlocks.length > 0) {
     try {
-      await appendBlocks(client, (page as any).id, remainingBlocks);
+      if (initialBlocksNeedDeferredWrites) {
+        const createdInitialBlocks = await listChildren(client, (page as any).id);
+        for (let index = 0; index < initialBlocks.length; index += 1) {
+          if (!needsDeferredChildWrites(initialBlocks[index])) {
+            continue;
+          }
+          const createdBlockId = (createdInitialBlocks[index] as any)?.id;
+          if (typeof createdBlockId !== "string" || createdBlockId.length === 0) {
+            throw new Error("Notion page creation returned no id for child block");
+          }
+          await appendDeferredChildren(client, createdBlockId, initialBlocks[index]);
+        }
+      }
+
+      if (remainingBlocks.length > 0) {
+        await appendBlocks(client, (page as any).id, remainingBlocks);
+      }
     } catch (error) {
       try {
         await client.pages.update({ page_id: (page as any).id, in_trash: true } as any);
@@ -786,18 +1021,7 @@ export async function findWorkspacePages(
 }
 
 export async function appendBlocks(client: Client, pageId: string, blocks: NotionBlock[]) {
-  const results: any[] = [];
-
-  for (let index = 0; index < blocks.length; index += NOTION_BLOCK_CHILDREN_LIMIT) {
-    const chunk = blocks.slice(index, index + NOTION_BLOCK_CHILDREN_LIMIT);
-    const response = await client.blocks.children.append({
-      block_id: pageId,
-      children: chunk as any[],
-    });
-    results.push(...response.results);
-  }
-
-  return results;
+  return appendPreparedBlocks(client, pageId, blocks);
 }
 
 export async function appendBlocksAfter(
@@ -806,23 +1030,7 @@ export async function appendBlocksAfter(
   blocks: NotionBlock[],
   afterBlockId?: string,
 ) {
-  const results: any[] = [];
-
-  for (let index = 0; index < blocks.length; index += NOTION_BLOCK_CHILDREN_LIMIT) {
-    const chunk = blocks.slice(index, index + NOTION_BLOCK_CHILDREN_LIMIT);
-    const response = await client.blocks.children.append({
-      block_id: pageId,
-      children: chunk as any[],
-      ...(afterBlockId ? { after: afterBlockId } : {}),
-    } as any);
-    results.push(...response.results);
-
-    if (response.results.length > 0) {
-      afterBlockId = (response.results[response.results.length - 1] as any).id;
-    }
-  }
-
-  return results;
+  return appendPreparedBlocks(client, pageId, blocks, afterBlockId);
 }
 
 export async function listChildren(client: Client, blockId: string) {
