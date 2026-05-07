@@ -39,6 +39,7 @@ export class CliError extends Error {
     public readonly code: string,
     message: string,
     public readonly exitCode = 1,
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }

@@ -36,11 +36,17 @@ import {
 } from "../notion-client.js";
 import {
   buildUpdateBlockPayload,
+  attachChildren,
   fetchBlocksRecursive,
   fetchBlocksWithLimit,
+  findSectionRange,
   getPageTitle,
+  getToggleTitle,
+  normalizeBlock,
   simplifyProperty,
+  SUPPORTED_BLOCK_TYPES,
   UPDATABLE_BLOCK_TYPES,
+  type FetchContext,
 } from "../server.js";
 import {
   assertValidProfileName,
@@ -206,9 +212,12 @@ function helpText(): string {
     "  page restore <page_id>",
     "  page move <page_id> --parent <new_parent_id>",
     "  content append <page> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content read-section <page_id> --heading <heading>",
+    "  content read-toggle <page_id> --title <title>",
     "  content replace <page_id> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-section <page_id> --heading <heading> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content find-replace <page_id> --find <text> --replace <text> [--all]",
+    "  block read <block_id>",
     "  block update <block_id> (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
     "  comment list <page_id>",
     "  comment add <page_id> --text <text>",
@@ -349,7 +358,11 @@ function errorPayload(error: unknown) {
   if (error instanceof CliError) {
     return {
       ok: false,
-      error: { code: error.code, message: error.message },
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details ?? {}),
+      },
     };
   }
   return {
@@ -418,16 +431,148 @@ function getBlockHeadingText(block: any): string | null {
   return null;
 }
 
-function getHeadingLevel(type: string): number {
-  if (type === "heading_1") return 1;
-  if (type === "heading_2") return 2;
-  if (type === "heading_3") return 3;
-  return 0;
-}
-
 function getParsedBlockChildren(block: ReturnType<typeof markdownToBlocks>[number]): ReturnType<typeof markdownToBlocks> {
   const body = (block as any)[block.type];
   return Array.isArray(body?.children) ? body.children : [];
+}
+
+async function fetchRawBlocksRecursiveForCli(
+  client: Client,
+  rawBlocks: any[],
+  ctx: FetchContext,
+  ops: NotionOps,
+): Promise<unknown[]> {
+  const results: unknown[] = [];
+
+  for (const raw of rawBlocks) {
+    const normalized = normalizeBlock(raw);
+    if (!normalized) {
+      if (!SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+        ctx.omitted.push({ id: raw.id, type: raw.type });
+      }
+      continue;
+    }
+
+    if (raw.has_children) {
+      const children = await fetchRawBlocksRecursiveForCli(
+        client,
+        await ops.listChildren(client, raw.id) as any[],
+        ctx,
+        ops,
+      ) as any[];
+      if (children.length > 0) {
+        attachChildren(normalized, children as any);
+      }
+    }
+
+    results.push(normalized);
+  }
+
+  return results;
+}
+
+async function fetchBlockRecursiveForCli(
+  client: Client,
+  blockId: string,
+  ctx: FetchContext,
+  ops: NotionOps,
+): Promise<{ raw: any; block: unknown | null }> {
+  const raw = await ops.retrieveBlock(client, blockId) as any;
+  const block = normalizeBlock(raw);
+  if (!block) {
+    return { raw, block: null };
+  }
+
+  if (raw.has_children) {
+    const children = await fetchRawBlocksRecursiveForCli(
+      client,
+      await ops.listChildren(client, blockId) as any[],
+      ctx,
+      ops,
+    ) as any[];
+    if (children.length > 0) {
+      attachChildren(block, children as any);
+    }
+  }
+
+  return { raw, block };
+}
+
+async function findToggleRecursiveForCli(
+  client: Client,
+  pageId: string,
+  title: string,
+  ops: NotionOps,
+): Promise<{ block: any | null; availableTitles: string[] }> {
+  const target = title.trim().toLowerCase();
+  const availableTitles: string[] = [];
+
+  async function visit(parentId: string): Promise<any | null> {
+    const children = await ops.listChildren(client, parentId) as any[];
+
+    for (const child of children) {
+      const toggleTitle = getToggleTitle(child);
+      if (toggleTitle !== null) {
+        availableTitles.push(toggleTitle);
+        if (toggleTitle.trim().toLowerCase() === target) {
+          return child;
+        }
+      }
+    }
+
+    for (const child of children) {
+      if (child.has_children) {
+        const found = await visit(child.id);
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  return { block: await visit(pageId), availableTitles };
+}
+
+function omittedBlockWarnings(ctx: FetchContext): unknown[] {
+  return ctx.omitted.length > 0
+    ? [{ code: "omitted_block_types", blocks: ctx.omitted }]
+    : [];
+}
+
+function targetedBlocksToMarkdown(blocks: any[]): string {
+  const chunks: string[] = [];
+  let pending: any[] = [];
+
+  function flushPending() {
+    if (pending.length > 0) {
+      const rendered = blocksToMarkdown(pending);
+      if (rendered) {
+        chunks.push(rendered);
+      }
+      pending = [];
+    }
+  }
+
+  for (const block of blocks) {
+    if (block.type === "callout") {
+      const children = block.callout.children as any[] | undefined;
+      if (children && children.length > 0) {
+        flushPending();
+        const rootOnly = {
+          ...block,
+          callout: { ...block.callout, children: undefined },
+        };
+        chunks.push(`${blocksToMarkdown([rootOnly])}\n\n${targetedBlocksToMarkdown(children)}`);
+        continue;
+      }
+    }
+    pending.push(block);
+  }
+
+  flushPending();
+  return chunks.join("\n\n");
 }
 
 function parseOptionalBooleanFlag(args: string[], flag: string): boolean | undefined {
@@ -899,6 +1044,80 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
 async function handleContent(args: string[], options: GlobalOptions, io: CliIO, configDir: string, ops: NotionOps) {
   const subcommand = args[0];
 
+  if (subcommand === "read-section") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content read-section requires a page id.");
+    }
+    const heading = readFlag(args, "--heading");
+    if (heading === undefined) {
+      throw new CliError("missing_argument", "content read-section requires --heading.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    const client = clientFor(resolved, ops);
+    const allBlocks = await ops.listChildren(client, pageId);
+    const range = findSectionRange(allBlocks as any[], heading);
+    if (!range.ok) {
+      throw new CliError(
+        "heading_not_found",
+        `Heading not found: '${heading}'. Available headings: ${JSON.stringify(range.availableHeadings)}`,
+        1,
+        { available_headings: range.availableHeadings },
+      );
+    }
+
+    const ctx: FetchContext = { omitted: [] };
+    const blocks = await fetchRawBlocksRecursiveForCli(
+      client,
+      (allBlocks as any[]).slice(range.headingIndex, range.sectionEnd),
+      ctx,
+      ops,
+    );
+    const warnings = omittedBlockWarnings(ctx);
+    return success({
+      page_id: pageId,
+      heading: getBlockHeadingText(range.headingBlock) ?? heading,
+      block_id: range.headingBlock.id,
+      type: range.headingBlock.type,
+      markdown: `${CONTENT_NOTICE}${targetedBlocksToMarkdown(blocks as any[])}`,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
+  }
+
+  if (subcommand === "read-toggle") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content read-toggle requires a page id.");
+    }
+    const title = readFlag(args, "--title");
+    if (title === undefined) {
+      throw new CliError("missing_argument", "content read-toggle requires --title.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    const client = clientFor(resolved, ops);
+    const found = await findToggleRecursiveForCli(client, pageId, title, ops);
+    if (!found.block) {
+      throw new CliError(
+        "toggle_not_found",
+        `Toggle not found: '${title}'. Available toggles: ${JSON.stringify(found.availableTitles)}`,
+        1,
+        { available_toggles: found.availableTitles },
+      );
+    }
+
+    const ctx: FetchContext = { omitted: [] };
+    const blocks = await fetchRawBlocksRecursiveForCli(client, [found.block], ctx, ops);
+    const warnings = omittedBlockWarnings(ctx);
+    return success({
+      page_id: pageId,
+      title: getToggleTitle(found.block) ?? title,
+      block_id: found.block.id,
+      type: found.block.type,
+      markdown: `${CONTENT_NOTICE}${targetedBlocksToMarkdown(blocks as any[])}`,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
+  }
+
   if (subcommand === "append") {
     const pageId = args[1];
     if (!pageId) {
@@ -951,35 +1170,18 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     assertCanMutate(resolved, "content update-section");
     const client = clientFor(resolved, ops);
     const allBlocks = await ops.listChildren(client, pageId);
-    const normalizedHeading = heading.trim().toLowerCase();
-    const headingIndex = allBlocks.findIndex((block: any) => {
-      const blockHeading = getBlockHeadingText(block);
-      return blockHeading !== null && blockHeading.toLowerCase() === normalizedHeading;
-    });
+    const range = findSectionRange(allBlocks as any[], heading);
 
-    if (headingIndex === -1) {
-      const availableHeadings = allBlocks
-        .map((block: any) => getBlockHeadingText(block))
-        .filter((blockHeading: string | null): blockHeading is string => blockHeading !== null);
+    if (!range.ok) {
       throw new CliError(
         "heading_not_found",
-        `Heading not found: '${heading}'. Available headings: ${JSON.stringify(availableHeadings)}`,
+        `Heading not found: '${heading}'. Available headings: ${JSON.stringify(range.availableHeadings)}`,
       );
     }
 
-    const headingBlock = allBlocks[headingIndex] as any;
-    const headingLevel = getHeadingLevel(headingBlock.type);
-    let sectionEnd = allBlocks.length;
-    for (let index = headingIndex + 1; index < allBlocks.length; index += 1) {
-      const level = getHeadingLevel((allBlocks[index] as any).type);
-      if (level > 0 && (headingLevel === 1 || level <= headingLevel)) {
-        sectionEnd = index;
-        break;
-      }
-    }
-
-    const sectionBlocks = allBlocks.slice(headingIndex, sectionEnd) as any[];
-    const afterBlockId = headingIndex > 0 ? (allBlocks[headingIndex - 1] as any).id : undefined;
+    const headingBlock = range.headingBlock;
+    const sectionBlocks = (allBlocks as any[]).slice(range.headingIndex, range.sectionEnd);
+    const afterBlockId = range.headingIndex > 0 ? (allBlocks as any[])[range.headingIndex - 1].id : undefined;
     const markdown = await readMarkdownInput(args, io);
     const processedMarkdown = await ops.processFileUploads(client, markdown);
     const replacementBlocks = markdownToBlocks(processedMarkdown);
@@ -1073,6 +1275,33 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
 
 async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, configDir: string, ops: NotionOps) {
   const subcommand = args[0];
+
+  if (subcommand === "read") {
+    const blockId = args[1];
+    if (!blockId) {
+      throw new CliError("missing_argument", "block read requires a block id.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    const client = clientFor(resolved, ops);
+    const ctx: FetchContext = { omitted: [] };
+    const { raw, block } = await fetchBlockRecursiveForCli(client, blockId, ctx, ops);
+    if (!block) {
+      throw new CliError(
+        "unsupported_block_type",
+        `read_block: block type '${raw?.type ?? "unknown"}' is not supported for markdown rendering.`,
+        1,
+        { id: blockId, type: raw?.type },
+      );
+    }
+
+    const warnings = omittedBlockWarnings(ctx);
+    return success({
+      id: raw.id ?? blockId,
+      type: raw.type ?? (block as any).type,
+      markdown: `${CONTENT_NOTICE}${targetedBlocksToMarkdown([block] as any[])}`,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
+  }
 
   if (subcommand === "update") {
     const blockId = args[1];

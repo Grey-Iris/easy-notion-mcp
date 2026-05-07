@@ -871,6 +871,160 @@ describe("easy-notion CLI", () => {
     expect(jsonFrom(noTrustIo.stdout).result.markdown).toContain("Content retrieved from Notion");
   });
 
+  it("routes content read-section through readonly profiles", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async () => [
+        { id: "h2-a", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+        { id: "body-a", type: "paragraph", paragraph: { rich_text: richText("Readonly body") } },
+        { id: "h2-b", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+      ]),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "read-section", "page-1", "--heading", "target",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout).result).toMatchObject({
+      page_id: "page-1",
+      heading: "Target",
+      block_id: "h2-a",
+      type: "heading_2",
+    });
+    expect(jsonFrom(io.stdout).result.markdown).toContain("Readonly body");
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocksAfter).not.toHaveBeenCalled();
+  });
+
+  it("routes content read-toggle through readonly profiles", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => {
+        if (blockId === "page-1") {
+          return [{ id: "parent", type: "paragraph", paragraph: { rich_text: richText("Parent") }, has_children: true }];
+        }
+        if (blockId === "parent") {
+          return [{ id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") }, has_children: true }];
+        }
+        if (blockId === "toggle-1") {
+          return [{ id: "child", type: "paragraph", paragraph: { rich_text: richText("Hidden body") } }];
+        }
+        return [];
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "read-toggle", "page-1", "--title", "details",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout).result).toMatchObject({
+      page_id: "page-1",
+      title: "Details",
+      block_id: "toggle-1",
+      type: "toggle",
+    });
+    expect(jsonFrom(io.stdout).result.markdown).toContain("Hidden body");
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+  });
+
+  it("routes block read through readonly profiles", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      retrieveBlock: vi.fn(async () => ({
+        id: "toggle-1",
+        type: "toggle",
+        toggle: { rich_text: richText("Block toggle") },
+        has_children: true,
+      })),
+      listChildren: vi.fn(async () => [
+        { id: "child", type: "paragraph", paragraph: { rich_text: richText("Block child") } },
+      ]),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli(["block", "read", "toggle-1"], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout).result).toMatchObject({
+      id: "toggle-1",
+      type: "toggle",
+    });
+    expect(jsonFrom(io.stdout).result.markdown).toContain("Block child");
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
+  });
+
+  it("returns structured targeted-read error details", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async () => [
+        { id: "h2-a", type: "heading_2", heading_2: { rich_text: richText("Overview") } },
+        { id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") } },
+      ]),
+      retrieveBlock: vi.fn(async () => ({ id: "db-1", type: "child_database", child_database: { title: "DB" } })),
+    });
+
+    const sectionIo = createIo({ WORK_TOKEN: "secret-token-value" });
+    expect(await runCli([
+      "content", "read-section", "page-1", "--heading", "Missing",
+    ], sectionIo.io, { configDir, ops })).toBe(1);
+    expect(jsonFrom(sectionIo.stdout).error).toEqual({
+      code: "heading_not_found",
+      message: `Heading not found: 'Missing'. Available headings: ["Overview"]`,
+      available_headings: ["Overview"],
+    });
+
+    const toggleIo = createIo({ WORK_TOKEN: "secret-token-value" });
+    expect(await runCli([
+      "content", "read-toggle", "page-1", "--title", "Missing",
+    ], toggleIo.io, { configDir, ops })).toBe(1);
+    expect(jsonFrom(toggleIo.stdout).error).toEqual({
+      code: "toggle_not_found",
+      message: `Toggle not found: 'Missing'. Available toggles: ["Details"]`,
+      available_toggles: ["Details"],
+    });
+
+    const blockIo = createIo({ WORK_TOKEN: "secret-token-value" });
+    expect(await runCli(["block", "read", "db-1"], blockIo.io, { configDir, ops })).toBe(1);
+    expect(jsonFrom(blockIo.stdout).error).toEqual({
+      code: "unsupported_block_type",
+      message: "read_block: block type 'child_database' is not supported for markdown rendering.",
+      id: "db-1",
+      type: "child_database",
+    });
+  });
+
   it("processes file uploads before content append", async () => {
     const configDir = await makeTempDir();
     await saveProfileConfig(configDir, {

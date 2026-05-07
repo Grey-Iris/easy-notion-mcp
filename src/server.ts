@@ -170,20 +170,70 @@ export function getPageTitle(page: any): string | undefined {
   return title.map((item: any) => item.plain_text ?? item.text?.content ?? "").join("");
 }
 
-function getBlockHeadingText(block: any): string | null {
+export function getBlockHeadingText(block: any): string | null {
   const type = block.type;
   if (type === "heading_1" || type === "heading_2" || type === "heading_3") {
-    const richText = block[type]?.rich_text ?? [];
-    return richText.map((t: any) => t.plain_text).join("").trim();
+    return richTextPlainText(block[type]?.rich_text ?? []).trim();
   }
   return null;
 }
 
-function getHeadingLevel(type: string): number {
+export function getHeadingLevel(type: string): number {
   if (type === "heading_1") return 1;
   if (type === "heading_2") return 2;
   if (type === "heading_3") return 3;
   return 0;
+}
+
+function richTextPlainText(richText: any[]): string {
+  return richText.map((text: any) => text.plain_text ?? text.text?.content ?? "").join("");
+}
+
+export function getToggleTitle(block: any): string | null {
+  if (block.type === "toggle") {
+    return richTextPlainText(block.toggle?.rich_text ?? []).trim();
+  }
+  if (
+    (block.type === "heading_1" || block.type === "heading_2" || block.type === "heading_3") &&
+    block[block.type]?.is_toggleable === true
+  ) {
+    return richTextPlainText(block[block.type]?.rich_text ?? []).trim();
+  }
+  return null;
+}
+
+export function findSectionRange(
+  allBlocks: any[],
+  heading: string,
+): { ok: true; headingIndex: number; sectionEnd: number; headingBlock: any } | { ok: false; availableHeadings: string[] } {
+  const normalizedHeading = heading.trim().toLowerCase();
+  const headingIndex = allBlocks.findIndex((block: any) => {
+    const blockHeading = getBlockHeadingText(block);
+    return blockHeading !== null && blockHeading.toLowerCase() === normalizedHeading;
+  });
+
+  if (headingIndex === -1) {
+    return {
+      ok: false,
+      availableHeadings: allBlocks
+        .map((block: any) => getBlockHeadingText(block))
+        .filter((blockHeading: string | null): blockHeading is string => blockHeading !== null),
+    };
+  }
+
+  const headingBlock = allBlocks[headingIndex] as any;
+  const headingLevel = getHeadingLevel(headingBlock.type);
+  let sectionEnd = allBlocks.length;
+
+  for (let index = headingIndex + 1; index < allBlocks.length; index += 1) {
+    const level = getHeadingLevel(allBlocks[index].type);
+    if (level > 0 && (headingLevel === 1 || level <= headingLevel)) {
+      sectionEnd = index;
+      break;
+    }
+  }
+
+  return { ok: true, headingIndex, sectionEnd, headingBlock };
 }
 
 function getParsedBlockChildren(block: NotionBlock): NotionBlock[] {
@@ -192,7 +242,7 @@ function getParsedBlockChildren(block: NotionBlock): NotionBlock[] {
 }
 
 export type OmittedBlock = { id: string; type: string };
-type FetchContext = { omitted: OmittedBlock[] };
+export type FetchContext = { omitted: OmittedBlock[] };
 
 /**
  * Block types that `normalizeBlock` can map to a `NotionBlock`. Must stay in
@@ -343,7 +393,7 @@ export function buildUpdateBlockPayload(
   }
 }
 
-function normalizeBlock(block: any): NotionBlock | null {
+export function normalizeBlock(block: any): NotionBlock | null {
   switch (block.type) {
     case "heading_1":
       return {
@@ -507,7 +557,7 @@ function normalizeBlock(block: any): NotionBlock | null {
   }
 }
 
-function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
+export function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
   switch (block.type) {
     case "bulleted_list_item":
       block.bulleted_list_item.children = children;
@@ -517,6 +567,9 @@ function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
       break;
     case "toggle":
       block.toggle.children = children;
+      break;
+    case "callout":
+      (block as any).callout.children = children;
       break;
     case "heading_1":
       block.heading_1.children = children;
@@ -569,6 +622,132 @@ export async function fetchBlocksRecursive(
   }
 
   return results;
+}
+
+export async function fetchBlockRecursive(
+  client: ReturnType<typeof createNotionClient>,
+  blockId: string,
+  ctx?: FetchContext,
+): Promise<{ raw: any; block: NotionBlock | null }> {
+  const raw = await retrieveBlock(client, blockId);
+  const block = normalizeBlock(raw);
+  if (!block) {
+    return { raw, block: null };
+  }
+
+  if ((raw as any).has_children) {
+    const children = await fetchBlocksRecursive(client, blockId, ctx);
+    if (children.length > 0) {
+      attachChildren(block, children);
+    }
+  }
+
+  return { raw, block };
+}
+
+export async function fetchRawBlocksRecursive(
+  client: ReturnType<typeof createNotionClient>,
+  rawBlocks: any[],
+  ctx?: FetchContext,
+): Promise<NotionBlock[]> {
+  const results: NotionBlock[] = [];
+
+  for (const raw of rawBlocks) {
+    const normalized = normalizeBlock(raw);
+    if (!normalized) {
+      if (ctx && !SUPPORTED_BLOCK_TYPES.has(raw.type)) {
+        ctx.omitted.push({ id: raw.id, type: raw.type });
+      }
+      continue;
+    }
+
+    if (raw.has_children) {
+      const children = await fetchBlocksRecursive(client, raw.id, ctx);
+      if (children.length > 0) {
+        attachChildren(normalized, children);
+      }
+    }
+
+    results.push(normalized);
+  }
+
+  return results;
+}
+
+export async function findToggleRecursive(
+  client: ReturnType<typeof createNotionClient>,
+  pageId: string,
+  title: string,
+): Promise<{ block: any | null; availableTitles: string[] }> {
+  const target = title.trim().toLowerCase();
+  const availableTitles: string[] = [];
+
+  async function visit(parentId: string): Promise<any | null> {
+    const children = await listChildren(client, parentId);
+
+    for (const child of children as any[]) {
+      const toggleTitle = getToggleTitle(child);
+      if (toggleTitle !== null) {
+        availableTitles.push(toggleTitle);
+        if (toggleTitle.trim().toLowerCase() === target) {
+          return child;
+        }
+      }
+    }
+
+    for (const child of children as any[]) {
+      if (child.has_children) {
+        const found = await visit(child.id);
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  return { block: await visit(pageId), availableTitles };
+}
+
+function omittedBlockWarnings(ctx: FetchContext): unknown[] {
+  return ctx.omitted.length > 0
+    ? [{ code: "omitted_block_types", blocks: ctx.omitted }]
+    : [];
+}
+
+function targetedBlocksToMarkdown(blocks: NotionBlock[]): string {
+  const chunks: string[] = [];
+  let pending: NotionBlock[] = [];
+
+  function flushPending() {
+    if (pending.length > 0) {
+      const rendered = blocksToMarkdown(pending);
+      if (rendered) {
+        chunks.push(rendered);
+      }
+      pending = [];
+    }
+  }
+
+  for (const block of blocks) {
+    if (block.type === "callout") {
+      const children = (block as any).callout.children as NotionBlock[] | undefined;
+      if (children && children.length > 0) {
+        flushPending();
+        const rootOnly = {
+          ...block,
+          callout: { ...block.callout, children: undefined },
+        } as NotionBlock;
+        chunks.push(`${blocksToMarkdown([rootOnly])}\n\n${targetedBlocksToMarkdown(children)}`);
+        continue;
+      }
+    }
+    pending.push(block);
+  }
+
+  flushPending();
+  return chunks.join("\n\n");
 }
 
 export async function fetchBlocksWithLimit(
@@ -782,6 +961,41 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         replace_all: { type: "boolean", description: "Replace all occurrences. Default: first only." },
       },
       required: ["page_id", "find", "replace"],
+    },
+  },
+  {
+    name: "read_section",
+    description: `Read a single page section by heading name. Uses the same heading matching and boundary rules as update_section: headings are matched case-insensitively, H1 sections end at the next heading of any level, and H2/H3 sections end at the next heading of the same or higher level. Includes the heading block itself and recursively renders nested children only for blocks inside the selected section. If unsupported nested block types are omitted, the response includes warnings.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        page_id: { type: "string", description: "Page ID" },
+        heading: { type: "string", description: "Heading text to find (case-insensitive)" },
+      },
+      required: ["page_id", "heading"],
+    },
+  },
+  {
+    name: "read_block",
+    description: "Read one block by ID as markdown. Container blocks are fetched recursively with children. Unsupported root block types return a clear error; unsupported nested blocks are omitted and listed in warnings.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        block_id: { type: "string", description: "Block ID" },
+      },
+      required: ["block_id"],
+    },
+  },
+  {
+    name: "read_toggle",
+    description: "Read one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. Missing titles return the available toggle titles.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page_id: { type: "string", description: "Page ID" },
+        title: { type: "string", description: "Toggle title to find (case-insensitive)" },
+      },
+      required: ["page_id", "title"],
     },
   },
   {
@@ -1383,35 +1597,17 @@ export function createServer(
             markdown: string;
           };
           const allBlocks = await listChildren(notion, page_id);
-          const normalizedHeading = heading.trim().toLowerCase();
-          const headingIndex = allBlocks.findIndex((block: any) => {
-            const blockHeading = getBlockHeadingText(block);
-            return blockHeading !== null && blockHeading.toLowerCase() === normalizedHeading;
-          });
+          const range = findSectionRange(allBlocks, heading);
 
-          if (headingIndex === -1) {
-            const availableHeadings = allBlocks
-              .map((block: any) => getBlockHeadingText(block))
-              .filter((blockHeading: string | null): blockHeading is string => blockHeading !== null);
+          if (!range.ok) {
             return textResponse({
-              error: `Heading not found: '${heading}'. Available headings: ${JSON.stringify(availableHeadings)}`,
+              error: `Heading not found: '${heading}'. Available headings: ${JSON.stringify(range.availableHeadings)}`,
             });
           }
 
-          const headingBlock = allBlocks[headingIndex] as any;
-          const headingLevel = getHeadingLevel(headingBlock.type);
-          let sectionEnd = allBlocks.length;
-
-          for (let index = headingIndex + 1; index < allBlocks.length; index += 1) {
-            const level = getHeadingLevel(allBlocks[index].type);
-            if (level > 0 && (headingLevel === 1 || level <= headingLevel)) {
-              sectionEnd = index;
-              break;
-            }
-          }
-
-          const sectionBlocks = allBlocks.slice(headingIndex, sectionEnd);
-          const afterBlockId = headingIndex > 0 ? allBlocks[headingIndex - 1].id : undefined;
+          const headingBlock = range.headingBlock;
+          const sectionBlocks = allBlocks.slice(range.headingIndex, range.sectionEnd);
+          const afterBlockId = range.headingIndex > 0 ? allBlocks[range.headingIndex - 1].id : undefined;
           const replacementBlocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
 
           if (afterBlockId === undefined && replacementBlocks.length > 0) {
@@ -1468,6 +1664,79 @@ export function createServer(
           return textResponse({
             deleted: sectionBlocks.length,
             appended: appended.length,
+          });
+        }
+        case "read_section": {
+          const notion = notionClientFactory();
+          const { page_id, heading } = args as { page_id: string; heading: string };
+          const allBlocks = await listChildren(notion, page_id);
+          const range = findSectionRange(allBlocks, heading);
+
+          if (!range.ok) {
+            return textResponse({
+              error: `Heading not found: '${heading}'. Available headings: ${JSON.stringify(range.availableHeadings)}`,
+              available_headings: range.availableHeadings,
+            });
+          }
+
+          const ctx: FetchContext = { omitted: [] };
+          const blocks = await fetchRawBlocksRecursive(
+            notion,
+            allBlocks.slice(range.headingIndex, range.sectionEnd),
+            ctx,
+          );
+          const warnings = omittedBlockWarnings(ctx);
+          return textResponse({
+            page_id,
+            heading: getBlockHeadingText(range.headingBlock) ?? heading,
+            block_id: range.headingBlock.id,
+            type: range.headingBlock.type,
+            markdown: wrapUntrusted(targetedBlocksToMarkdown(blocks), trustContent),
+            ...(warnings.length > 0 ? { warnings } : {}),
+          });
+        }
+        case "read_block": {
+          const notion = notionClientFactory();
+          const { block_id } = args as { block_id: string };
+          const ctx: FetchContext = { omitted: [] };
+          const { raw, block } = await fetchBlockRecursive(notion, block_id, ctx);
+          if (!block) {
+            return textResponse({
+              error: `read_block: block type '${raw?.type ?? "unknown"}' is not supported for markdown rendering.`,
+              id: block_id,
+              type: raw?.type,
+            });
+          }
+
+          const warnings = omittedBlockWarnings(ctx);
+          return textResponse({
+            id: raw.id ?? block_id,
+            type: raw.type ?? block.type,
+            markdown: wrapUntrusted(targetedBlocksToMarkdown([block]), trustContent),
+            ...(warnings.length > 0 ? { warnings } : {}),
+          });
+        }
+        case "read_toggle": {
+          const notion = notionClientFactory();
+          const { page_id, title } = args as { page_id: string; title: string };
+          const result = await findToggleRecursive(notion, page_id, title);
+          if (!result.block) {
+            return textResponse({
+              error: `Toggle not found: '${title}'. Available toggles: ${JSON.stringify(result.availableTitles)}`,
+              available_toggles: result.availableTitles,
+            });
+          }
+
+          const ctx: FetchContext = { omitted: [] };
+          const blocks = await fetchRawBlocksRecursive(notion, [result.block], ctx);
+          const warnings = omittedBlockWarnings(ctx);
+          return textResponse({
+            page_id,
+            title: getToggleTitle(result.block) ?? title,
+            block_id: result.block.id,
+            type: result.block.type,
+            markdown: wrapUntrusted(targetedBlocksToMarkdown(blocks), trustContent),
+            ...(warnings.length > 0 ? { warnings } : {}),
           });
         }
         case "find_replace": {
