@@ -25,7 +25,7 @@ npx easy-notion-mcp
 
 ---
 
-**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
+**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [MCP resources](#what-mcp-resources-are-available) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
@@ -337,7 +337,7 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 32 individually-named tools across 5 categories. Each tool is self-documenting with complete usage examples — agents know exactly how to use every tool from the first message, with no extra round-trips needed.
+easy-notion-mcp includes 32 individually-named tools across 5 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
 
 ### Pages (16 tools)
 
@@ -399,6 +399,17 @@ easy-notion-mcp fetches the database schema, maps values to Notion's property fo
 |---|---|
 | `list_users` | List workspace users |
 | `get_me` | Get the current bot user |
+
+## What MCP resources are available?
+
+Clients that support MCP Resources can read these docs on demand without loading all reference material into every tool description:
+
+| Resource URI | Contents |
+|---|---|
+| `easy-notion://docs/markdown` | Supported markdown syntax for page writes and reads |
+| `easy-notion://docs/warnings` | Warning codes and response shapes |
+| `easy-notion://docs/property-pagination` | `max_property_items` behavior for long properties |
+| `easy-notion://docs/update-data-source` | `update_data_source` payload modes, examples, and schema safety notes |
 
 ## What block types does easy-notion-mcp support?
 

@@ -3,7 +3,9 @@ import type { Client } from "@notionhq/client";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
 const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
@@ -159,6 +161,184 @@ function simplifyEntry(page: any): Record<string, unknown> {
 function textResponse(result: unknown) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(result) }],
+  };
+}
+
+const MCP_DOC_MIME_TYPE = "text/markdown";
+
+const resources = [
+  {
+    uri: "easy-notion://docs/markdown",
+    name: "markdown-conventions",
+    title: "Markdown conventions",
+    description: "Supported markdown syntax for page creation, appends, replacements, targeted updates, and reads.",
+    mimeType: MCP_DOC_MIME_TYPE,
+    text: `# Markdown conventions
+
+easy-notion-mcp accepts standard GitHub-flavored markdown plus a few Notion-specific extensions.
+
+## Standard syntax
+
+- Headings: # H1, ## H2, ### H3
+- Inline: **bold**, *italic*, ~~strikethrough~~, \`code\`, [links](url)
+- Images: ![alt](url)
+- Lists: - bullet, 1. numbered, - [ ] task, - [x] checked task
+- Tables: pipe tables with a header row and --- separator
+- Code blocks: triple backticks with optional language
+- Blockquotes: > text
+- Dividers: ---
+
+## Notion-specific syntax
+
+- Callouts: > [!NOTE], > [!TIP], > [!WARNING], > [!IMPORTANT], > [!INFO], > [!SUCCESS], or > [!ERROR]
+- Toggles: +++ Title, then nested content, then +++
+- Columns: ::: columns, nested ::: column blocks, then :::
+- Bookmarks: bare URL on its own line creates a rich preview card
+- Embeds: [embed](url)
+- Equations: $$expression$$ or multi-line $$ blocks
+- Table of contents: [toc]
+- File uploads in stdio transport only: ![alt](file:///path/image.png) or [name](file:///path/file.pdf)
+
+File uploads are limited to 20 MB per file. HTTP transport rejects file:// paths because the server filesystem belongs to the host, not the caller; use HTTPS URLs instead.
+
+Read tools return the same markdown conventions. If a read response includes warnings, inspect them before round-tripping the markdown through a write tool.`,
+  },
+  {
+    uri: "easy-notion://docs/warnings",
+    name: "warning-shapes",
+    title: "Warning shapes",
+    description: "Warning codes and response shapes emitted by markdown read and write tools.",
+    mimeType: MCP_DOC_MIME_TYPE,
+    text: `# Warning shapes
+
+Warnings are non-fatal but require caller attention.
+
+## omitted_block_types
+
+Returned by read_page, read_section, read_block, read_toggle, and duplicate_page when Notion blocks cannot be represented in this server's markdown dialect.
+
+Shape:
+\`\`\`json
+{
+  "code": "omitted_block_types",
+  "blocks": [{ "id": "block-id", "type": "synced_block" }]
+}
+\`\`\`
+
+Do not round-trip markdown through replace_content when omitted_block_types is present. The omitted blocks would be deleted from the page.
+
+## truncated_properties
+
+Returned by read_page and query_database when title, rich_text, relation, or people properties exceed max_property_items.
+
+Shape:
+\`\`\`json
+{
+  "code": "truncated_properties",
+  "properties": [{ "property": "Name", "type": "title", "returned": 75, "has_more": true }],
+  "how_to_fetch_all": "Call again with max_property_items: 0 to fetch all items, or raise the cap to a larger number."
+}
+\`\`\`
+
+## unmatched_blocks
+
+Returned by replace_content or find_replace when Notion reports block IDs that could not be matched during native markdown update.
+
+Shape:
+\`\`\`json
+{ "code": "unmatched_blocks", "block_ids": ["block-id"] }
+\`\`\`
+
+## bookmark_lost_on_atomic_replace
+
+Returned by replace_content when bookmark or embed markdown must fall back to plain URL forms because Notion Enhanced Markdown has no stable input tag for those blocks.`,
+  },
+  {
+    uri: "easy-notion://docs/property-pagination",
+    name: "property-pagination",
+    title: "Property pagination",
+    description: "How read_page and query_database paginate long Notion property values.",
+    mimeType: MCP_DOC_MIME_TYPE,
+    text: `# Property pagination
+
+Notion can paginate long values for title, rich_text, relation, and people properties.
+
+read_page paginates long page titles. query_database paginates long multi-value properties on every returned row.
+
+The max_property_items parameter controls the cap:
+
+- Omit it to use the default cap of 75 items per property.
+- Set it to 0 for unlimited retrieval.
+- Set it to a larger positive integer to raise the cap.
+- Negative, non-integer, and non-number values are rejected.
+
+When the cap is hit, the tool returns a truncated_properties warning with a how_to_fetch_all hint. Call the same tool again with max_property_items: 0 when you need complete values.`,
+  },
+  {
+    uri: "easy-notion://docs/update-data-source",
+    name: "update-data-source-guide",
+    title: "update_data_source guide",
+    description: "Full-list schema semantics, raw/helper payload modes, and examples for update_data_source.",
+    mimeType: MCP_DOC_MIME_TYPE,
+    text: `# update_data_source guide
+
+update_data_source changes a database data source schema: rename properties, add or update property definitions, remove properties, change the title, or move the data source to or from trash.
+
+Safety-critical rule: select and status options have full-list semantics. When updating an options array, send the full desired list. Any existing option you omit is permanently removed. Rows that reference a removed status option may be silently reassigned by Notion to the default group's first option. Reclassify rows first when preserving meaning matters.
+
+To add one option safely:
+
+1. Call get_database.
+2. Copy the current full option list.
+3. Append the new option.
+4. Send the complete list back through update_data_source.
+
+Payload modes:
+
+- Raw Notion API shape: forwarded as-is. Use this for renames, raw formula objects, and deletes via null.
+- Schema helper shape: if every entry has a top-level type plus helper fields and none of the raw Notion keys, the server validates and converts it.
+
+The routing rule is all-or-nothing per call. If any property entry looks raw, the whole properties payload is treated as raw pass-through.
+
+Examples:
+
+\`\`\`json
+{ "Old Name": { "name": "New Name" } }
+\`\`\`
+
+\`\`\`json
+{ "Status": { "status": { "options": [{ "name": "Backlog" }, { "name": "Doing" }, { "name": "Done" }] } } }
+\`\`\`
+
+\`\`\`json
+{ "Score": { "type": "formula", "expression": "1 + 1" } }
+\`\`\`
+
+\`\`\`json
+{ "Unused": null }
+\`\`\`
+
+Limitations:
+
+- Cannot toggle is_inline on an existing database; is_inline is database-level, not data-source-level.
+- Cannot update row or page data. Use update_database_entry or page tools for that.
+- Status groups cannot be reconfigured via API. New status options are assigned to the default group.
+- Notion may return a stale schema where options assigned to the in_progress status group appear as an empty array, causing validation errors on writes. If writes to in-progress group options fail unexpectedly, this is the likely upstream cause.
+- At least one of title, properties, or in_trash must be provided.`,
+  },
+] as const;
+
+function readResourceContents(uri: string) {
+  const resource = resources.find((candidate) => candidate.uri === uri);
+  if (!resource) {
+    throw new Error(`Unknown resource: ${uri}`);
+  }
+  return {
+    contents: [{
+      uri: resource.uri,
+      mimeType: resource.mimeType,
+      text: resource.text,
+    }],
   };
 }
 
@@ -840,25 +1020,7 @@ type ToolDefinition = {
 const tools = [
   {
     name: "create_page",
-    description: `Create a new Notion page from markdown content. Supported markdown syntax:
-- Headings: # H1, ## H2, ### H3
-- Inline: **bold**, *italic*, ~~strikethrough~~, \`code\`, [links](url)
-- Images: ![alt](url)
-- Lists: - bullet, 1. numbered, - [ ] task, - [x] checked task
-- Tables: | col | col | with header row and --- separator
-- Code blocks: triple backtick with optional language
-- Blockquotes: > text
-- Callouts: > [!NOTE]\\n> content, > [!TIP]\\n> content, > [!WARNING]\\n> content, > [!IMPORTANT]\\n> content, > [!INFO]\\n> content, > [!SUCCESS]\\n> content, > [!ERROR]\\n> content \u2192 styled callout blocks with emoji
-- Dividers: ---
-- Toggle blocks: +++ Title\\ncontent\\n+++ (collapsible sections)
-- Column layouts: ::: columns\\n::: column\\nleft\\n:::\\n::: column\\nright\\n:::\\n:::
-- Bookmarks: bare URL on its own line (not wrapped in []()) \u2192 rich preview card
-- Equations: $$expression$$ or multi-line $$\\nexpression\\n$$ \u2192 equation block
-- Table of contents: [toc] \u2192 table of contents block
-- Embeds: [embed](url) \u2192 embed block
-- File uploads (stdio transport only): ![alt](file:///path/to/image.png) \u2192 uploads and creates image block
-  Link syntax: [name](file:///path/to/file.pdf) \u2192 uploads and creates file/audio/video block (by extension)
-  Max 20 MB per file. In HTTP transport the file:// form is rejected \u2014 host the file at an HTTPS URL instead.`,
+    description: "Create a Notion page from markdown. Supports GFM plus Notion extensions for callouts, toggles, columns, bookmarks, embeds, equations, table of contents, and stdio-only file:// uploads. For the full syntax guide, read resource easy-notion://docs/markdown.",
     inputSchema: {
       type: "object",
       properties: {
@@ -876,7 +1038,7 @@ const tools = [
   },
   {
     name: "create_page_from_file",
-    description: `Create a Notion page from a local markdown file. The server reads the file, validates it, and creates the page — identical result to calling create_page, without shipping the file's content through the agent's context window.
+    description: `Create a Notion page from a local markdown file. The server reads and validates the file, then creates the same result as create_page without sending file contents through the agent context.
 
 STDIO MODE ONLY. This tool is not available when the server runs over HTTP, because in HTTP mode the server's filesystem belongs to the server host, not the caller.
 
@@ -888,7 +1050,7 @@ Restrictions:
 - File must be valid UTF-8
 - Symlinks are resolved and the resolved path must still be inside the workspace root
 
-Same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, task lists, etc.).`,
+For supported markdown syntax, read resource easy-notion://docs/markdown.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -908,7 +1070,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
   },
   {
     name: "append_content",
-    description: "Append markdown content to an existing page. Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.).",
+    description: "Append markdown content to an existing page. Supports the same syntax as create_page; read resource easy-notion://docs/markdown for the full syntax guide.",
     inputSchema: {
       type: "object",
       properties: {
@@ -924,7 +1086,7 @@ Same markdown syntax as create_page (headings, tables, callouts, toggles, column
 
 NOT preserved across replace_content: \`child_page\` subpages, \`synced_block\` instances, \`child_database\` views, and \`link_to_page\` references on the source page — Enhanced Markdown has no input form for these, so they are dropped from the new page content. If the source contains them, use duplicate_page first or edit those types via the Notion UI.
 
-Supports the same markdown syntax as create_page (headings, tables, callouts, toggles, columns, bookmarks, etc.). Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \`bookmark_lost_on_atomic_replace\` warning so callers know the rich-bookmark UI is lost.`,
+Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \`bookmark_lost_on_atomic_replace\` warning so callers know the rich-bookmark UI is lost. For supported markdown syntax and warning details, read resources easy-notion://docs/markdown and easy-notion://docs/warnings.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1030,9 +1192,9 @@ To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one 
   },
   {
     name: "read_page",
-    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.
+    description: `Read a page and return metadata plus markdown. Recursively fetches nested blocks and uses the same markdown conventions accepted by create_page. If unsupported block types are omitted, they are listed in warnings. Do NOT round-trip markdown through replace_content when omitted_block_types warnings are present; omitted blocks would be deleted.
 
-Long titles: when a page title exceeds 25 rich_text segments (uncommon in practice), the response paginates the title up to max_property_items (default 75). If the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint. Call again with max_property_items: 0 for unlimited or with a larger cap number.`,
+Long titles are paginated with max_property_items. For markdown conventions, warning shapes, and pagination details, read resources easy-notion://docs/markdown, easy-notion://docs/warnings, and easy-notion://docs/property-pagination.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1180,27 +1342,7 @@ Unknown property types fail with an explicit error. No silent drops.`,
 
 Cannot toggle \`is_inline\` on existing databases. \`is_inline\` is a database-level field, not a data-source field. A separate \`update_database\` tool may be added later.
 
-Updates a database's schema: rename existing properties, add or update many property types, remove properties, change the database title, or move it to or from trash. Use this after get_database tells you the current schema. Pass the same \`database_id\` you passed to get_database. The server resolves the underlying data source internally.
-
-The \`properties\` field supports two modes:
-- Raw Notion API shape: the server forwards your payload as-is. This preserves advanced and back-compat flows such as rename payloads, raw formula objects, and deletes via \`null\`.
-- Schema helper shape: if every property entry has a top-level \`type\` plus helper fields and none of the raw Notion keys, the server validates and converts it for you. Example: { "Score": { "type": "formula", "expression": "1+1" } }.
-
-The routing rule is all-or-nothing per call. If any property entry looks raw, the whole payload is treated as raw pass-through.
-
-Status property notes:
-- As of Notion's 2026-03-19 changelog, status properties are updatable via API (https://developers.notion.com/page/changelog). The legacy \`update-a-database\` and \`update-property-schema-object\` reference pages still say otherwise. The changelog is authoritative.
-- Status property groups (default: "To-do" / "In progress" / "Complete") cannot be reconfigured via API. Group structure must be edited in the Notion UI. New status options added via API are assigned to the default group and cannot be reassigned programmatically.
-- Known upstream issue: Notion's API may return a stale schema where options assigned to the \`in_progress\` group appear as an empty array, causing validation errors on writes (makenotion/notion-mcp-server#232). If writes to in_progress-group options fail unexpectedly, this is the likely cause.
-
-Property payload examples (raw Notion shape):
-- Rename a property: { "Old Name": { "name": "New Name" } }
-- Replace status options: { "Status": { "status": { "options": [{ "name": "Backlog" }, { "name": "Doing" }, { "name": "Done" }] } } }
-- Permanently delete a property and its data: { "Unused": null }
-
-This tool cannot update row or page data. Use page update tools for that.
-
-At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided. Empty updates are rejected.`,
+Updates a database's schema: rename properties, add or update property definitions, remove properties, change the title, or move it to/from trash. Use after get_database. Supports raw Notion payloads and schema helper payloads; read resource easy-notion://docs/update-data-source for modes, examples, status notes, and limitations. At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1233,15 +1375,9 @@ At least one of \`title\`, \`properties\`, or \`in_trash\` must be provided. Emp
   },
   {
     name: "query_database",
-    description: `Query a database with optional filters, sorts, or text search. Use text for simple keyword search across all text fields. For advanced filtering, use the filter parameter with Notion filter syntax:
-- Text contains: { "property": "Name", "title": { "contains": "keyword" } }
-- Select equals: { "property": "Status", "status": { "equals": "Done" } }
-- Checkbox: { "property": "Urgent", "checkbox": { "equals": true } }
-- Date after: { "property": "Due", "date": { "after": "2025-01-01" } }
-- Combine: { "and": [...] } or { "or": [...] }
-Call get_database first to see available properties and valid options.
+    description: `Query a database with optional filters, sorts, or text search. Use text for simple keyword search across title, rich_text, url, email, and phone fields. For advanced filters, pass Notion filter syntax and call get_database first to see property names and valid options.
 
-Response shape: returns { results: Array<entry>, warnings?: Array<warning> }. The results key is always present; warnings is included only when something needs the caller's attention. One possible warning code is truncated_properties, which fires when any multi-value property (title, rich_text, relation, people) exceeded max_property_items. Default cap is 75 items per property. If you see that warning, call again with max_property_items: 0 for unlimited, or with a larger cap number such as max_property_items: 500, to fetch the full set.`,
+Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-value properties are capped by max_property_items and can emit truncated_properties; read resources easy-notion://docs/property-pagination and easy-notion://docs/warnings for details.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1267,7 +1403,7 @@ Response shape: returns { results: Array<entry>, warnings?: Array<warning> }. Th
   },
   {
     name: "add_database_entry",
-    description: `Create a new entry in a database.
+    description: `Create one database entry using simple key-value property inputs. Call get_database first to see available property names and valid select/status options.
 
 Writable property values use simple inputs:
 - title, rich_text: string
@@ -1284,8 +1420,7 @@ Not writable from this tool:
 - formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion
 - files, verification, place, location, button: not supported for value writes here
 
-Example: { "Name": "Buy groceries", "Status": "Todo", "Priority": "High", "Due": "2025-03-20", "Tags": ["Personal"] }.
-Call get_database to see available property names and valid select or status options.`,
+Example: { "Name": "Buy groceries", "Status": "Todo", "Priority": "High", "Due": "2025-03-20", "Tags": ["Personal"] }.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1316,7 +1451,7 @@ Call get_database to see available property names and valid select or status opt
   },
   {
     name: "update_database_entry",
-    description: `Update an existing database entry. Pass only the properties you want to change; omitted properties are left unchanged.
+    description: `Update an existing database entry using simple key-value property inputs. Pass only properties to change; omitted properties are left unchanged. Call get_database first to see available property names and valid select/status options.
 
 Writable property values use the same simple inputs as add_database_entry:
 - title, rich_text: string
@@ -1331,9 +1466,7 @@ Writable property values use the same simple inputs as add_database_entry:
 
 Not writable from this tool:
 - formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion
-- files, verification, place, location, button: not supported for value writes here
-
-Call get_database to see valid property names and options.`,
+- files, verification, place, location, button: not supported for value writes here`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1446,7 +1579,7 @@ export function createServer(
 
   const server = new Server(
     { name: "easy-notion-mcp", version: PACKAGE_VERSION },
-    { capabilities: { tools: {} } },
+    { capabilities: { tools: {}, resources: {} } },
   );
 
   async function resolveParent(
@@ -1489,6 +1622,21 @@ export function createServer(
       }));
     return { tools: visible };
   });
+
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: resources.map(({ uri, name, title, description, mimeType, text }) => ({
+      uri,
+      name,
+      title,
+      description,
+      mimeType,
+      size: text.length,
+    })),
+  }));
+
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
+    readResourceContents(request.params.uri)
+  );
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
