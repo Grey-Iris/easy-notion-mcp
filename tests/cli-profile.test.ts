@@ -1272,6 +1272,150 @@ describe("easy-notion CLI", () => {
     );
   });
 
+  it("updates a top content section in place so the next sibling heading stays after the replacement", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const blocks = [
+      { id: "h2-a", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Target" }] } },
+      { id: "body-a", type: "paragraph", paragraph: { rich_text: [{ plain_text: "Old" }] } },
+      { id: "h2-b", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Next" }] } },
+    ];
+    const ops = createOps({
+      listChildren: vi.fn(async () => blocks),
+      processFileUploads: vi.fn(async () => "## Target\nReplacement body"),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-section", "page-1", "--heading", "Target", "--markdown", "## Target\nReplacement body",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({ ok: true, result: { deleted: 1, appended: 1 } });
+    expect(ops?.updateBlock).toHaveBeenCalledWith(
+      expect.anything(),
+      "h2-a",
+      expect.objectContaining({
+        heading_2: expect.objectContaining({
+          rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Target" } })]),
+          is_toggleable: false,
+        }),
+      }),
+    );
+    expect(ops?.deleteBlock).toHaveBeenCalledOnce();
+    expect(ops?.deleteBlock).toHaveBeenCalledWith(expect.anything(), "body-a");
+    expect(ops?.appendBlocksAfter).toHaveBeenCalledWith(
+      expect.anything(),
+      "page-1",
+      expect.arrayContaining([expect.objectContaining({
+        type: "paragraph",
+        paragraph: { rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Replacement body" } })]) },
+      })]),
+      "h2-a",
+    );
+  });
+
+  it("reconciles a top content section toggle heading to plain and deletes old body before append", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const blocks = [
+      {
+        id: "h2-a",
+        type: "heading_2",
+        has_children: true,
+        heading_2: { rich_text: [{ plain_text: "Target" }], is_toggleable: true },
+      },
+      { id: "body-a", type: "paragraph", paragraph: { rich_text: [{ plain_text: "Old" }] } },
+      { id: "h2-b", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Next" }] } },
+    ];
+    const order: string[] = [];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => blockId === "page-1"
+        ? blocks
+        : [{ id: "old-child", type: "paragraph", paragraph: { rich_text: [{ plain_text: "Old child" }] } }]),
+      processFileUploads: vi.fn(async () => "## Target\nReplacement body"),
+      updateBlock: vi.fn(async (_client, blockId, payload) => {
+        order.push(`update:${blockId}`);
+        return { id: blockId, ...payload };
+      }),
+      deleteBlock: vi.fn(async (_client, blockId) => {
+        order.push(`delete:${blockId}`);
+        return { id: blockId };
+      }),
+      appendBlocksAfter: vi.fn(async (_client, _pageId, replacementBlocks, afterBlockId) => {
+        order.push(`appendAfter:${afterBlockId}`);
+        return replacementBlocks.map((_, index) => ({ id: `after-block-${index}` }));
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-section", "page-1", "--heading", "Target", "--markdown", "## Target\nReplacement body",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({ ok: true, result: { deleted: 2, appended: 1 } });
+    expect(ops?.updateBlock).toHaveBeenCalledWith(
+      expect.anything(),
+      "h2-a",
+      expect.objectContaining({
+        heading_2: expect.objectContaining({ is_toggleable: false }),
+      }),
+    );
+    expect(order).toEqual([
+      "update:h2-a",
+      "delete:old-child",
+      "delete:body-a",
+      "appendAfter:h2-a",
+    ]);
+  });
+
+  it("rejects a top content section replacement with the wrong heading type before destructive mutation", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      listChildren: vi.fn(async () => [
+        { id: "h2-a", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Target" }] } },
+        { id: "body-a", type: "paragraph", paragraph: { rich_text: [{ plain_text: "Old" }] } },
+        { id: "h2-b", type: "heading_2", heading_2: { rich_text: [{ plain_text: "Next" }] } },
+      ]),
+      processFileUploads: vi.fn(async () => "# Target\nReplacement body"),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-section", "page-1", "--heading", "Target", "--markdown", "# Target\nReplacement body",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_update_section_markdown",
+        message: "update_section: when replacing the first section, markdown must start with a heading_2 block so following sections can stay in place.",
+      },
+    });
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocks).not.toHaveBeenCalled();
+    expect(ops?.appendBlocksAfter).not.toHaveBeenCalled();
+  });
+
   it("returns available headings when content update-section cannot find a heading", async () => {
     const configDir = await makeTempDir();
     await saveProfileConfig(configDir, {

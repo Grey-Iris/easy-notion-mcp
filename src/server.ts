@@ -186,6 +186,11 @@ function getHeadingLevel(type: string): number {
   return 0;
 }
 
+function getParsedBlockChildren(block: NotionBlock): NotionBlock[] {
+  const body = (block as any)[block.type];
+  return Array.isArray(body?.children) ? body.children : [];
+}
+
 export type OmittedBlock = { id: string; type: string };
 type FetchContext = { omitted: OmittedBlock[] };
 
@@ -752,9 +757,9 @@ Supports the same markdown syntax as create_page (headings, tables, callouts, to
   },
   {
     name: "update_section",
-    description: `DESTRUCTIVE — no rollback: this tool deletes the heading block and every block in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied AND the heading anchor is gone, so a retry will fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
+    description: `DESTRUCTIVE — no rollback: this tool deletes blocks in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied; for most sections the heading anchor is deleted, so a retry can fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
 
-Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. More efficient than replace_content for editing one section of a large page.`,
+Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. If the section starts at the first block, the replacement markdown must start with the same heading type so following sections stay in place. More efficient than replace_content for editing one section of a large page.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1407,6 +1412,48 @@ export function createServer(
 
           const sectionBlocks = allBlocks.slice(headingIndex, sectionEnd);
           const afterBlockId = headingIndex > 0 ? allBlocks[headingIndex - 1].id : undefined;
+          const replacementBlocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+
+          if (afterBlockId === undefined && replacementBlocks.length > 0) {
+            const firstReplacement = replacementBlocks[0] as any;
+            if (firstReplacement.type !== headingBlock.type) {
+              return textResponse({
+                error: `update_section: when replacing the first section, markdown must start with a ${headingBlock.type} block so following sections can stay in place.`,
+              });
+            }
+            const built = buildUpdateBlockPayload([firstReplacement], headingBlock.type);
+            if (!built.ok) {
+              return textResponse({ error: built.error.replace(/^update_block:/, "update_section:") });
+            }
+            (built.payload as any)[headingBlock.type].is_toggleable =
+              firstReplacement[headingBlock.type]?.is_toggleable === true;
+
+            const existingHeadingChildren = headingBlock.has_children === true
+              ? await listChildren(notion, headingBlock.id)
+              : [];
+            const replacementHeadingChildren = getParsedBlockChildren(firstReplacement);
+            await updateBlock(notion, headingBlock.id, built.payload);
+            for (const child of existingHeadingChildren) {
+              await deleteBlock(notion, child.id);
+            }
+            for (const block of sectionBlocks.slice(1)) {
+              await deleteBlock(notion, block.id);
+            }
+            const appendedHeadingChildren = replacementHeadingChildren.length > 0
+              ? await appendBlocks(notion, headingBlock.id, replacementHeadingChildren)
+              : [];
+
+            const appended = await appendBlocksAfter(
+              notion,
+              page_id,
+              replacementBlocks.slice(1),
+              headingBlock.id,
+            );
+            return textResponse({
+              deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
+              appended: appendedHeadingChildren.length + appended.length,
+            });
+          }
 
           for (const block of sectionBlocks) {
             await deleteBlock(notion, block.id);
@@ -1415,7 +1462,7 @@ export function createServer(
           const appended = await appendBlocksAfter(
             notion,
             page_id,
-            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
+            replacementBlocks,
             afterBlockId,
           );
           return textResponse({

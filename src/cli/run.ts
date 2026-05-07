@@ -425,6 +425,11 @@ function getHeadingLevel(type: string): number {
   return 0;
 }
 
+function getParsedBlockChildren(block: ReturnType<typeof markdownToBlocks>[number]): ReturnType<typeof markdownToBlocks> {
+  const body = (block as any)[block.type];
+  return Array.isArray(body?.children) ? body.children : [];
+}
+
 function parseOptionalBooleanFlag(args: string[], flag: string): boolean | undefined {
   const value = readFlag(args, flag);
   if (value === undefined) {
@@ -976,12 +981,54 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     const sectionBlocks = allBlocks.slice(headingIndex, sectionEnd) as any[];
     const afterBlockId = headingIndex > 0 ? (allBlocks[headingIndex - 1] as any).id : undefined;
     const markdown = await readMarkdownInput(args, io);
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const replacementBlocks = markdownToBlocks(processedMarkdown);
+
+    if (afterBlockId === undefined && replacementBlocks.length > 0) {
+      const firstReplacement = replacementBlocks[0] as any;
+      if (firstReplacement.type !== headingBlock.type) {
+        throw new CliError(
+          "invalid_update_section_markdown",
+          `update_section: when replacing the first section, markdown must start with a ${headingBlock.type} block so following sections can stay in place.`,
+        );
+      }
+      const built = buildUpdateBlockPayload([firstReplacement], headingBlock.type);
+      if (!built.ok) {
+        throw new CliError(
+          "invalid_update_section_markdown",
+          built.error.replace(/^update_block:/, "update_section:"),
+        );
+      }
+      (built.payload as any)[headingBlock.type].is_toggleable =
+        firstReplacement[headingBlock.type]?.is_toggleable === true;
+
+      const existingHeadingChildren = headingBlock.has_children === true
+        ? await ops.listChildren(client, headingBlock.id)
+        : [];
+      const replacementHeadingChildren = getParsedBlockChildren(firstReplacement);
+      await ops.updateBlock(client, headingBlock.id, built.payload);
+      for (const child of existingHeadingChildren as any[]) {
+        await ops.deleteBlock(client, child.id);
+      }
+      for (const block of sectionBlocks.slice(1)) {
+        await ops.deleteBlock(client, block.id);
+      }
+      const appendedHeadingChildren = replacementHeadingChildren.length > 0
+        ? await ops.appendBlocks(client, headingBlock.id, replacementHeadingChildren)
+        : [];
+
+      const appended = await ops.appendBlocksAfter(client, pageId, replacementBlocks.slice(1), headingBlock.id);
+      return success({
+        deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
+        appended: appendedHeadingChildren.length + appended.length,
+      });
+    }
+
     for (const block of sectionBlocks) {
       await ops.deleteBlock(client, block.id);
     }
 
-    const processedMarkdown = await ops.processFileUploads(client, markdown);
-    const appended = await ops.appendBlocksAfter(client, pageId, markdownToBlocks(processedMarkdown), afterBlockId);
+    const appended = await ops.appendBlocksAfter(client, pageId, replacementBlocks, afterBlockId);
     return success({ deleted: sectionBlocks.length, appended: appended.length });
   }
 
