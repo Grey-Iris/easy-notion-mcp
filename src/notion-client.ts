@@ -112,6 +112,7 @@ function isOptionalChildrenContainer(block: NotionBlock): boolean {
     case "bulleted_list_item":
     case "numbered_list_item":
     case "toggle":
+    case "callout":
       return true;
     case "heading_1":
       return block.heading_1.is_toggleable === true;

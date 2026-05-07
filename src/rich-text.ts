@@ -149,7 +149,16 @@ export function normalizeBlockRichTextForWrite(block: NotionBlock): NotionBlock 
     case "quote":
       return { ...block, quote: normalizeRichTextContainer(block.quote) };
     case "callout":
-      return { ...block, callout: normalizeRichTextContainer(block.callout) };
+      const callout = block.callout as typeof block.callout & { children?: NotionBlock[] };
+      return {
+        ...block,
+        callout: {
+          ...normalizeRichTextContainer(block.callout),
+          ...(callout.children
+            ? { children: callout.children.map((child) => normalizeBlockRichTextForWrite(child)) }
+            : {}),
+        },
+      };
     case "code":
       return { ...block, code: normalizeRichTextContainer(block.code) };
     case "to_do":

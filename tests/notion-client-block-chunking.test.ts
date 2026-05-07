@@ -56,6 +56,17 @@ function toggle(content: string, children?: NotionBlock[]): NotionBlock {
   };
 }
 
+function callout(content: string, children?: NotionBlock[]): NotionBlock {
+  return {
+    type: "callout",
+    callout: {
+      rich_text: text(content),
+      icon: { type: "emoji", emoji: "\u{1F4A1}" },
+      ...(children ? { children } : {}),
+    },
+  } as NotionBlock;
+}
+
 function column(children: NotionBlock[]): NotionBlock {
   return {
     type: "column",
@@ -113,6 +124,8 @@ function blockLabel(block: NotionBlock) {
       return block.numbered_list_item.rich_text[0]?.text.content ?? "numbered_list_item";
     case "toggle":
       return block.toggle.rich_text[0]?.text.content ?? "toggle";
+    case "callout":
+      return block.callout.rich_text[0]?.text.content ?? "callout";
     case "heading_1":
       return block.heading_1.rich_text[0]?.text.content ?? "heading_1";
     case "heading_2":
@@ -243,6 +256,26 @@ describe("notion-client block append chunking", () => {
     expect(sentCode.rich_text.map((item: RichText) => item.text.content.length)).toEqual([2000, 2000, 5]);
     expect(sentCode.rich_text.map((item: RichText) => item.text.content).join("")).toBe(content);
     expect(sentCode.language).toBe("typescript");
+  });
+
+  it("splits long callout child rich_text through deferred child appends", async () => {
+    const notion = makeNotionClient();
+    const content = "d".repeat(2001);
+
+    await createPage(notion, "parent-page-id", "Callout page", [callout("Callout", [{
+      type: "paragraph",
+      paragraph: { rich_text: [richText(content, { annotations: { underline: true } })] },
+    }])]);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    expect((notion.pages.create.mock.calls[0][0].children[0] as any).callout.children).toBeUndefined();
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+    expect(notion.blocks.children.append.mock.calls[0][0].block_id).toBe("Callout");
+
+    const sentParagraph = notion.blocks.children.append.mock.calls[0][0].children[0].paragraph;
+    expect(sentParagraph.rich_text.map((item: RichText) => item.text.content.length)).toEqual([2000, 1]);
+    expect(sentParagraph.rich_text.map((item: RichText) => item.text.content).join("")).toBe(content);
+    expect(sentParagraph.rich_text.every((item: RichText) => item.annotations?.underline === true)).toBe(true);
   });
 
   it("creates a page with at most 100 children and appends the remaining top-level blocks", async () => {
@@ -376,6 +409,26 @@ describe("notion-client block append chunking", () => {
     expect(notion.blocks.children.append.mock.calls.slice(1).flatMap(([args]: any[]) => args.children).map(blockText)).toEqual(
       children.map(blockText),
     );
+  });
+
+  it("defers nested callout children recursively without grandchildren in the first request", async () => {
+    const notion = makeNotionClient();
+
+    await appendBlocks(notion, "page-id", [callout("Callout", [bullet("Parent", [paragraph(1)])])]);
+
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(3);
+    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.block_id)).toEqual([
+      "page-id",
+      "Callout",
+      "Parent",
+    ]);
+    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.children.map(blockLabel))).toEqual([
+      ["Callout"],
+      ["Parent"],
+      ["Block 1"],
+    ]);
+    expect((notion.blocks.children.append.mock.calls[0][0].children[0] as any).callout.children).toBeUndefined();
+    expect((notion.blocks.children.append.mock.calls[1][0].children[0] as any).bulleted_list_item.children).toBeUndefined();
   });
 
   it("creates column lists with required column seed children and defers deeper column content", async () => {
