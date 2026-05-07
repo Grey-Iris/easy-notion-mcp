@@ -1192,7 +1192,7 @@ To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one 
   },
   {
     name: "read_page",
-    description: `Read a page and return metadata plus markdown. Recursively fetches nested blocks and uses the same markdown conventions accepted by create_page. If unsupported block types are omitted, they are listed in warnings. Do NOT round-trip markdown through replace_content when omitted_block_types warnings are present; omitted blocks would be deleted.
+    description: `Read a page and return metadata plus markdown. Recursively fetches nested blocks and uses the same markdown conventions accepted by create_page. If unsupported block types are omitted from the markdown, they are listed in warnings. Do NOT round-trip markdown through replace_content when omitted_block_types warnings are present; omitted blocks would be deleted.
 
 Long titles are paginated with max_property_items. For markdown conventions, warning shapes, and pagination details, read resources easy-notion://docs/markdown, easy-notion://docs/warnings, and easy-notion://docs/property-pagination.`,
     inputSchema: {
