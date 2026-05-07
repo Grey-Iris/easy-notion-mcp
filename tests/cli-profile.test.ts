@@ -48,7 +48,43 @@ function createOps(overrides: CliDeps["ops"] = {}): CliDeps["ops"] {
   return {
     createClient: vi.fn((token: string) => ({ token }) as any),
     getMe: vi.fn(async () => ({ id: "user-1", name: "Ada", type: "person" })),
+    listUsers: vi.fn(async () => [
+      { id: "user-1", name: "Ada", type: "person", person: { email: "ada@example.com" } },
+      { id: "bot-1", name: "Integration", type: "bot" },
+    ]),
     search: vi.fn(async () => []),
+    getDatabase: vi.fn(async (_client, databaseId) => ({
+      id: databaseId,
+      title: "Tasks",
+      url: `https://notion.so/${databaseId}`,
+      properties: [{ name: "Name", type: "title" }],
+    })),
+    validateDatabaseEntriesTarget: vi.fn(async () => ({ id: "db-1" })),
+    buildTextFilter: vi.fn(async (_client, _databaseId, text) => ({
+      property: "Name",
+      title: { contains: text },
+    })),
+    queryDatabase: vi.fn(async () => [{
+      id: "page-1",
+      properties: {
+        Name: { type: "title", title: [{ plain_text: "Task One" }] },
+        Status: { type: "status", status: { name: "Todo" } },
+      },
+    }]),
+    createDatabaseEntry: vi.fn(async (_client, _databaseId, properties) => ({
+      id: `entry-${String(properties.Name ?? "created").toLowerCase()}`,
+      url: "https://notion.so/entry-created",
+    })),
+    updateDatabaseEntry: vi.fn(async (_client, pageId) => ({
+      id: pageId,
+      url: `https://notion.so/${pageId}`,
+    })),
+    archivePage: vi.fn(async (_client, pageId) => ({ id: pageId })),
+    restorePage: vi.fn(async (_client, pageId) => ({ id: pageId })),
+    movePage: vi.fn(async (_client, pageId) => ({
+      id: pageId,
+      url: `https://notion.so/${pageId}`,
+    })),
     getPage: vi.fn(async () => ({
       id: "page-1",
       url: "https://notion.so/page-1",
@@ -56,6 +92,28 @@ function createOps(overrides: CliDeps["ops"] = {}): CliDeps["ops"] {
         Name: { type: "title", title: [{ plain_text: "Page One" }] },
       },
     })),
+    updatePage: vi.fn(async (_client, pageId, props) => ({
+      id: pageId,
+      url: `https://notion.so/${pageId}`,
+      properties: {
+        title: { type: "title", title: [{ plain_text: props.title ?? "Page One" }] },
+      },
+    })),
+    listChildren: vi.fn(async () => [
+      { id: "child-1", type: "child_page", child_page: { title: "Child One" } },
+      { id: "block-1", type: "paragraph" },
+    ]),
+    listComments: vi.fn(async () => [{
+      id: "comment-1",
+      created_by: { name: "Ada" },
+      rich_text: [{ plain_text: "Looks good" }],
+      created_time: "2026-05-06T12:00:00.000Z",
+    }]),
+    addComment: vi.fn(async (_client, _pageId, richText) => ({
+      id: "comment-2",
+      rich_text: richText.map((text: any) => ({ plain_text: text.text.content })),
+    })),
+    uploadFile: vi.fn(async () => ({ id: "upload-1", blockType: "image" })),
     paginatePageProperties: vi.fn(async (_client, page) => ({ page, warnings: [] })),
     fetchBlocksRecursive: vi.fn(async () => [{
       type: "paragraph",
@@ -301,6 +359,473 @@ describe("easy-notion CLI", () => {
     const appendIo = createIo(env);
     expect(await runCli(["content", "append", "page-1", "--markdown", "Hello"], appendIo.io, { configDir, ops })).toBe(0);
     expect(jsonFrom(appendIo.stdout).result).toEqual({ success: true, blocks_added: 1 });
+  });
+
+  it("routes database get, list, query, add, add-many, and update as JSON commands", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      search: vi.fn(async () => [{
+        id: "ds-1",
+        object: "data_source",
+        url: "https://notion.so/db-1",
+        title: [{ plain_text: "Tasks" }],
+        parent: { type: "database_id", database_id: "db-1" },
+      }]),
+    });
+    const env = { WORK_TOKEN: "secret-token-value" };
+
+    const getIo = createIo(env);
+    expect(await runCli(["database", "get", "db-1"], getIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(getIo.stdout).result).toEqual({
+      id: "db-1",
+      title: "Tasks",
+      url: "https://notion.so/db-1",
+      properties: [{ name: "Name", type: "title" }],
+    });
+    expect(ops?.getDatabase).toHaveBeenCalledWith(expect.anything(), "db-1");
+
+    const listIo = createIo(env);
+    expect(await runCli(["database", "list"], listIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(listIo.stdout).result).toEqual([{
+      id: "db-1",
+      title: "Tasks",
+      url: "https://notion.so/db-1",
+    }]);
+    expect(ops?.search).toHaveBeenCalledWith(expect.anything(), "", "databases");
+
+    const queryIo = createIo(env);
+    expect(await runCli([
+      "database", "query", "db-1",
+      "--filter-json", "{\"property\":\"Status\",\"status\":{\"equals\":\"Todo\"}}",
+      "--sorts-json", "[{\"property\":\"Name\",\"direction\":\"ascending\"}]",
+      "--text", "Task",
+    ], queryIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(queryIo.stdout).result).toEqual({
+      results: [{ id: "page-1", Name: "Task One", Status: "Todo" }],
+    });
+    expect(ops?.queryDatabase).toHaveBeenCalledWith(
+      expect.anything(),
+      "db-1",
+      {
+        and: [
+          { property: "Name", title: { contains: "Task" } },
+          { property: "Status", status: { equals: "Todo" } },
+        ],
+      },
+      [{ property: "Name", direction: "ascending" }],
+    );
+
+    const addIo = createIo(env);
+    expect(await runCli([
+      "database", "entry", "add", "db-1", "--properties-json", "{\"Name\":\"Task One\"}",
+    ], addIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(addIo.stdout).result).toEqual({
+      id: "entry-task one",
+      url: "https://notion.so/entry-created",
+    });
+
+    const addManyIo = createIo(env);
+    expect(await runCli([
+      "database", "entry", "add-many", "db-1",
+      "--entries-json", "[{\"Name\":\"One\"},{\"Name\":\"Two\"}]",
+    ], addManyIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(addManyIo.stdout).result).toEqual({
+      succeeded: [
+        { id: "entry-one", url: "https://notion.so/entry-created" },
+        { id: "entry-two", url: "https://notion.so/entry-created" },
+      ],
+      failed: [],
+    });
+    expect(ops?.validateDatabaseEntriesTarget).toHaveBeenCalledWith(expect.anything(), "db-1");
+
+    const updateIo = createIo(env);
+    expect(await runCli([
+      "database", "entry", "update", "page-1", "--properties-json", "{\"Status\":\"Done\"}",
+    ], updateIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(updateIo.stdout).result).toEqual({
+      id: "page-1",
+      url: "https://notion.so/page-1",
+    });
+    expect(ops?.updateDatabaseEntry).toHaveBeenCalledWith(expect.anything(), "page-1", { Status: "Done" });
+  });
+
+  it("routes read/admin CLI parity commands as JSON commands", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+    const env = { WORK_TOKEN: "secret-token-value" };
+
+    const usersIo = createIo(env);
+    expect(await runCli(["user", "list"], usersIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(usersIo.stdout).result).toEqual([
+      { id: "user-1", name: "Ada", type: "person", email: "ada@example.com" },
+      { id: "bot-1", name: "Integration", type: "bot", email: null },
+    ]);
+
+    const commentsIo = createIo(env);
+    expect(await runCli(["comment", "list", "page-1"], commentsIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(commentsIo.stdout).result).toEqual([{
+      id: "comment-1",
+      author: "Ada",
+      content: "Looks good",
+      created_time: "2026-05-06T12:00:00.000Z",
+    }]);
+
+    const addCommentIo = createIo(env);
+    expect(await runCli(["comment", "add", "page-1", "--text", "Ship it"], addCommentIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(addCommentIo.stdout).result).toEqual({
+      id: "comment-2",
+      content: "Ship it",
+    });
+    expect(ops?.addComment).toHaveBeenCalledWith(
+      expect.anything(),
+      "page-1",
+      [expect.objectContaining({ type: "text", text: { content: "Ship it" } })],
+    );
+
+    const shareIo = createIo(env);
+    expect(await runCli(["page", "share", "page-1"], shareIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(shareIo.stdout).result).toEqual({
+      id: "page-1",
+      url: "https://notion.so/page-1",
+    });
+
+    const childrenIo = createIo(env);
+    expect(await runCli(["page", "list-children", "parent-1"], childrenIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(childrenIo.stdout).result).toEqual([
+      { id: "child-1", title: "Child One" },
+    ]);
+    expect(ops?.listChildren).toHaveBeenCalledWith(expect.anything(), "parent-1");
+
+    const updateIo = createIo(env);
+    expect(await runCli(["page", "update", "page-1", "--title", "Renamed", "--icon", "*"], updateIo.io, {
+      configDir,
+      ops,
+    })).toBe(0);
+    expect(jsonFrom(updateIo.stdout).result).toEqual({
+      id: "page-1",
+      title: "Renamed",
+      url: "https://notion.so/page-1",
+    });
+    expect(ops?.updatePage).toHaveBeenCalledWith(expect.anything(), "page-1", {
+      title: "Renamed",
+      icon: "*",
+      cover: undefined,
+    });
+
+    const archiveIo = createIo(env);
+    expect(await runCli(["page", "archive", "page-1"], archiveIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(archiveIo.stdout).result).toEqual({ success: true, archived: "page-1" });
+
+    const restoreIo = createIo(env);
+    expect(await runCli(["page", "restore", "page-1"], restoreIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(restoreIo.stdout).result).toEqual({ success: true, restored: "page-1" });
+
+    const moveIo = createIo(env);
+    expect(await runCli(["page", "move", "page-1", "--parent", "new-parent"], moveIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(moveIo.stdout).result).toEqual({
+      id: "page-1",
+      url: "https://notion.so/page-1",
+      parent_id: "new-parent",
+    });
+    expect(ops?.movePage).toHaveBeenCalledWith(expect.anything(), "page-1", "new-parent");
+
+    const deleteIo = createIo(env);
+    expect(await runCli(["database", "entry", "delete", "page-1"], deleteIo.io, { configDir, ops })).toBe(0);
+    expect(jsonFrom(deleteIo.stdout).result).toEqual({ success: true, deleted: "page-1" });
+    expect(ops?.archivePage).toHaveBeenLastCalledWith(expect.anything(), "page-1");
+  });
+
+  it("routes file covers through uploadFile for page update", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli(["page", "update", "page-1", "--cover", "file:///tmp/cover.png"], io.io, {
+      configDir,
+      ops,
+    })).toBe(0);
+
+    expect(ops?.uploadFile).toHaveBeenCalledWith(expect.anything(), "file:///tmp/cover.png");
+    expect(ops?.updatePage).toHaveBeenCalledWith(expect.anything(), "page-1", {
+      title: undefined,
+      icon: undefined,
+      cover: { type: "file_upload", file_upload: { id: "upload-1" } },
+    });
+  });
+
+  it("validates add-many target before creating entries", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const calls: string[] = [];
+    const ops = createOps({
+      validateDatabaseEntriesTarget: vi.fn(async () => {
+        calls.push("validate");
+        return { id: "db-1" };
+      }),
+      createDatabaseEntry: vi.fn(async (_client, _databaseId, properties) => {
+        calls.push(`create:${String(properties.Name)}`);
+        return {
+          id: `entry-${String(properties.Name).toLowerCase()}`,
+          url: "https://notion.so/entry-created",
+        };
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "database", "entry", "add-many", "db-1",
+      "--entries-json", "[{\"Name\":\"One\"},{\"Name\":\"Two\"}]",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(calls).toEqual(["validate", "create:One", "create:Two"]);
+    expect(jsonFrom(io.stdout).result).toEqual({
+      succeeded: [
+        { id: "entry-one", url: "https://notion.so/entry-created" },
+        { id: "entry-two", url: "https://notion.so/entry-created" },
+      ],
+      failed: [],
+    });
+  });
+
+  it("validates add-many target for empty entries", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "database", "entry", "add-many", "db-1", "--entries-json", "[]",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(jsonFrom(io.stdout).result).toEqual({ succeeded: [], failed: [] });
+    expect(ops?.validateDatabaseEntriesTarget).toHaveBeenCalledWith(expect.anything(), "db-1");
+    expect(ops?.createDatabaseEntry).not.toHaveBeenCalled();
+  });
+
+  it("returns a stable JSON error when add-many upfront validation fails", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      validateDatabaseEntriesTarget: vi.fn(async () => {
+        throw new Error("Could not find database db-missing");
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "database", "entry", "add-many", "db-missing",
+      "--entries-json", "[{\"Name\":\"Blocked\"}]",
+    ], io.io, { configDir, ops })).toBe(1);
+
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "unexpected_error",
+        message: "Could not find database db-missing",
+      },
+    });
+    expect(ops?.validateDatabaseEntriesTarget).toHaveBeenCalledWith(expect.anything(), "db-missing");
+    expect(ops?.createDatabaseEntry).not.toHaveBeenCalled();
+  });
+
+  it("blocks readonly database entry writes before creating a Notion client", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+
+    for (const [argv, command, op] of [
+      [
+        ["database", "entry", "add", "db-1", "--properties-json", "{\"Name\":\"Blocked\"}"],
+        "database entry add",
+        "createDatabaseEntry",
+      ],
+      [
+        ["database", "entry", "add-many", "db-1", "--entries-json", "[{\"Name\":\"Blocked\"}]"],
+        "database entry add-many",
+        "createDatabaseEntry",
+      ],
+      [
+        ["database", "entry", "update", "page-1", "--properties-json", "{\"Name\":\"Blocked\"}"],
+        "database entry update",
+        "updateDatabaseEntry",
+      ],
+    ] as const) {
+      const ops = createOps();
+      const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+      const code = await runCli(argv, io.io, { configDir, ops });
+
+      expect(code).toBe(1);
+      expect(jsonFrom(io.stdout)).toEqual({
+        ok: false,
+        error: {
+          code: "readonly_profile",
+          message: `Profile 'work-ro' is readonly and cannot run mutating command '${command}'.`,
+        },
+      });
+      expect(ops?.createClient).not.toHaveBeenCalled();
+      expect((ops as Record<string, any>)[op]).not.toHaveBeenCalled();
+      expect(ops?.validateDatabaseEntriesTarget).not.toHaveBeenCalled();
+    }
+  });
+
+  it("blocks readonly second-slice writes before creating a Notion client", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+
+    for (const [argv, command, op] of [
+      [["comment", "add", "page-1", "--text", "Blocked"], "comment add", "addComment"],
+      [["page", "update", "page-1", "--title", "Blocked"], "page update", "updatePage"],
+      [["page", "archive", "page-1"], "page archive", "archivePage"],
+      [["page", "restore", "page-1"], "page restore", "restorePage"],
+      [["page", "move", "page-1", "--parent", "new-parent"], "page move", "movePage"],
+      [["database", "entry", "delete", "page-1"], "database entry delete", "archivePage"],
+    ] as const) {
+      const ops = createOps();
+      const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+      const code = await runCli(argv, io.io, { configDir, ops });
+
+      expect(code).toBe(1);
+      expect(jsonFrom(io.stdout)).toEqual({
+        ok: false,
+        error: {
+          code: "readonly_profile",
+          message: `Profile 'work-ro' is readonly and cannot run mutating command '${command}'.`,
+        },
+      });
+      expect(ops?.createClient).not.toHaveBeenCalled();
+      expect((ops as Record<string, any>)[op]).not.toHaveBeenCalled();
+    }
+  });
+
+  it("returns a stable JSON error when page update has no update flags", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli(["page", "update", "page-1"], io.io, { configDir, ops })).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "no_update_flags",
+        message: "page update requires at least one of --title, --icon, or --cover.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+    expect(ops?.updatePage).not.toHaveBeenCalled();
+  });
+
+  it("returns stable JSON errors for invalid database JSON flags", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+
+    const invalidSyntaxIo = createIo({ WORK_TOKEN: "secret-token-value" });
+    expect(await runCli([
+      "database", "query", "db-1", "--filter-json", "{property:'Name'}",
+    ], invalidSyntaxIo.io, { configDir, ops })).toBe(1);
+    expect(jsonFrom(invalidSyntaxIo.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_json",
+        message: "--filter-json must be valid JSON.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+
+    const wrongShapeIo = createIo({ WORK_TOKEN: "secret-token-value" });
+    expect(await runCli([
+      "database", "entry", "add-many", "db-1", "--entries-json", "{\"Name\":\"Task\"}",
+    ], wrongShapeIo.io, { configDir, ops })).toBe(1);
+    expect(jsonFrom(wrongShapeIo.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_json_shape",
+        message: "--entries-json must be a JSON array.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+  });
+
+  it("returns query warnings when database properties are truncated", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      paginatePageProperties: vi.fn(async (_client, page) => ({
+        page,
+        warnings: [{ name: "Tags", type: "relation", returned_count: 1, cap: 1 }],
+      })),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "database", "query", "db-1", "--max-property-items", "1",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(jsonFrom(io.stdout).result.warnings).toEqual([{
+      code: "truncated_properties",
+      properties: [{ name: "Tags", type: "relation", returned_count: 1, cap: 1 }],
+      how_to_fetch_all: "Call again with --max-property-items 0 to fetch all items, or raise the cap.",
+    }]);
   });
 
   it("always includes the content notice and rejects --trust-content", async () => {
