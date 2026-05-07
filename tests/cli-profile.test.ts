@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -79,6 +79,13 @@ function createOps(overrides: CliDeps["ops"] = {}): CliDeps["ops"] {
       id: pageId,
       url: `https://notion.so/${pageId}`,
     })),
+    createPage: vi.fn(async (_client, _parent, title) => ({
+      id: `created-${String(title).toLowerCase().replaceAll(" ", "-")}`,
+      url: "https://notion.so/created-page",
+      properties: {
+        title: { type: "title", title: [{ plain_text: title }] },
+      },
+    })),
     archivePage: vi.fn(async (_client, pageId) => ({ id: pageId })),
     restorePage: vi.fn(async (_client, pageId) => ({ id: pageId })),
     movePage: vi.fn(async (_client, pageId) => ({
@@ -125,6 +132,8 @@ function createOps(overrides: CliDeps["ops"] = {}): CliDeps["ops"] {
     })),
     processFileUploads: vi.fn(async (_client, markdown) => markdown),
     appendBlocks: vi.fn(async (_client, _pageId, blocks) => blocks.map((_, index) => ({ id: `block-${index}` }))),
+    replacePageMarkdown: vi.fn(async () => ({ truncated: false })),
+    updateMarkdown: vi.fn(async () => ({ truncated: false })),
     ...overrides,
   };
 }
@@ -882,6 +891,334 @@ describe("easy-notion CLI", () => {
         expect.objectContaining({ type: "paragraph" }),
       ]),
     );
+  });
+
+  it("creates pages from markdown with explicit and profile fallback parents", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite", root_page_id: "root-1" },
+      },
+    });
+    const ops = createOps();
+    const env = { WORK_TOKEN: "secret-token-value" };
+
+    const explicitIo = createIo(env);
+    expect(await runCli([
+      "page", "create",
+      "--title", "New Page",
+      "--parent", "parent-1",
+      "--icon", "\uD83D\uDCCC",
+      "--cover", "https://example.com/cover.png",
+      "--markdown", "# Hello",
+    ], explicitIo.io, { configDir, ops })).toBe(0);
+
+    expect(jsonFrom(explicitIo.stdout).result).toEqual({
+      id: "created-new-page",
+      title: "New Page",
+      url: "https://notion.so/created-page",
+    });
+    expect(ops?.createPage).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { type: "page_id", page_id: "parent-1" },
+      "New Page",
+      expect.arrayContaining([expect.objectContaining({ type: "heading_1" })]),
+      "\uD83D\uDCCC",
+      "https://example.com/cover.png",
+    );
+
+    const fallbackIo = createIo(env);
+    expect(await runCli([
+      "page", "create", "--title", "Fallback Parent", "--markdown", "Body",
+    ], fallbackIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.createPage).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { type: "page_id", page_id: "root-1" },
+      "Fallback Parent",
+      expect.any(Array),
+      undefined,
+      undefined,
+    );
+  });
+
+  it("creates pages from exact file paths and stdin", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const filePath = join(configDir, "note.md");
+    await writeFile(filePath, "File body", "utf8");
+    const ops = createOps();
+    const env = { WORK_TOKEN: "secret-token-value" };
+
+    const fileIo = createIo(env);
+    expect(await runCli([
+      "page", "create-from-file",
+      "--title", "From File",
+      "--file", filePath,
+      "--parent", "parent-1",
+    ], fileIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.processFileUploads).toHaveBeenLastCalledWith(expect.anything(), "File body");
+    expect(ops?.createPage).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { type: "page_id", page_id: "parent-1" },
+      "From File",
+      expect.arrayContaining([expect.objectContaining({ type: "paragraph" })]),
+    );
+
+    const stdinIo = createIo(env);
+    stdinIo.io.stdin = Readable.from(["# From stdin"]) as NodeJS.ReadStream;
+    expect(await runCli([
+      "page", "create",
+      "--title", "From Stdin",
+      "--parent", "parent-1",
+      "--stdin",
+    ], stdinIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.processFileUploads).toHaveBeenLastCalledWith(expect.anything(), "# From stdin");
+  });
+
+  it("blocks new mutating commands before creating a Notion client", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly", root_page_id: "root-1" },
+      },
+    });
+
+    for (const [argv, command, op] of [
+      [
+        ["page", "create", "--title", "Nope", "--markdown", "Body"],
+        "page create",
+        "createPage",
+      ],
+      [
+        ["page", "create-from-file", "--title", "Nope", "--file", "missing.md"],
+        "page create-from-file",
+        "createPage",
+      ],
+      [
+        ["page", "duplicate", "page-1"],
+        "page duplicate",
+        "createPage",
+      ],
+      [
+        ["content", "replace", "page-1", "--markdown", "Body"],
+        "content replace",
+        "replacePageMarkdown",
+      ],
+      [
+        ["content", "find-replace", "page-1", "--find", "old", "--replace", "new"],
+        "content find-replace",
+        "updateMarkdown",
+      ],
+    ] as const) {
+      const ops = createOps();
+      const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+      const code = await runCli(argv, io.io, { configDir, ops });
+
+      expect(code).toBe(1);
+      expect(jsonFrom(io.stdout)).toEqual({
+        ok: false,
+        error: {
+          code: "readonly_profile",
+          message: `Profile 'work-ro' is readonly and cannot run mutating command '${command}'.`,
+        },
+      });
+      expect(ops?.createClient).not.toHaveBeenCalled();
+      expect((ops as Record<string, any>)[op]).not.toHaveBeenCalled();
+      expect(ops?.processFileUploads).not.toHaveBeenCalled();
+    }
+  });
+
+  it("duplicates pages with source parent fallback and omitted block warnings", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      getPage: vi.fn(async () => ({
+        id: "source-1",
+        url: "https://notion.so/source-1",
+        parent: { type: "page_id", page_id: "source-parent-1" },
+        icon: { type: "emoji", emoji: "\uD83E\uDDED" },
+        properties: {
+          Name: { type: "title", title: [{ plain_text: "Source Page" }] },
+        },
+      })),
+      fetchBlocksRecursive: vi.fn(async (_client, _pageId, ctx) => {
+        ctx.omitted.push({ id: "child-db-1", type: "child_database" });
+        return [{ type: "paragraph", paragraph: { rich_text: [] } }];
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "page", "duplicate", "source-1",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(ops?.createPage).toHaveBeenCalledWith(
+      expect.anything(),
+      { type: "page_id", page_id: "source-parent-1" },
+      "Source Page (Copy)",
+      [{ type: "paragraph", paragraph: { rich_text: [] } }],
+      "\uD83E\uDDED",
+    );
+    expect(jsonFrom(io.stdout).result.warnings).toEqual([{
+      code: "omitted_block_types",
+      blocks: [{ id: "child-db-1", type: "child_database" }],
+    }]);
+  });
+
+  it("replaces content with enhanced markdown and returns translator/unmatched warnings", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      replacePageMarkdown: vi.fn(async () => ({
+        truncated: true,
+        unknown_block_ids: ["block-missing"],
+      })),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "content", "replace", "page-1", "--markdown", "[embed](https://example.com/embed)",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(ops?.replacePageMarkdown).toHaveBeenCalledWith(
+      expect.anything(),
+      "page-1",
+      "https://example.com/embed",
+      { allowDeletingContent: true },
+    );
+    expect(jsonFrom(io.stdout).result).toEqual({
+      success: true,
+      truncated: true,
+      warnings: [
+        { code: "embed_lost_on_atomic_replace", url: "https://example.com/embed" },
+        { code: "unmatched_blocks", block_ids: ["block-missing"] },
+      ],
+    });
+  });
+
+  it("routes find-replace through pages.updateMarkdown payload shape", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      updateMarkdown: vi.fn(async () => ({ truncated: true, unknown_block_ids: ["unknown-1"] })),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "content", "find-replace", "page-1",
+      "--find", "old",
+      "--replace", "new",
+      "--all",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(ops?.updateMarkdown).toHaveBeenCalledWith(expect.anything(), {
+      page_id: "page-1",
+      type: "update_content",
+      update_content: {
+        content_updates: [{
+          old_str: "old",
+          new_str: "new",
+          replace_all_matches: true,
+        }],
+      },
+    });
+    expect(jsonFrom(io.stdout).result).toEqual({
+      success: true,
+      truncated: true,
+      warnings: [{ code: "unmatched_blocks", block_ids: ["unknown-1"] }],
+    });
+  });
+
+  it("returns stable JSON errors for markdown input mode conflicts", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "replace", "page-1", "--markdown", "A", "--stdin",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_markdown_input",
+        message: "Provide exactly one of --markdown, --markdown-file, or --stdin.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+    expect(ops?.replacePageMarkdown).not.toHaveBeenCalled();
+  });
+
+  it("returns a stable JSON error when page create has no parent fallback", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+
+    for (const [argv, message] of [
+      [
+        ["page", "create", "--title", "No Parent", "--markdown", "Body"],
+        "page create requires --parent or a profile root_page_id.",
+      ],
+      [
+        ["page", "create", "--title", "No Parent", "--markdown-file", join(configDir, "missing.md")],
+        "page create requires --parent or a profile root_page_id.",
+      ],
+      [
+        ["page", "create-from-file", "--title", "No Parent", "--file", join(configDir, "missing.md")],
+        "page create-from-file requires --parent or a profile root_page_id.",
+      ],
+    ] as const) {
+      const ops = createOps();
+      const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+      const code = await runCli(argv, io.io, { configDir, ops });
+
+      expect(code).toBe(1);
+      expect(jsonFrom(io.stdout)).toEqual({
+        ok: false,
+        error: {
+          code: "missing_parent",
+          message,
+        },
+      });
+      expect(ops?.createClient).not.toHaveBeenCalled();
+      expect(ops?.createPage).not.toHaveBeenCalled();
+      expect(ops?.processFileUploads).not.toHaveBeenCalled();
+    }
   });
 
   it("returns stable JSON errors for argument failures", async () => {

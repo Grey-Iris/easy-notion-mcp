@@ -3,11 +3,13 @@ import type { Client } from "@notionhq/client";
 import { blocksToMarkdown } from "../blocks-to-markdown.js";
 import { processFileUploads } from "../file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "../markdown-to-blocks.js";
+import { translateGfmToEnhancedMarkdown } from "../markdown-to-enhanced.js";
 import {
   addComment,
   appendBlocks,
   archivePage,
   buildTextFilter,
+  createPage,
   createDatabaseEntry,
   createNotionClient,
   getDatabase,
@@ -20,11 +22,13 @@ import {
   movePage,
   paginatePageProperties,
   queryDatabase,
+  replacePageMarkdown,
   restorePage,
   searchNotion,
   updatePage,
   updateDatabaseEntry,
   uploadFile,
+  type PageParent,
 } from "../notion-client.js";
 import { fetchBlocksRecursive, fetchBlocksWithLimit, getPageTitle, simplifyProperty } from "../server.js";
 import {
@@ -75,6 +79,14 @@ type NotionOps = {
   createDatabaseEntry(client: Client, databaseId: string, properties: Record<string, unknown>): Promise<unknown>;
   updateDatabaseEntry(client: Client, pageId: string, properties: Record<string, unknown>): Promise<unknown>;
   getPage(client: Client, pageId: string): Promise<unknown>;
+  createPage(
+    client: Client,
+    parent: string | PageParent,
+    title: string,
+    blocks: ReturnType<typeof markdownToBlocks>,
+    icon?: string,
+    cover?: string,
+  ): Promise<unknown>;
   updatePage(
     client: Client,
     pageId: string,
@@ -101,6 +113,13 @@ type NotionOps = {
   ): Promise<{ blocks: unknown[]; hasMore: boolean }>;
   processFileUploads(client: Client, markdown: string): Promise<string>;
   appendBlocks(client: Client, pageId: string, blocks: ReturnType<typeof markdownToBlocks>): Promise<unknown[]>;
+  replacePageMarkdown(
+    client: Client,
+    pageId: string,
+    newStr: string,
+    options?: { allowDeletingContent?: boolean },
+  ): Promise<unknown>;
+  updateMarkdown(client: Client, payload: Record<string, unknown>): Promise<unknown>;
 };
 
 export type CliDeps = {
@@ -122,6 +141,7 @@ const DEFAULT_OPS: NotionOps = {
   createDatabaseEntry,
   updateDatabaseEntry,
   getPage,
+  createPage,
   updatePage,
   archivePage,
   restorePage,
@@ -135,6 +155,8 @@ const DEFAULT_OPS: NotionOps = {
   fetchBlocksWithLimit: fetchBlocksWithLimit as NotionOps["fetchBlocksWithLimit"],
   processFileUploads: (client, markdown) => processFileUploads(client, markdown, "stdio"),
   appendBlocks,
+  replacePageMarkdown,
+  updateMarkdown: (client, payload) => (client as any).pages.updateMarkdown(payload),
 };
 
 function helpText(): string {
@@ -150,6 +172,9 @@ function helpText(): string {
     "  user list",
     "  search <query> [--filter pages|databases]",
     "  page read <page> [--include-metadata] [--max-blocks <n>] [--max-property-items <n>]",
+    "  page create --title <title> [--parent <page_id>] [--icon <emoji>] [--cover <url>] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  page create-from-file --title <title> --file <path> [--parent <page_id>]",
+    "  page duplicate <page_id> [--title <title>] [--parent <page_id>]",
     "  page share <page_id>",
     "  page list-children <parent_page_id>",
     "  page update <page_id> [--title <title>] [--icon <emoji>] [--cover <url-or-file-url>]",
@@ -157,6 +182,8 @@ function helpText(): string {
     "  page restore <page_id>",
     "  page move <page_id> --parent <new_parent_id>",
     "  content append <page> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content replace <page_id> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content find-replace <page_id> --find <text> --replace <text> [--all]",
     "  comment list <page_id>",
     "  comment add <page_id> --text <text>",
     "  database get <database_id>",
@@ -430,6 +457,26 @@ function assertCanMutate(resolved: ResolvedProfile, command: string): void {
   }
 }
 
+function parentFromId(parentId: string | undefined, fallbackRootPageId: string | undefined, command: string): PageParent {
+  const resolvedParentId = parentId ?? fallbackRootPageId;
+  if (!resolvedParentId) {
+    throw new CliError("missing_parent", `${command} requires --parent or a profile root_page_id.`);
+  }
+  return { type: "page_id", page_id: resolvedParentId };
+}
+
+function sourcePageParent(sourcePage: any): string | undefined {
+  return sourcePage.parent?.type === "page_id" ? sourcePage.parent.page_id : undefined;
+}
+
+function mapMutationResultPage(page: any, title: string) {
+  return {
+    id: page.id,
+    title,
+    url: page.url,
+  };
+}
+
 async function handleProfile(
   args: string[],
   options: GlobalOptions,
@@ -620,6 +667,85 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
     });
   }
 
+  if (subcommand === "create") {
+    const title = readFlag(args, "--title");
+    if (!title) {
+      throw new CliError("missing_argument", "page create requires --title.");
+    }
+    const parentId = readFlag(args, "--parent");
+    const icon = readFlag(args, "--icon");
+    const cover = readFlag(args, "--cover");
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "page create");
+    const parent = parentFromId(parentId, resolved.rootPageId, "page create");
+    const markdown = await readMarkdownInput(args, io);
+    const client = clientFor(resolved, ops);
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const page = await ops.createPage(
+      client,
+      parent,
+      title,
+      markdownToBlocks(processedMarkdown),
+      icon,
+      cover,
+    ) as any;
+    return success(mapMutationResultPage(page, title));
+  }
+
+  if (subcommand === "create-from-file") {
+    const title = readFlag(args, "--title");
+    if (!title) {
+      throw new CliError("missing_argument", "page create-from-file requires --title.");
+    }
+    const filePath = readFlag(args, "--file");
+    if (!filePath) {
+      throw new CliError("missing_argument", "page create-from-file requires --file.");
+    }
+    const parentId = readFlag(args, "--parent");
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "page create-from-file");
+    const parent = parentFromId(parentId, resolved.rootPageId, "page create-from-file");
+    const markdown = await readFile(filePath, "utf8");
+    const client = clientFor(resolved, ops);
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const page = await ops.createPage(
+      client,
+      parent,
+      title,
+      markdownToBlocks(processedMarkdown),
+    ) as any;
+    return success(mapMutationResultPage(page, title));
+  }
+
+  if (subcommand === "duplicate") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "page duplicate requires a page id.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "page duplicate");
+    const client = clientFor(resolved, ops);
+    const sourcePage = await ops.getPage(client, pageId) as any;
+    const sourceTitle = getPageTitle(sourcePage) ?? "Untitled";
+    const title = readFlag(args, "--title") ?? `${sourceTitle} (Copy)`;
+    const parent = parentFromId(
+      readFlag(args, "--parent") ?? sourcePageParent(sourcePage),
+      resolved.rootPageId,
+      "page duplicate",
+    );
+    const ctx: { omitted: Array<{ id: string; type: string }> } = { omitted: [] };
+    const blocks = await ops.fetchBlocksRecursive(client, pageId, ctx);
+    const icon = sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
+    const page = await ops.createPage(client, parent, title, blocks as ReturnType<typeof markdownToBlocks>, icon) as any;
+    return success({
+      ...mapMutationResultPage(page, title),
+      source_page_id: pageId,
+      ...(ctx.omitted.length > 0
+        ? { warnings: [{ code: "omitted_block_types", blocks: ctx.omitted }] }
+        : {}),
+    });
+  }
+
   if (subcommand === "share") {
     const pageId = args[1];
     if (!pageId) {
@@ -710,21 +836,84 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
 }
 
 async function handleContent(args: string[], options: GlobalOptions, io: CliIO, configDir: string, ops: NotionOps) {
-  if (args[0] !== "append") {
-    throw new CliError("unknown_command", `Unknown content command '${args[0] ?? ""}'.`);
+  const subcommand = args[0];
+
+  if (subcommand === "append") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content append requires a page id.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "content append");
+    const markdown = await readMarkdownInput(args, io);
+    const client = clientFor(resolved, ops);
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const blocks = markdownToBlocks(processedMarkdown);
+    const appended = await ops.appendBlocks(client, pageId, blocks);
+    return success({ success: true, blocks_added: appended.length });
   }
-  const pageId = args[1];
-  if (!pageId) {
-    throw new CliError("missing_argument", "content append requires a page id.");
+
+  if (subcommand === "replace") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content replace requires a page id.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "content replace");
+    const markdown = await readMarkdownInput(args, io);
+    const client = clientFor(resolved, ops);
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const { enhanced, warnings: translatorWarnings } = translateGfmToEnhancedMarkdown(processedMarkdown);
+    const result = await ops.replacePageMarkdown(client, pageId, enhanced, { allowDeletingContent: true }) as any;
+    const unmatched = Array.isArray(result.unknown_block_ids) ? result.unknown_block_ids : [];
+    const warnings: Array<Record<string, unknown>> = [...translatorWarnings];
+    if (unmatched.length > 0) {
+      warnings.push({ code: "unmatched_blocks", block_ids: unmatched });
+    }
+    return success({
+      success: true,
+      ...(result.truncated ? { truncated: true } : {}),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
   }
-  const resolved = await resolveSelectedProfile(options, io, configDir);
-  assertCanMutate(resolved, "content append");
-  const markdown = await readMarkdownInput(args, io);
-  const client = clientFor(resolved, ops);
-  const processedMarkdown = await ops.processFileUploads(client, markdown);
-  const blocks = markdownToBlocks(processedMarkdown);
-  const appended = await ops.appendBlocks(client, pageId, blocks);
-  return success({ success: true, blocks_added: appended.length });
+
+  if (subcommand === "find-replace") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content find-replace requires a page id.");
+    }
+    const find = readFlag(args, "--find");
+    if (find === undefined) {
+      throw new CliError("missing_argument", "content find-replace requires --find.");
+    }
+    const replace = readFlag(args, "--replace");
+    if (replace === undefined) {
+      throw new CliError("missing_argument", "content find-replace requires --replace.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "content find-replace");
+    const result = await ops.updateMarkdown(clientFor(resolved, ops), {
+      page_id: pageId,
+      type: "update_content",
+      update_content: {
+        content_updates: [{
+          old_str: find,
+          new_str: replace,
+          ...(hasFlag(args, "--all") ? { replace_all_matches: true } : {}),
+        }],
+      },
+    }) as any;
+    const unmatched = Array.isArray(result.unknown_block_ids) ? result.unknown_block_ids : [];
+    return success({
+      success: true,
+      ...(result.truncated ? { truncated: true } : {}),
+      ...(unmatched.length > 0
+        ? { warnings: [{ code: "unmatched_blocks", block_ids: unmatched }] }
+        : {}),
+    });
+  }
+
+  throw new CliError("unknown_command", `Unknown content command '${subcommand ?? ""}'.`);
 }
 
 async function handleComment(args: string[], options: GlobalOptions, io: CliIO, configDir: string, ops: NotionOps) {
