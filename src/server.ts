@@ -187,7 +187,19 @@ function getHeadingLevel(type: string): number {
 }
 
 export type OmittedBlock = { id: string; type: string };
-type FetchContext = { omitted: OmittedBlock[] };
+type ReadOnlyRenderedBlock = {
+  id: string;
+  type: "transcription" | "meeting_notes";
+  transcript_omitted?: boolean;
+};
+type FetchContext = {
+  omitted: OmittedBlock[];
+  renderedReadOnly: ReadOnlyRenderedBlock[];
+  includeTranscript: boolean;
+};
+
+const READ_ONLY_BLOCK_RENDERED_MESSAGE =
+  "Rendered read-only Notion AI meeting notes as ordinary markdown. Round-tripping this markdown replaces the native meeting-notes block with ordinary blocks. Blocks marked transcript_omitted had transcript content available but not included.";
 
 /**
  * Block types that `normalizeBlock` can map to a `NotionBlock`. Must stay in
@@ -200,7 +212,7 @@ export const SUPPORTED_BLOCK_TYPES = new Set<string>([
   "bulleted_list_item", "numbered_list_item", "quote", "callout",
   "equation", "table", "table_row", "column_list", "column", "code",
   "divider", "to_do", "table_of_contents", "bookmark", "embed",
-  "image", "file", "audio", "video",
+  "image", "file", "audio", "video", "transcription", "meeting_notes",
 ]);
 
 /**
@@ -367,6 +379,19 @@ function normalizeBlock(block: any): NotionBlock | null {
           rich_text: block.toggle.rich_text as any,
         },
       };
+    case "transcription":
+    case "meeting_notes": {
+      const payload = block[block.type] ?? {};
+      const title = typeof payload.title === "string"
+        ? payload.title
+        : plainText(Array.isArray(payload.title) ? payload.title : []);
+      return {
+        type: "toggle",
+        toggle: {
+          rich_text: richText(title ? `AI Meeting Notes: ${title}` : "AI Meeting Notes"),
+        },
+      };
+    }
     case "bulleted_list_item":
       return {
         type: "bulleted_list_item",
@@ -536,6 +561,170 @@ function attachChildren(block: NotionBlock, children: NotionBlock[]): void {
   }
 }
 
+function isMeetingNotesType(type: string): type is "transcription" | "meeting_notes" {
+  return type === "transcription" || type === "meeting_notes";
+}
+
+function plainText(items: any[]): string {
+  return items.map((item) => item?.plain_text ?? item?.text?.content ?? "").join("");
+}
+
+function richText(content: string): RichText[] {
+  return content ? [{ type: "text", text: { content } }] : [];
+}
+
+function hasRichTextContent(items: RichText[] | undefined): boolean {
+  return (items ?? []).some((item) => item.text.content.length > 0);
+}
+
+function hasVisibleContent(block: NotionBlock): boolean {
+  switch (block.type) {
+    case "heading_1":
+      return hasRichTextContent(block.heading_1.rich_text);
+    case "heading_2":
+      return hasRichTextContent(block.heading_2.rich_text);
+    case "heading_3":
+      return hasRichTextContent(block.heading_3.rich_text);
+    case "paragraph":
+      return hasRichTextContent(block.paragraph.rich_text);
+    case "toggle":
+      return hasRichTextContent(block.toggle.rich_text);
+    case "bulleted_list_item":
+      return hasRichTextContent(block.bulleted_list_item.rich_text);
+    case "numbered_list_item":
+      return hasRichTextContent(block.numbered_list_item.rich_text);
+    case "quote":
+      return hasRichTextContent(block.quote.rich_text);
+    case "callout":
+      return hasRichTextContent(block.callout.rich_text);
+    case "code":
+      return hasRichTextContent(block.code.rich_text);
+    case "equation":
+      return block.equation.expression.length > 0;
+    case "table":
+      return block.table.children.length > 0;
+    case "table_row":
+      return block.table_row.cells.some((cell) => hasRichTextContent(cell));
+    case "column_list":
+      return block.column_list.children.length > 0;
+    case "column":
+      return block.column.children.length > 0;
+    case "divider":
+    case "table_of_contents":
+      return true;
+    case "to_do":
+      return hasRichTextContent(block.to_do.rich_text);
+    case "bookmark":
+      return block.bookmark.url.length > 0;
+    case "embed":
+      return block.embed.url.length > 0;
+    case "image":
+      return true;
+    case "file":
+      return true;
+    case "audio":
+      return true;
+    case "video":
+      return true;
+  }
+}
+
+function sectionHeading(title: string): NotionBlock {
+  return { type: "heading_2", heading_2: { rich_text: richText(title), is_toggleable: false } };
+}
+
+function canAttachChildren(block: NotionBlock): boolean {
+  return block.type === "bulleted_list_item" ||
+    block.type === "numbered_list_item" ||
+    block.type === "toggle" ||
+    block.type === "heading_1" ||
+    block.type === "heading_2" ||
+    block.type === "heading_3" ||
+    block.type === "table" ||
+    block.type === "column_list" ||
+    block.type === "column";
+}
+
+async function fetchSectionBlocks(
+  client: ReturnType<typeof createNotionClient>,
+  sectionBlockId: string,
+  ctx: FetchContext,
+): Promise<NotionBlock[]> {
+  const rawRoot = await retrieveBlock(client, sectionBlockId) as any;
+  const descendants = await fetchBlocksRecursive(client, sectionBlockId, ctx);
+
+  if (isMeetingNotesType(rawRoot.type)) {
+    return descendants;
+  }
+
+  const normalizedRoot = normalizeBlock(rawRoot);
+  if (normalizedRoot && hasVisibleContent(normalizedRoot)) {
+    if (descendants.length > 0 && canAttachChildren(normalizedRoot)) {
+      attachChildren(normalizedRoot, descendants);
+      return [normalizedRoot];
+    }
+    return [normalizedRoot, ...descendants];
+  }
+  if (!normalizedRoot && !SUPPORTED_BLOCK_TYPES.has(rawRoot.type)) {
+    ctx.omitted.push({ id: rawRoot.id, type: rawRoot.type });
+  }
+
+  return descendants;
+}
+
+async function hydrateMeetingNotesBlock(
+  client: ReturnType<typeof createNotionClient>,
+  raw: any,
+  normalized: NotionBlock,
+  ctx: FetchContext,
+): Promise<boolean> {
+  if (!isMeetingNotesType(raw.type)) {
+    return false;
+  }
+
+  const payload = raw[raw.type] ?? {};
+  const pointers = payload.children ?? {};
+  const summaryBlockId = typeof pointers.summary_block_id === "string" ? pointers.summary_block_id : undefined;
+  const notesBlockId = typeof pointers.notes_block_id === "string" ? pointers.notes_block_id : undefined;
+  const transcriptBlockId = typeof pointers.transcript_block_id === "string" ? pointers.transcript_block_id : undefined;
+  const hasSectionPointers = Boolean(summaryBlockId || notesBlockId || transcriptBlockId);
+  const transcriptOmitted = Boolean(transcriptBlockId && !ctx.includeTranscript) ||
+    Boolean(!hasSectionPointers && raw.has_children && !ctx.includeTranscript);
+  const children: NotionBlock[] = [];
+
+  if (typeof payload.status === "string" && payload.status.length > 0) {
+    children.push({ type: "paragraph", paragraph: { rich_text: richText(`Status: ${payload.status}`) } });
+  }
+
+  const appendSection = async (title: string, sectionBlockId: string | undefined) => {
+    if (!sectionBlockId) {
+      return;
+    }
+    children.push(sectionHeading(title));
+    children.push(...await fetchSectionBlocks(client, sectionBlockId, ctx));
+  };
+
+  if (hasSectionPointers) {
+    await appendSection("Summary", summaryBlockId);
+    await appendSection("Notes", notesBlockId);
+    if (ctx.includeTranscript) {
+      await appendSection("Transcript", transcriptBlockId);
+    }
+  } else if (raw.has_children && ctx.includeTranscript) {
+    children.push(...await fetchBlocksRecursive(client, raw.id, ctx));
+  }
+
+  if (children.length > 0) {
+    attachChildren(normalized, children);
+  }
+  ctx.renderedReadOnly.push({
+    id: raw.id,
+    type: raw.type,
+    ...(transcriptOmitted ? { transcript_omitted: true } : {}),
+  });
+  return true;
+}
+
 async function fetchBlocksRecursive(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
@@ -553,7 +742,11 @@ async function fetchBlocksRecursive(
       continue;
     }
 
-    if (raw.has_children) {
+    const hydratedMeetingNotes = ctx
+      ? await hydrateMeetingNotesBlock(client, raw, normalized, ctx)
+      : false;
+
+    if (!hydratedMeetingNotes && raw.has_children) {
       const children = await fetchBlocksRecursive(client, raw.id, ctx);
       if (children.length > 0) {
         attachChildren(normalized, children);
@@ -598,7 +791,11 @@ async function fetchBlocksWithLimit(
         continue;
       }
 
-      if (raw.has_children) {
+      const hydratedMeetingNotes = ctx
+        ? await hydrateMeetingNotesBlock(client, raw, normalized, ctx)
+        : false;
+
+      if (!hydratedMeetingNotes && raw.has_children) {
         const children = await fetchBlocksRecursive(client, raw.id, ctx);
         if (children.length > 0) {
           attachChildren(normalized, children);
@@ -811,7 +1008,7 @@ To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one 
   },
   {
     name: "read_page",
-    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with their ids and types. Do NOT round-trip the markdown back through replace_content when warnings are present — the omitted blocks will be deleted from the page.
+    description: `Read a page and return its metadata plus markdown content. Recursively fetches nested blocks. Output uses the same conventions as input: toggles as +++ blocks, columns as ::: blocks, callouts as > [!NOTE], tables as | pipes |. Notion AI meeting notes are rendered as ordinary toggle/heading/paragraph markdown; summaries and notes are included by default, and transcripts are included only with include_transcript: true. If the page contains block types this server does not yet represent in markdown (e.g. synced_block, child_database, link_to_page), those blocks are omitted from the markdown AND listed in a \`warnings\` field with code \`omitted_block_types\`; do NOT round-trip the markdown back through replace_content when that warning is present because omitted blocks will be deleted from the page. A \`read_only_block_rendered\` warning means selected meeting-notes content is represented, but round-tripping replaces the native read-only Notion AI meeting-notes block with ordinary blocks; blocks marked transcript_omitted had transcript content available but not included.
 
 Long titles: when a page title exceeds 25 rich_text segments (uncommon in practice), the response paginates the title up to max_property_items (default 75). If the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint. Call again with max_property_items: 0 for unlimited or with a larger cap number.`,
     inputSchema: {
@@ -831,13 +1028,17 @@ Long titles: when a page title exceeds 25 rich_text segments (uncommon in practi
           description:
             "Max rich_text segments returned when a page title exceeds 25 segments (uncommon in practice). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint.",
         },
+        include_transcript: {
+          type: "boolean",
+          description: "Include Notion AI meeting-notes transcript sections. Default false; summaries and notes are included when available.",
+        },
       },
       required: ["page_id"],
     },
   },
   {
     name: "duplicate_page",
-    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a \`warnings\` field. Deep-duplication of subpages is not yet supported.`,
+    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a \`warnings\` field with code \`omitted_block_types\`. Read-only Notion AI meeting notes are duplicated as ordinary toggle/heading/paragraph blocks for summary and notes content, without transcripts by default; \`read_only_block_rendered\` warns that the native meeting-notes block identity is not preserved. Deep-duplication of subpages is not yet supported.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1517,11 +1718,12 @@ export function createServer(
         }
         case "read_page": {
           const notion = notionClientFactory();
-          const { page_id, include_metadata, max_blocks, max_property_items } = args as {
+          const { page_id, include_metadata, max_blocks, max_property_items, include_transcript } = args as {
             page_id: string;
             include_metadata?: boolean;
             max_blocks?: number;
             max_property_items?: unknown;
+            include_transcript?: boolean;
           };
           const cap = max_property_items === undefined ? 75 : max_property_items;
           if (
@@ -1543,7 +1745,11 @@ export function createServer(
 
           let blocks: NotionBlock[];
           let hasMore = false;
-          const ctx: FetchContext = { omitted: [] };
+          const ctx: FetchContext = {
+            omitted: [],
+            renderedReadOnly: [],
+            includeTranscript: include_transcript === true,
+          };
 
           if (max_blocks !== undefined && max_blocks > 0) {
             const result = await fetchBlocksWithLimit(notion, page_id, max_blocks, ctx);
@@ -1567,6 +1773,13 @@ export function createServer(
           const warnings: unknown[] = [];
           if (ctx.omitted.length > 0) {
             warnings.push({ code: "omitted_block_types", blocks: ctx.omitted });
+          }
+          if (ctx.renderedReadOnly.length > 0) {
+            warnings.push({
+              code: "read_only_block_rendered",
+              blocks: ctx.renderedReadOnly,
+              message: READ_ONLY_BLOCK_RENDERED_MESSAGE,
+            });
           }
           if (propertyWarnings.length > 0) {
             warnings.push({
@@ -1602,7 +1815,7 @@ export function createServer(
           const explicitParent = parent_page_id ?? sourcePage.parent?.page_id;
           const parent = await resolveParent(notion, explicitParent);
 
-          const ctx: FetchContext = { omitted: [] };
+          const ctx: FetchContext = { omitted: [], renderedReadOnly: [], includeTranscript: false };
           const sourceBlocks = await fetchBlocksRecursive(notion, page_id, ctx);
           const sourceIcon =
             sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
@@ -1617,8 +1830,19 @@ export function createServer(
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
           }
+          const warnings: unknown[] = [];
           if (ctx.omitted.length > 0) {
-            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
+            warnings.push({ code: "omitted_block_types", blocks: ctx.omitted });
+          }
+          if (ctx.renderedReadOnly.length > 0) {
+            warnings.push({
+              code: "read_only_block_rendered",
+              blocks: ctx.renderedReadOnly,
+              message: READ_ONLY_BLOCK_RENDERED_MESSAGE,
+            });
+          }
+          if (warnings.length > 0) {
+            response.warnings = warnings;
           }
           return textResponse(response);
         }
