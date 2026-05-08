@@ -848,6 +848,114 @@ describe.skipIf(!env.shouldRun)(
       expect(String(row?.Ticket)).toMatch(/^ENG-\d+$/);
     }, 30_000);
 
+    it("D1: update_data_source removes a status option and reassigns rows", async () => {
+      const statusOptions = [
+        { name: "Todo", color: "gray" },
+        { name: "Blocked", color: "red" },
+        { name: "Done", color: "green" },
+      ];
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "D1 status option removal",
+        schema: [
+          { name: "Task", type: "title" },
+          { name: "Status", type: "status", options: statusOptions },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Task: "D1 blocked row",
+          Status: "Blocked",
+        },
+      });
+
+      expect(entry.error).toBeUndefined();
+      ctx.createdPageIds.push(entry.id);
+
+      const rowsBeforeRemoval = await callTool<QueryDatabaseResponse>(client, "query_database", {
+        database_id: created.id,
+      });
+      const rowBeforeRemoval = rowsBeforeRemoval.results.find(
+        (candidate) => candidate.Task === "D1 blocked row",
+      );
+      expect(rowBeforeRemoval).toBeDefined();
+      expect(rowBeforeRemoval?.Status).toBe("Blocked");
+
+      const databaseBeforeRemoval = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+      expect(databaseBeforeRemoval.error).toBeUndefined();
+      const statusBeforeRemoval = databaseBeforeRemoval.properties.find(
+        (property) => property.name === "Status",
+      );
+      expect(statusBeforeRemoval).toEqual(
+        expect.objectContaining({ name: "Status", type: "status" }),
+      );
+      expect(statusBeforeRemoval?.options).toEqual(
+        expect.arrayContaining(["Todo", "Blocked", "Done"]),
+      );
+
+      const createdOptionsByName = new Map(
+        statusOptions.map((option) => [option.name, option]),
+      );
+      const keptStatusOptions = (statusBeforeRemoval?.options ?? [])
+        .filter((name) => name !== "Blocked")
+        .map((name) => createdOptionsByName.get(name) ?? { name });
+      const keptStatusNames = keptStatusOptions.map((option) => option.name);
+
+      expect(keptStatusNames).toEqual(["Todo", "Done"]);
+
+      const updated = await callTool<UpdateDataSourceResponse>(client, "update_data_source", {
+        database_id: created.id,
+        properties: {
+          Status: {
+            status: {
+              options: keptStatusOptions,
+            },
+          },
+        },
+      });
+
+      expect(updated.error).toBeUndefined();
+
+      const databaseAfterRemoval = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+      expect(databaseAfterRemoval.error).toBeUndefined();
+      const statusAfterRemoval = databaseAfterRemoval.properties.find(
+        (property) => property.name === "Status",
+      );
+      expect(statusAfterRemoval).toEqual(
+        expect.objectContaining({ name: "Status", type: "status" }),
+      );
+      expect(statusAfterRemoval?.options).not.toContain("Blocked");
+      expect(statusAfterRemoval?.options).toEqual(keptStatusNames);
+
+      let rowAfterRemoval: Record<string, unknown> | undefined;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const rowsAfterRemoval = await callTool<QueryDatabaseResponse>(client, "query_database", {
+          database_id: created.id,
+        });
+        rowAfterRemoval = rowsAfterRemoval.results.find(
+          (candidate) => candidate.Task === "D1 blocked row",
+        );
+        if (rowAfterRemoval?.Status !== "Blocked") {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      }
+
+      expect(rowAfterRemoval).toBeDefined();
+      expect(rowAfterRemoval?.Status).not.toBe("Blocked");
+      expect(keptStatusNames).toContain(rowAfterRemoval?.Status);
+      expect(rowAfterRemoval?.Status).toBe(keptStatusNames[0]);
+    }, 45_000);
+
     it("E1: stdio file upload", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
         parent_page_id: ctx.sandboxId!,
