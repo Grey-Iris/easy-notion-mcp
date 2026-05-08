@@ -1136,6 +1136,141 @@ describe("easy-notion CLI", () => {
     expect(ops?.appendBlocks).not.toHaveBeenCalled();
   });
 
+  it("routes content archive-toggle through readwrite profiles for a plain toggle", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => {
+        if (blockId === "page-1") {
+          return [
+            { id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") }, has_children: true },
+          ];
+        }
+        if (blockId === "toggle-1") {
+          return [
+            { id: "child-1", type: "paragraph", paragraph: { rich_text: richText("Keep child") } },
+          ];
+        }
+        return [];
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "archive-toggle", "page-1", "--title", " details ",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: true,
+      result: {
+        success: true,
+        archived: "toggle-1",
+        title: "Details",
+        type: "toggle",
+      },
+    });
+    expect(ops?.updateBlock).toHaveBeenCalledWith(expect.anything(), "toggle-1", { in_trash: true });
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocks).not.toHaveBeenCalled();
+  });
+
+  it("routes content archive-toggle through readwrite profiles for a toggleable heading", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => {
+        if (blockId === "page-1") {
+          return [
+            { id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") } },
+            {
+              id: "heading-toggle",
+              type: "heading_2",
+              heading_2: { rich_text: richText("Heading Toggle"), is_toggleable: true },
+              has_children: true,
+            },
+          ];
+        }
+        if (blockId === "heading-toggle") {
+          return [
+            { id: "child-1", type: "paragraph", paragraph: { rich_text: richText("Keep child") } },
+          ];
+        }
+        return [];
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "archive-toggle", "page-1", "--title", " heading toggle ",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: true,
+      result: {
+        success: true,
+        archived: "heading-toggle",
+        title: "Heading Toggle",
+        type: "heading_2",
+      },
+    });
+    expect(ops?.updateBlock).toHaveBeenCalledWith(expect.anything(), "heading-toggle", { in_trash: true });
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocks).not.toHaveBeenCalled();
+  });
+
+  it("returns available toggles when content archive-toggle cannot find a title", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async () => [
+        { id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") } },
+        {
+          id: "heading-toggle",
+          type: "heading_3",
+          heading_3: { rich_text: richText("Heading Toggle"), is_toggleable: true },
+        },
+      ]),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "archive-toggle", "page-1", "--title", "Missing",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "toggle_not_found",
+        message: `Toggle not found: 'Missing'. Available toggles: ["Details","Heading Toggle"]`,
+        available_toggles: ["Details", "Heading Toggle"],
+      },
+    });
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocks).not.toHaveBeenCalled();
+  });
+
   it("treats a matching update-toggle wrapper as optional", async () => {
     const configDir = await makeTempDir();
     await saveProfileConfig(configDir, {

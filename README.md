@@ -151,6 +151,7 @@ Mutating commands require a readwrite profile:
 ```bash
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content append PAGE_ID --markdown "## Update"
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-toggle PAGE_ID --title "Script" --markdown-file ./script.md
+npx -y --package easy-notion-mcp easy-notion --profile work-rw content archive-toggle PAGE_ID --title "Done"
 ```
 
 The lightweight skill for agent routing is published in this repo at `skills/easy-notion-cli/`. It teaches agents to prefer the CLI for profile-based Notion access instead of registering multiple MCP servers.

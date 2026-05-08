@@ -241,6 +241,7 @@ function helpText(): string {
     "  content replace <page_id> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-section <page_id> --heading <heading> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-toggle <page_id> --title <title> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content archive-toggle <page_id> --title <title>",
     "  content find-replace <page_id> --find <text> --replace <text> [--all]",
     "  block read <block_id>",
     "  block update <block_id> (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
@@ -1338,6 +1339,38 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       type: found.block.type,
       deleted: (existingChildren as any[]).length,
       appended: appended.length,
+    });
+  }
+
+  if (subcommand === "archive-toggle") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content archive-toggle requires a page id.");
+    }
+    const title = readFlag(args, "--title");
+    if (title === undefined) {
+      throw new CliError("missing_argument", "content archive-toggle requires --title.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "content archive-toggle");
+    const client = clientFor(resolved, ops);
+    const found = await findToggleRecursiveForCli(client, pageId, title, ops);
+    if (!found.block) {
+      throw new CliError(
+        "toggle_not_found",
+        `Toggle not found: '${title}'. Available toggles: ${JSON.stringify(found.availableTitles)}`,
+        1,
+        { available_toggles: found.availableTitles },
+      );
+    }
+
+    await ops.updateBlock(client, found.block.id, { in_trash: true });
+
+    return success({
+      success: true,
+      archived: found.block.id,
+      title: getToggleTitle(found.block) ?? title,
+      type: found.block.type,
     });
   }
 
