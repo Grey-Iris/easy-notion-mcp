@@ -1,6 +1,6 @@
 {
   "name": "easy-notion-mcp",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "mcpName": "io.github.misterwigglesworth/easy-notion",
   "description": "Token-efficient, markdown-first Notion MCP server — agents write markdown, never touch raw Notion JSON",
   "type": "module",
@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Grey-Iris/easy-notion-mcp.git"
+    "url": "git+https://github.com/Grey-Iris/easy-notion-mcp.git"
   },
   "keywords": [
     "notion",
