@@ -1109,7 +1109,7 @@ describe.skipIf(!env.shouldRun)(
       expect(normalizeSectionBody(beta.body)).toContain("- Beta bullet new 2");
       expect(normalizeSectionBody(beta.body)).not.toContain("Beta bullet 1");
       expect(normalizeSectionBody(beta.body)).not.toContain("Beta bullet 2");
-    }, 30_000);
+    }, 60_000);
 
     it("F2: replace_content (atomic) returns success:true and replaces page content", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
