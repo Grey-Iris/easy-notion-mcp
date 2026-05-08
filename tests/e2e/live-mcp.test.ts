@@ -144,6 +144,22 @@ type GetViewResponse = ViewReference & {
   error?: string;
 };
 
+type CreateViewResponse = ViewReference & {
+  name?: string;
+  url?: string;
+  data_source_id?: string;
+  error?: string;
+};
+
+type UpdateViewResponse = CreateViewResponse;
+
+type DeleteViewResponse = {
+  success?: boolean;
+  deleted?: string;
+  view?: ViewReference;
+  error?: string;
+};
+
 type QueryViewResponse = {
   query?: {
     object?: string;
@@ -1570,6 +1586,100 @@ describe.skipIf(!env.shouldRun)(
         `[e2e] V1 query_view returned results.object=${queried.results?.object} results_count=${queried.results?.results?.length ?? "unknown"}`,
       );
     }, 45_000);
+
+    it("V2: view mutation tools create, update, and delete a live view", async () => {
+      const initialName = "V2 Table View";
+      const renamedName = "V2 Renamed View";
+      const createdDatabase = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "V2 view mutations",
+        schema: [{ name: "Title", type: "title" }],
+      });
+      expect(createdDatabase.error).toBeUndefined();
+      ctx.createdPageIds.push(createdDatabase.id);
+
+      const createdView = await callTool<CreateViewResponse>(client, "create_view", {
+        database_id: createdDatabase.id,
+        name: initialName,
+        type: "table",
+      });
+      expect(createdView.error).toBeUndefined();
+      expect(createdView.id).toEqual(expect.any(String));
+      expect(createdView.id.length).toBeGreaterThan(0);
+      if (createdView.object !== undefined) {
+        expect(createdView.object).toBe("view");
+      }
+      if (createdView.type !== undefined) {
+        expect(createdView.type).toBe("table");
+      }
+      if (createdView.name !== undefined) {
+        expect(createdView.name).toBe(initialName);
+      }
+
+      const retrievedCreatedView = await callTool<GetViewResponse>(client, "get_view", {
+        view_id: createdView.id,
+      });
+      expect(retrievedCreatedView.error).toBeUndefined();
+      expect(retrievedCreatedView.id).toBe(createdView.id);
+      expect(retrievedCreatedView.object).toBe("view");
+      if (retrievedCreatedView.name !== undefined) {
+        expect(retrievedCreatedView.name).toBe(initialName);
+      } else {
+        expect(retrievedCreatedView.type).toBe("table");
+      }
+
+      const updatedView = await callTool<UpdateViewResponse>(client, "update_view", {
+        view_id: createdView.id,
+        name: renamedName,
+      });
+      expect(updatedView.error).toBeUndefined();
+      expect(updatedView.id).toBe(createdView.id);
+      if (updatedView.object !== undefined) {
+        expect(updatedView.object).toBe("view");
+      }
+      if (updatedView.type !== undefined) {
+        expect(updatedView.type).toBe("table");
+      }
+
+      const retrievedUpdatedView = await callTool<GetViewResponse>(client, "get_view", {
+        view_id: createdView.id,
+      });
+      expect(retrievedUpdatedView.error).toBeUndefined();
+      expect(retrievedUpdatedView.id).toBe(createdView.id);
+      expect((updatedView.name ?? retrievedUpdatedView.name)).toBe(renamedName);
+
+      const deletedView = await callTool<DeleteViewResponse>(client, "delete_view", {
+        view_id: createdView.id,
+        confirm: true,
+      });
+      expect(deletedView.error).toBeUndefined();
+      expect(deletedView.success).toBe(true);
+      expect(deletedView.deleted).toBe(createdView.id);
+      if (deletedView.view !== undefined) {
+        expect(deletedView.view.id).toBe(createdView.id);
+      }
+
+      let listedAfterDelete: ListViewsResponse = {};
+      let remainingViewIds: string[] = [];
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        listedAfterDelete = await callTool<ListViewsResponse>(client, "list_views", {
+          database_id: createdDatabase.id,
+          page_size: 10,
+        });
+        expect(listedAfterDelete.error).toBeUndefined();
+        remainingViewIds = (listedAfterDelete.results ?? []).map((view) => view.id);
+        if (!remainingViewIds.includes(createdView.id)) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      }
+      expect(remainingViewIds).not.toContain(createdView.id);
+      console.error(
+        `[e2e] V2 create/update/delete view_id=${createdView.id} create_name=${createdView.name ?? "absent"} ` +
+          `create_type=${createdView.type ?? "absent"} updated_name=${updatedView.name ?? retrievedUpdatedView.name ?? "absent"} ` +
+          `delete_success=${deletedView.success === true} listed_after_delete_count=${listedAfterDelete.results?.length ?? "unknown"}`,
+      );
+    }, 60_000);
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {
       const scratchParent = await callTool<CreatePageResponse>(client, "create_page", {
