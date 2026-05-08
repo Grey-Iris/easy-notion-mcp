@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-09
+
 ### Added
 
 - **Dry-run destructive operations.** MCP destructive tools accept `dry_run:
@@ -30,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Page-content search.** `search_in_page` and `content search-in-page`
   perform read-only, case-insensitive raw block text search across a page or
   one toggle scope, with snippets and toggle context for matches.
+
+### Security
+
+- **Refreshed `package-lock.json` to current patch versions of audit-flagged
+  transitive deps** (`hono`, `express-rate-limit`, `ip-address`, `fast-uri`,
+  `postcss`). End-user impact is nil: the npm tarball does not ship
+  `package-lock.json`. Refreshed for our own CI and audit posture, per the
+  "patch rather than whitelist" rule in CLAUDE.md.
 
 ## [0.8.0] - 2026-05-08
 
