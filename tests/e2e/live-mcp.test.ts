@@ -471,7 +471,7 @@ describe.skipIf(!env.shouldRun)(
       expect(body).toContain("[toc]");
       expect(body).toContain("https://example.com/b1-bookmark");
       expect(body).toContain("[embed](https://example.com/b1-embed)");
-    });
+    }, 60_000);
 
     it("B2: content-notice sentinel", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
@@ -794,7 +794,7 @@ describe.skipIf(!env.shouldRun)(
 
         const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
           database_id: target.id,
-        });
+        }, { timeoutMs: 60_000 });
 
         expect(rowsResponse.results).toHaveLength(1);
         const row = rowsResponse.results[0];
