@@ -240,6 +240,7 @@ function helpText(): string {
     "  content read-toggle <page_id> --title <title>",
     "  content replace <page_id> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-section <page_id> --heading <heading> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content update-toggle <page_id> --title <title> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content find-replace <page_id> --find <text> --replace <text> [--all]",
     "  block read <block_id>",
     "  block update <block_id> (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
@@ -478,6 +479,22 @@ function getBlockHeadingText(block: any): string | null {
 function getParsedBlockChildren(block: ReturnType<typeof markdownToBlocks>[number]): ReturnType<typeof markdownToBlocks> {
   const body = (block as any)[block.type];
   return Array.isArray(body?.children) ? body.children : [];
+}
+
+function replacementToggleBodyBlocks(
+  parsed: ReturnType<typeof markdownToBlocks>,
+  targetTitle: string,
+): ReturnType<typeof markdownToBlocks> {
+  if (parsed.length !== 1) {
+    return parsed;
+  }
+
+  const wrapperTitle = getToggleTitle(parsed[0] as any);
+  if (wrapperTitle === null || wrapperTitle.trim().toLowerCase() !== targetTitle.trim().toLowerCase()) {
+    return parsed;
+  }
+
+  return getParsedBlockChildren(parsed[0]);
 }
 
 async function fetchRawBlocksRecursiveForCli(
@@ -1276,6 +1293,52 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
 
     const appended = await ops.appendBlocksAfter(client, pageId, replacementBlocks, afterBlockId);
     return success({ deleted: sectionBlocks.length, appended: appended.length });
+  }
+
+  if (subcommand === "update-toggle") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content update-toggle requires a page id.");
+    }
+    const title = readFlag(args, "--title");
+    if (title === undefined) {
+      throw new CliError("missing_argument", "content update-toggle requires --title.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    assertCanMutate(resolved, "content update-toggle");
+    const client = clientFor(resolved, ops);
+    const found = await findToggleRecursiveForCli(client, pageId, title, ops);
+    if (!found.block) {
+      throw new CliError(
+        "toggle_not_found",
+        `Toggle not found: '${title}'. Available toggles: ${JSON.stringify(found.availableTitles)}`,
+        1,
+        { available_toggles: found.availableTitles },
+      );
+    }
+
+    const existingChildren = found.block.has_children === true
+      ? await ops.listChildren(client, found.block.id)
+      : [];
+    const markdown = await readMarkdownInput(args, io);
+    const processedMarkdown = await ops.processFileUploads(client, markdown);
+    const parsed = markdownToBlocks(processedMarkdown);
+    const replacementBlocks = replacementToggleBodyBlocks(parsed, getToggleTitle(found.block) ?? title);
+
+    for (const child of existingChildren as any[]) {
+      await ops.deleteBlock(client, child.id);
+    }
+    const appended = replacementBlocks.length > 0
+      ? await ops.appendBlocks(client, found.block.id, replacementBlocks)
+      : [];
+
+    return success({
+      success: true,
+      block_id: found.block.id,
+      type: found.block.type,
+      deleted: (existingChildren as any[]).length,
+      appended: appended.length,
+    });
   }
 
   if (subcommand === "find-replace") {

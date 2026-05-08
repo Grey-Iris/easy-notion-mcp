@@ -1006,6 +1006,180 @@ describe("easy-notion CLI", () => {
     expect(ops?.deleteBlock).not.toHaveBeenCalled();
   });
 
+  it("routes content update-toggle through readwrite profiles for a plain toggle", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const order: string[] = [];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => {
+        if (blockId === "page-1") {
+          return [{ id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") }, has_children: true }];
+        }
+        if (blockId === "toggle-1") {
+          return [
+            { id: "old-1", type: "paragraph", paragraph: { rich_text: richText("Old one") } },
+            { id: "old-2", type: "paragraph", paragraph: { rich_text: richText("Old two") } },
+          ];
+        }
+        return [];
+      }),
+      processFileUploads: vi.fn(async () => "Processed body\n\n- item"),
+      deleteBlock: vi.fn(async (_client, blockId) => {
+        order.push(`delete:${blockId}`);
+        return { id: blockId };
+      }),
+      appendBlocks: vi.fn(async (_client, blockId, blocks) => {
+        order.push(`append:${blockId}`);
+        return blocks.map((_, index) => ({ id: `new-${index}` }));
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-toggle", "page-1", "--title", " details ", "--markdown", "New body",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: true,
+      result: {
+        success: true,
+        block_id: "toggle-1",
+        type: "toggle",
+        deleted: 2,
+        appended: 2,
+      },
+    });
+    expect(order).toEqual(["delete:old-1", "delete:old-2", "append:toggle-1"]);
+    expect(ops?.processFileUploads).toHaveBeenCalledWith(expect.anything(), "New body");
+    expect(ops?.appendBlocks).toHaveBeenCalledWith(
+      expect.anything(),
+      "toggle-1",
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "paragraph",
+          paragraph: { rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Processed body" } })]) },
+        }),
+      ]),
+    );
+  });
+
+  it("blocks content update-toggle readonly profiles before creating a Notion client", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-toggle", "page-1", "--title", "Details", "--markdown", "New",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "readonly_profile",
+        message: "Profile 'work-ro' is readonly and cannot run mutating command 'content update-toggle'.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+    expect(ops?.listChildren).not.toHaveBeenCalled();
+  });
+
+  it("returns available toggles when content update-toggle cannot find a title", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async () => [
+        { id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") } },
+        {
+          id: "heading-toggle",
+          type: "heading_3",
+          heading_3: { rich_text: richText("Heading Toggle"), is_toggleable: true },
+        },
+      ]),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-toggle", "page-1", "--title", "Missing", "--markdown", "Replacement",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "toggle_not_found",
+        message: `Toggle not found: 'Missing'. Available toggles: ["Details","Heading Toggle"]`,
+        available_toggles: ["Details", "Heading Toggle"],
+      },
+    });
+    expect(ops?.processFileUploads).not.toHaveBeenCalled();
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocks).not.toHaveBeenCalled();
+  });
+
+  it("treats a matching update-toggle wrapper as optional", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => {
+        if (blockId === "page-1") {
+          return [{ id: "toggle-1", type: "toggle", toggle: { rich_text: richText("Details") }, has_children: true }];
+        }
+        if (blockId === "toggle-1") {
+          return [{ id: "old-child", type: "paragraph", paragraph: { rich_text: richText("Old child") } }];
+        }
+        return [];
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "update-toggle", "page-1", "--title", "Details", "--markdown", "+++ Details\nWrapped replacement\n+++",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout).result).toMatchObject({
+      success: true,
+      block_id: "toggle-1",
+      type: "toggle",
+      deleted: 1,
+      appended: 1,
+    });
+    expect(ops?.appendBlocks).toHaveBeenCalledWith(
+      expect.anything(),
+      "toggle-1",
+      [expect.objectContaining({
+        type: "paragraph",
+        paragraph: { rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Wrapped replacement" } })]) },
+      })],
+    );
+  });
+
   it("routes block read through readonly profiles", async () => {
     const configDir = await makeTempDir();
     await saveProfileConfig(configDir, {

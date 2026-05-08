@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Targeted read tools.** Agents can read individual sections, blocks, and
   toggles without fetching an entire page.
+- **Saved view tools.** Agents can list, read, query, create, update, and
+  delete Notion database views using the SDK-supported Views API surface.
+- **Toggle body updates.** `update_toggle` replaces one toggle or toggleable
+  heading body by title while preserving the container block ID, giving long
+  script-toggle workflows a targeted alternative to page-wide `find_replace`.
 - **MCP documentation resources.** Tool descriptions can point to shared
   markdown syntax, warnings, property pagination, and data-source examples
   instead of repeating long reference text inline.

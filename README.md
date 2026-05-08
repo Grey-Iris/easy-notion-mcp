@@ -5,7 +5,7 @@
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
 
-32 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
+39 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
@@ -150,6 +150,7 @@ Mutating commands require a readwrite profile:
 
 ```bash
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content append PAGE_ID --markdown "## Update"
+npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-toggle PAGE_ID --title "Script" --markdown-file ./script.md
 ```
 
 The lightweight skill for agent routing is published in this repo at `skills/easy-notion-cli/`. It teaches agents to prefer the CLI for profile-based Notion access instead of registering multiple MCP servers.
@@ -337,9 +338,9 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 32 individually-named tools across 5 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
+easy-notion-mcp includes 39 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
 
-### Pages (16 tools)
+### Pages (17 tools)
 
 | Tool | Description |
 |---|---|
@@ -352,6 +353,7 @@ easy-notion-mcp includes 32 individually-named tools across 5 categories. Tool d
 | `append_content` | Append markdown to a page |
 | `replace_content` | Replace all page content atomically (preserves block IDs of matched blocks) |
 | `update_section` | Update a section by heading name (destructive; duplicate_page first for irreplaceable content) |
+| `update_toggle` | Update one toggle body by title (destructive; preserves the toggle container ID) |
 | `find_replace` | Find and replace text, preserving files |
 | `update_block` | Update a single block by ID (preserves block identity for deep links and comments) |
 | `update_page` | Update title, icon, or cover |
@@ -385,6 +387,17 @@ easy-notion-mcp includes 32 individually-named tools across 5 categories. Tool d
 > **Database write tools reject unknown property names and unsupported property types with a clear error instead of silently dropping them.** Call `get_database` first to confirm property names and types. Supported property types for writes: `title`, `rich_text`, `number`, `select`, `multi_select`, `date`, `checkbox`, `url`, `email`, `phone`, `status`, `relation`, `people`. For `people`, pass a single user-ID string or an array of user IDs. Computed types (`formula`, `rollup`, `unique_id`, `created_time`, `last_edited_time`, `created_by`, `last_edited_by`) are populated by Notion and cannot be set via API. Value writes are also rejected for `files`, `verification`, `place`, `location`, and `button`. For relation writes, pass either a single page-ID string (`"Projects": "page-id"`) or an array (`"Projects": ["id-a", "id-b"]`); an empty array clears the relation.
 
 easy-notion-mcp fetches the database schema, maps values to Notion's property format, and handles type conversion automatically when agents pass simple key-value pairs like `{ "Status": "Done" }`. Schema is cached for 5 minutes to avoid redundant API calls during batch operations.
+
+### Views (6 tools)
+
+| Tool | Description |
+|---|---|
+| `list_views` | List saved views for a database or data source |
+| `get_view` | Get one saved view's raw configuration |
+| `query_view` | Query entries through a saved view |
+| `create_view` | Create a table, list, board, calendar, gallery, or timeline view |
+| `update_view` | Rename or update a saved view's raw filter/sort/configuration fields |
+| `delete_view` | Delete a saved view with explicit confirmation |
 
 ### Comments (2 tools)
 

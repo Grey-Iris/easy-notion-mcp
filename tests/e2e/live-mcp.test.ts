@@ -98,6 +98,25 @@ type FindReplaceResponse = {
   error?: string;
 };
 
+type UpdateToggleResponse = {
+  success?: boolean;
+  block_id?: string;
+  type?: string;
+  deleted?: number;
+  appended?: number;
+  error?: string;
+};
+
+type ReadToggleResponse = {
+  page_id?: string;
+  title?: string;
+  block_id?: string;
+  type?: string;
+  markdown?: string;
+  warnings?: unknown;
+  error?: string;
+};
+
 type DuplicatePageResponse = {
   id: string;
   title?: string;
@@ -1410,6 +1429,55 @@ describe.skipIf(!env.shouldRun)(
       expect(body).not.toContain(oldSentinel);
       expect(body.split(replacementSentinel).length - 1).toBe(2);
     }, 30_000);
+
+    it("G2b: update_toggle replaces one script toggle body on a multi-toggle page", async () => {
+      const targetTitle = "Script 020";
+      const oldSentinel = "G2b old toggle body";
+      const replacementSentinel = "G2b replacement toggle body";
+      const toggles = Array.from({ length: 40 }, (_, index) => {
+        const title = `Script ${String(index).padStart(3, "0")}`;
+        const body = title === targetTitle
+          ? [
+            `Intro paragraph with ${oldSentinel}.`,
+            "",
+            `Second paragraph with ${oldSentinel}.`,
+          ].join("\n")
+          : `Script ${index} body ${"x".repeat(120)}`;
+        return [`+++ ${title}`, body, "+++"].join("\n");
+      });
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G2b update_toggle",
+        markdown: toggles.join("\n\n"),
+      }, { timeoutMs: 60_000 });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const updated = await callTool<UpdateToggleResponse>(client, "update_toggle", {
+        page_id: created.id,
+        title: targetTitle,
+        markdown: [
+          `Replacement paragraph with ${replacementSentinel}.`,
+          "",
+          `Second replacement paragraph with ${replacementSentinel}.`,
+        ].join("\n"),
+      }, { timeoutMs: 60_000 });
+
+      expect(updated.error).toBeUndefined();
+      expect(updated.success).toBe(true);
+      expect(updated.type).toBe("toggle");
+      expect(updated.deleted).toBeGreaterThan(0);
+      expect(updated.appended).toBeGreaterThan(0);
+
+      const toggle = await callTool<ReadToggleResponse>(client, "read_toggle", {
+        page_id: created.id,
+        title: targetTitle,
+      }, { timeoutMs: 60_000 });
+      expect(toggle.error).toBeUndefined();
+      expect(toggle.block_id).toBe(updated.block_id);
+      expect(toggle.markdown).toContain(replacementSentinel);
+      expect(toggle.markdown).not.toContain(oldSentinel);
+    }, 90_000);
 
     it("G3: duplicate_page copies supported page content", async () => {
       const sourceSentinel = "G3 duplicate source sentinel";
