@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { Client } from "@notionhq/client";
 import { blocksToMarkdown } from "../blocks-to-markdown.js";
-import { processFileUploads } from "../file-upload.js";
+import { detectFileUploadReferences, DRY_RUN_FILE_UPLOAD_ERROR, processFileUploads } from "../file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "../markdown-to-blocks.js";
 import { translateGfmToEnhancedMarkdown } from "../markdown-to-enhanced.js";
 import {
@@ -230,6 +230,12 @@ function countOccurrences(text: string, find: string): number {
   }
 }
 
+function assertDryRunMarkdownSafe(markdown: string): void {
+  if (detectFileUploadReferences(markdown).length > 0) {
+    throw new CliError("dry_run_file_upload", DRY_RUN_FILE_UPLOAD_ERROR);
+  }
+}
+
 function helpText(): string {
   return [
     "easy-notion [--profile <name>] [--format json|pretty-json] <command>",
@@ -249,19 +255,19 @@ function helpText(): string {
     "  page share <page_id>",
     "  page list-children <parent_page_id>",
     "  page update <page_id> [--title <title>] [--icon <emoji>] [--cover <url-or-file-url>]",
-    "  page archive <page_id>",
+    "  page archive <page_id> [--dry-run]",
     "  page restore <page_id>",
     "  page move <page_id> --parent <new_parent_id>",
     "  content append <page> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content read-section <page_id> --heading <heading>",
     "  content read-toggle <page_id> --title <title>",
-    "  content replace <page_id> (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  content update-section <page_id> --heading <heading> [--preserve-heading] (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  content update-toggle <page_id> --title <title> (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  content archive-toggle <page_id> --title <title>",
-    "  content find-replace <page_id> --find <text> --replace <text> [--all]",
+    "  content replace <page_id> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content update-toggle <page_id> --title <title> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content archive-toggle <page_id> --title <title> [--dry-run]",
+    "  content find-replace <page_id> --find <text> --replace <text> [--all] [--dry-run]",
     "  block read <block_id>",
-    "  block update <block_id> (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
+    "  block update <block_id> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
     "  comment list <page_id>",
     "  comment add <page_id> --text <text>",
     "  database get <database_id>",
@@ -270,7 +276,7 @@ function helpText(): string {
     "  database entry add <database_id> --properties-json <json>",
     "  database entry add-many <database_id> --entries-json <json>",
     "  database entry update <page_id> --properties-json <json>",
-    "  database entry delete <page_id>",
+    "  database entry delete <page_id> [--dry-run]",
   ].join("\n");
 }
 
@@ -1085,8 +1091,19 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
     if (!pageId) {
       throw new CliError("missing_argument", "page archive requires a page id.");
     }
+    const dryRun = hasFlag(args, "--dry-run");
     const resolved = await resolveSelectedProfile(options, io, configDir);
-    assertCanMutate(resolved, "page archive");
+    if (!dryRun) {
+      assertCanMutate(resolved, "page archive");
+    }
+    if (dryRun) {
+      return success({
+        success: true,
+        dry_run: true,
+        operation: "archive_page",
+        would_archive: pageId,
+      });
+    }
     await ops.archivePage(clientFor(resolved, ops), pageId);
     return success({ success: true, archived: pageId });
   }
@@ -1217,12 +1234,28 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     if (!pageId) {
       throw new CliError("missing_argument", "content replace requires a page id.");
     }
+    const dryRun = hasFlag(args, "--dry-run");
     const resolved = await resolveSelectedProfile(options, io, configDir);
-    assertCanMutate(resolved, "content replace");
+    if (!dryRun) {
+      assertCanMutate(resolved, "content replace");
+    }
     const markdown = await readMarkdownInput(args, io);
     const client = clientFor(resolved, ops);
-    const processedMarkdown = await ops.processFileUploads(client, markdown);
-    const { enhanced, warnings: translatorWarnings } = translateGfmToEnhancedMarkdown(processedMarkdown);
+    if (dryRun) {
+      assertDryRunMarkdownSafe(markdown);
+    }
+    const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
+    const { enhanced, warnings: translatorWarnings } = translateGfmToEnhancedMarkdown(inputMarkdown);
+    if (dryRun) {
+      return success({
+        success: true,
+        dry_run: true,
+        operation: "replace_content",
+        page_id: pageId,
+        would_update: true,
+        ...(translatorWarnings.length > 0 ? { warnings: translatorWarnings } : {}),
+      });
+    }
     const result = await ops.replacePageMarkdown(client, pageId, enhanced, { allowDeletingContent: true }) as any;
     const unmatched = Array.isArray(result.unknown_block_ids) ? result.unknown_block_ids : [];
     const warnings: Array<Record<string, unknown>> = [...translatorWarnings];
@@ -1245,8 +1278,11 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     if (heading === undefined) {
       throw new CliError("missing_argument", "content update-section requires --heading.");
     }
+    const dryRun = hasFlag(args, "--dry-run");
     const resolved = await resolveSelectedProfile(options, io, configDir);
-    assertCanMutate(resolved, "content update-section");
+    if (!dryRun) {
+      assertCanMutate(resolved, "content update-section");
+    }
     const client = clientFor(resolved, ops);
     const allBlocks = await ops.listChildren(client, pageId);
     const range = findSectionRange(allBlocks as any[], heading);
@@ -1262,8 +1298,11 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     const sectionBlocks = (allBlocks as any[]).slice(range.headingIndex, range.sectionEnd);
     const afterBlockId = range.headingIndex > 0 ? (allBlocks as any[])[range.headingIndex - 1].id : undefined;
     const markdown = await readMarkdownInput(args, io);
-    const processedMarkdown = await ops.processFileUploads(client, markdown);
-    const replacementBlocks = markdownToBlocks(processedMarkdown);
+    if (dryRun) {
+      assertDryRunMarkdownSafe(markdown);
+    }
+    const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
+    const replacementBlocks = markdownToBlocks(inputMarkdown);
     const preserveHeading = hasFlag(args, "--preserve-heading");
 
     if (preserveHeading) {
@@ -1271,6 +1310,28 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       const existingHeadingChildren = isToggleableHeading(headingBlock) && headingBlock.has_children === true
         ? await ops.listChildren(client, headingBlock.id)
         : [];
+      const wouldDeleteBlockIds = [
+        ...(existingHeadingChildren as any[]).map((child) => child.id),
+        ...sectionBlocks.slice(1).map((block) => block.id),
+      ];
+
+      if (dryRun) {
+        return success({
+          success: true,
+          dry_run: true,
+          operation: "update_section",
+          page_id: pageId,
+          heading: getBlockHeadingText(headingBlock) ?? heading,
+          target_block_id: headingBlock.id,
+          target_block_type: headingBlock.type,
+          preserve_heading: true,
+          deleted: wouldDeleteBlockIds.length,
+          appended: replacementBodyBlocks.length,
+          would_delete_block_ids: wouldDeleteBlockIds,
+          append_parent_id: isToggleableHeading(headingBlock) ? headingBlock.id : pageId,
+          append_after_block_id: isToggleableHeading(headingBlock) ? undefined : headingBlock.id,
+        });
+      }
 
       for (const child of existingHeadingChildren as any[]) {
         await ops.deleteBlock(client, child.id);
@@ -1313,6 +1374,29 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
         ? await ops.listChildren(client, headingBlock.id)
         : [];
       const replacementHeadingChildren = getParsedBlockChildren(firstReplacement);
+      const wouldDeleteBlockIds = [
+        ...(existingHeadingChildren as any[]).map((child) => child.id),
+        ...sectionBlocks.slice(1).map((block) => block.id),
+      ];
+      if (dryRun) {
+        return success({
+          success: true,
+          dry_run: true,
+          operation: "update_section",
+          page_id: pageId,
+          heading: getBlockHeadingText(headingBlock) ?? heading,
+          target_block_id: headingBlock.id,
+          target_block_type: headingBlock.type,
+          preserve_heading: false,
+          would_update: true,
+          would_update_block_id: headingBlock.id,
+          deleted: wouldDeleteBlockIds.length,
+          appended: replacementHeadingChildren.length + replacementBlocks.slice(1).length,
+          would_delete_block_ids: wouldDeleteBlockIds,
+          append_parent_id: pageId,
+          append_after_block_id: headingBlock.id,
+        });
+      }
       await ops.updateBlock(client, headingBlock.id, built.payload);
       for (const child of existingHeadingChildren as any[]) {
         await ops.deleteBlock(client, child.id);
@@ -1328,6 +1412,25 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       return success({
         deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
         appended: appendedHeadingChildren.length + appended.length,
+      });
+    }
+
+    if (dryRun) {
+      const wouldDeleteBlockIds = sectionBlocks.map((block) => block.id);
+      return success({
+        success: true,
+        dry_run: true,
+        operation: "update_section",
+        page_id: pageId,
+        heading: getBlockHeadingText(headingBlock) ?? heading,
+        target_block_id: headingBlock.id,
+        target_block_type: headingBlock.type,
+        preserve_heading: false,
+        deleted: wouldDeleteBlockIds.length,
+        appended: replacementBlocks.length,
+        would_delete_block_ids: wouldDeleteBlockIds,
+        append_parent_id: pageId,
+        append_after_block_id: afterBlockId,
       });
     }
 
@@ -1348,8 +1451,11 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     if (title === undefined) {
       throw new CliError("missing_argument", "content update-toggle requires --title.");
     }
+    const dryRun = hasFlag(args, "--dry-run");
     const resolved = await resolveSelectedProfile(options, io, configDir);
-    assertCanMutate(resolved, "content update-toggle");
+    if (!dryRun) {
+      assertCanMutate(resolved, "content update-toggle");
+    }
     const client = clientFor(resolved, ops);
     const found = await findToggleRecursiveForCli(client, pageId, title, ops);
     if (!found.block) {
@@ -1365,9 +1471,28 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       ? await ops.listChildren(client, found.block.id)
       : [];
     const markdown = await readMarkdownInput(args, io);
-    const processedMarkdown = await ops.processFileUploads(client, markdown);
-    const parsed = markdownToBlocks(processedMarkdown);
+    if (dryRun) {
+      assertDryRunMarkdownSafe(markdown);
+    }
+    const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
+    const parsed = markdownToBlocks(inputMarkdown);
     const replacementBlocks = replacementToggleBodyBlocks(parsed, getToggleTitle(found.block) ?? title);
+
+    if (dryRun) {
+      return success({
+        success: true,
+        dry_run: true,
+        operation: "update_toggle",
+        page_id: pageId,
+        title: getToggleTitle(found.block) ?? title,
+        block_id: found.block.id,
+        type: found.block.type,
+        deleted: (existingChildren as any[]).length,
+        appended: replacementBlocks.length,
+        would_delete_block_ids: (existingChildren as any[]).map((child) => child.id),
+        append_parent_id: found.block.id,
+      });
+    }
 
     for (const child of existingChildren as any[]) {
       await ops.deleteBlock(client, child.id);
@@ -1394,8 +1519,11 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     if (title === undefined) {
       throw new CliError("missing_argument", "content archive-toggle requires --title.");
     }
+    const dryRun = hasFlag(args, "--dry-run");
     const resolved = await resolveSelectedProfile(options, io, configDir);
-    assertCanMutate(resolved, "content archive-toggle");
+    if (!dryRun) {
+      assertCanMutate(resolved, "content archive-toggle");
+    }
     const client = clientFor(resolved, ops);
     const found = await findToggleRecursiveForCli(client, pageId, title, ops);
     if (!found.block) {
@@ -1407,6 +1535,17 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       );
     }
 
+    if (dryRun) {
+      return success({
+        success: true,
+        dry_run: true,
+        operation: "archive_toggle",
+        page_id: pageId,
+        would_archive: found.block.id,
+        title: getToggleTitle(found.block) ?? title,
+        type: found.block.type,
+      });
+    }
     await ops.updateBlock(client, found.block.id, { in_trash: true });
 
     return success({
@@ -1430,14 +1569,28 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     if (replace === undefined) {
       throw new CliError("missing_argument", "content find-replace requires --replace.");
     }
+    const dryRun = hasFlag(args, "--dry-run");
     const resolved = await resolveSelectedProfile(options, io, configDir);
-    assertCanMutate(resolved, "content find-replace");
+    if (!dryRun) {
+      assertCanMutate(resolved, "content find-replace");
+    }
     const client = clientFor(resolved, ops);
     const current = await ops.retrieveMarkdown(client, pageId) as any;
     const preflightCount = countOccurrences(
       typeof current.markdown === "string" ? current.markdown : "",
       find,
     );
+    if (dryRun) {
+      return success({
+        success: true,
+        dry_run: true,
+        operation: "find_replace",
+        page_id: pageId,
+        would_update: preflightCount > 0,
+        match_count: hasFlag(args, "--all") ? preflightCount : Math.min(preflightCount, 1),
+        total_matches: preflightCount,
+      });
+    }
     const result = await ops.updateMarkdown(client, {
       page_id: pageId,
       type: "update_content",
@@ -1517,8 +1670,11 @@ async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, co
     }
 
     const checked = parseOptionalBooleanFlag(args, "--checked");
+    const dryRun = hasFlag(args, "--dry-run");
     const resolved = await resolveSelectedProfile(options, io, configDir);
-    assertCanMutate(resolved, "block update");
+    if (!dryRun) {
+      assertCanMutate(resolved, "block update");
+    }
     const client = clientFor(resolved, ops);
     const existing = await ops.retrieveBlock(client, blockId) as any;
     const existingType = existing?.type as string | undefined;
@@ -1527,6 +1683,15 @@ async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, co
     }
 
     if (hasArchived) {
+      if (dryRun) {
+        return success({
+          id: blockId,
+          type: existingType,
+          dry_run: true,
+          operation: "update_block",
+          would_archive: true,
+        });
+      }
       await ops.updateBlock(client, blockId, { in_trash: true });
       return success({ id: blockId, type: existingType, archived: true });
     }
@@ -1545,11 +1710,23 @@ async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, co
         "update_block: markdown is empty. Pass non-empty markdown, or use --archived to delete the block.",
       );
     }
-    const processedMarkdown = await ops.processFileUploads(client, markdown);
-    const parsed = markdownToBlocks(processedMarkdown);
+    if (dryRun) {
+      assertDryRunMarkdownSafe(markdown);
+    }
+    const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
+    const parsed = markdownToBlocks(inputMarkdown);
     const built = buildUpdateBlockPayload(parsed, existingType, { checked });
     if (!built.ok) {
       throw new CliError("invalid_update_block_markdown", built.error);
+    }
+    if (dryRun) {
+      return success({
+        id: blockId,
+        type: existingType,
+        dry_run: true,
+        operation: "update_block",
+        would_update: true,
+      });
     }
     await ops.updateBlock(client, blockId, built.payload);
     return success({ id: blockId, type: existingType, updated: true });
@@ -1716,8 +1893,21 @@ async function handleDatabase(args: string[], options: GlobalOptions, io: CliIO,
       if (!pageId) {
         throw new CliError("missing_argument", "database entry delete requires a page id.");
       }
+      const dryRun = hasFlag(args, "--dry-run");
       const resolved = await resolveSelectedProfile(options, io, configDir);
-      assertCanMutate(resolved, "database entry delete");
+      if (!dryRun) {
+        assertCanMutate(resolved, "database entry delete");
+      }
+      if (dryRun) {
+        return success({
+          success: true,
+          dry_run: true,
+          operation: "delete_database_entry",
+          would_delete: pageId,
+          would_archive: pageId,
+          note: "delete_database_entry archives the underlying Notion page.",
+        });
+      }
       await ops.archivePage(clientFor(resolved, ops), pageId);
       return success({ success: true, deleted: pageId });
     }

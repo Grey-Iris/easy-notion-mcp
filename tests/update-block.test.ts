@@ -285,6 +285,56 @@ describe("update_block handler", () => {
     }
   });
 
+  it("dry-run validates markdown update without calling blocks.update", async () => {
+    const notion = makeNotion({ type: "paragraph" });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_block",
+        arguments: {
+          block_id: "block-1",
+          markdown: "Updated paragraph text.",
+          dry_run: true,
+        },
+      });
+
+      expect(notion.blocks.retrieve).toHaveBeenCalledWith({ block_id: "block-1" });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(JSON.parse(parseToolText(result))).toEqual({
+        id: "block-1",
+        type: "paragraph",
+        dry_run: true,
+        operation: "update_block",
+        would_update: true,
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("dry-run validates archive without calling blocks.update", async () => {
+    const notion = makeNotion({ type: "divider" });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_block",
+        arguments: { block_id: "d1", archived: true, dry_run: true },
+      });
+
+      expect(notion.blocks.retrieve).toHaveBeenCalledWith({ block_id: "d1" });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(JSON.parse(parseToolText(result))).toEqual({
+        id: "d1",
+        type: "divider",
+        dry_run: true,
+        operation: "update_block",
+        would_archive: true,
+      });
+    } finally {
+      await close();
+    }
+  });
+
   it("multi-block markdown returns an error pointing at replace_content / append_content", async () => {
     const notion = makeNotion({ type: "paragraph" });
     const { client, close } = await connect(notion);

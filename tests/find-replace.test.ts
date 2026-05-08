@@ -280,6 +280,75 @@ describe("find_replace handler (synthesis C6)", () => {
     }
   });
 
+  it("dry-run reports first-only and total match counts without updating markdown", async () => {
+    const notion = makeNotion(undefined, {
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "old then old again",
+      truncated: false,
+      unknown_block_ids: [],
+    });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "find_replace",
+        arguments: {
+          page_id: "page-1",
+          find: "old",
+          replace: "new",
+          dry_run: true,
+        },
+      });
+
+      expect(JSON.parse(parseToolText(result))).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "find_replace",
+        page_id: "page-1",
+        would_update: true,
+        match_count: 1,
+        total_matches: 2,
+      });
+      expect(notion.pages.retrieveMarkdown).toHaveBeenCalledWith({ page_id: "page-1" });
+      expect(notion.pages.updateMarkdown).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("dry-run replace_all reports all matches without updating markdown", async () => {
+    const notion = makeNotion(undefined, {
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "old then old again",
+      truncated: false,
+      unknown_block_ids: [],
+    });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "find_replace",
+        arguments: {
+          page_id: "page-1",
+          find: "old",
+          replace: "new",
+          replace_all: true,
+          dry_run: true,
+        },
+      });
+
+      expect(JSON.parse(parseToolText(result))).toMatchObject({
+        dry_run: true,
+        operation: "find_replace",
+        match_count: 2,
+        total_matches: 2,
+      });
+      expect(notion.pages.updateMarkdown).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
   it("does not convert a zero preflight count plus updateMarkdown rejection into success", async () => {
     const notion = makeNotion({
       object: "page_markdown",

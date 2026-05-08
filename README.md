@@ -154,6 +154,11 @@ npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-to
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content archive-toggle PAGE_ID --title "Done"
 ```
 
+Destructive CLI commands support `--dry-run` as a readonly preflight. It runs
+the same lookup and markdown validation where possible, returns planned fields
+such as `would_delete_block_ids`, `would_update`, or `would_archive`, and does
+not mutate Notion.
+
 The lightweight skill for agent routing is published in this repo at `skills/easy-notion-cli/`. It teaches agents to prefer the CLI for profile-based Notion access instead of registering multiple MCP servers.
 
 ### With OAuth
@@ -364,6 +369,13 @@ easy-notion-mcp includes 40 individually-named tools across 6 categories. Tool d
 | `move_page` | Move a page to a new parent |
 | `restore_page` | Restore an archived page |
 
+Destructive tools support `dry_run: true` as a preflight. Dry-run does not
+upload or validate local `file://` markdown uploads because that would create
+Notion uploads; use HTTPS URLs or run without dry-run for local files.
+`replace_content` dry-run translates markdown and returns translator warnings,
+but it cannot surface Notion-side `unmatched_blocks` or `truncated` fields
+because it does not call Notion's update endpoint.
+
 ### Navigation (3 tools)
 
 | Tool | Description |
@@ -484,6 +496,9 @@ easy-notion-mcp provides three editing strategies for different use cases:
 - **`replace_content`** — Replaces all content on a page with new markdown. Best for full rewrites.
 - **`update_section`** — Replaces a single section identified by heading name. By default the replacement markdown includes the heading and replaces the full section. Pass `preserve_heading: true` (or CLI `--preserve-heading`) to keep the existing heading block ID, text, type, comments, and toggleable state while destructively replacing only the section body.
 - **`find_replace`** — Finds and replaces specific text anywhere on the page, preserving all other content and attached files. Best for surgical edits.
+
+Pass `dry_run: true` on MCP tools, or `--dry-run` in the CLI, before destructive
+edits when you want a preflight response instead of a mutation.
 
 ## How does easy-notion-mcp handle databases?
 

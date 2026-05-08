@@ -113,10 +113,11 @@ describe("Views MCP tools", () => {
         },
       });
       expect(deleteView?.inputSchema).toMatchObject({
-        required: ["view_id", "confirm"],
+        required: ["view_id"],
         properties: {
           view_id: { type: "string" },
           confirm: { type: "boolean" },
+          dry_run: { type: "boolean" },
         },
       });
     } finally {
@@ -616,6 +617,30 @@ describe("Views MCP tools", () => {
           type: "table",
         },
       });
+    } finally {
+      await close();
+    }
+  });
+
+  it("delete_view dry-run does not require confirm true and does not call SDK delete", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolJson<Record<string, unknown>>(
+        await client.callTool({
+          name: "delete_view",
+          arguments: { view_id: "view-1", dry_run: true },
+        }),
+      );
+
+      expect(response).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "delete_view",
+        would_delete: "view-1",
+      });
+      expect(notion.views.delete).not.toHaveBeenCalled();
     } finally {
       await close();
     }

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCodeRanges, processFileUploads } from "../src/file-upload.js";
+import { detectFileUploadReferences, getCodeRanges, processFileUploads } from "../src/file-upload.js";
 import { uploadFile } from "../src/notion-client.js";
 
 vi.mock("../src/notion-client.js", () => ({
@@ -118,6 +118,23 @@ describe("processFileUploads", () => {
     const markdown = "`![](file:///tmp/in-code.png)`";
 
     await expect(processFileUploads({} as any, markdown, "http")).resolves.toBe(markdown);
+    expect(mockedUploadFile).not.toHaveBeenCalled();
+  });
+
+  it("detects only real file upload markdown without uploading", () => {
+    const markdown = [
+      "![photo](file:///tmp/real.png)",
+      "`![skip](file:///tmp/inline.png)`",
+      "```md",
+      "[skip](file:///tmp/fenced.pdf)",
+      "```",
+      "[report](file:///tmp/report.pdf)",
+    ].join("\n");
+
+    expect(detectFileUploadReferences(markdown).map((match) => match.url)).toEqual([
+      "file:///tmp/real.png",
+      "file:///tmp/report.pdf",
+    ]);
     expect(mockedUploadFile).not.toHaveBeenCalled();
   });
 });

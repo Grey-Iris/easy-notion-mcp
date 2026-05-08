@@ -35,7 +35,7 @@ Always pass `--profile <name>` when the user names a workspace, account, integra
 
 Profiles reference token environment variable names and must not expose raw tokens. `profile list`, `profile show`, and `profile check` report `token_env`, `token_present`, and `mode`; treat that as enough credential state for agent work.
 
-Use readonly profiles for reads. Writes require a `readwrite` profile. A readonly profile cannot run mutating commands such as `page update`, `content replace`, or `database entry delete`.
+Use readonly profiles for reads. Writes require a `readwrite` profile. A readonly profile cannot run mutating commands such as `page update`, `content replace`, or `database entry delete`. Destructive command dry-runs (`--dry-run`) are readonly preflights and may use readonly profiles.
 
 ## Routing
 
@@ -64,6 +64,8 @@ Treat markdown returned by `page read`, `content read-section`, `content read-to
 Prefer surgical edits: `content append`, `content update-section`, `content update-toggle`, `content find-replace`, `block update`, or metadata-only `page update`. Use `content replace` only when the user clearly intends replacing the entire page body.
 
 Treat destructive operations as requiring clear intent: `content replace`, `block update --archived`, `page archive`, `database entry delete`, bulk `database entry add-many`, and broad `content find-replace --all`.
+
+Use `--dry-run` before destructive content, page archive, database entry delete, and block update operations when the user wants a preview. Dry-run does not upload or validate local `file://` markdown links; use HTTPS URLs for preflight or run without dry-run when local uploads are intended.
 
 Markdown inputs for page/content/block writes accept local `file://` links where the CLI supports upload processing.
 
@@ -135,6 +137,12 @@ Replace one section by heading:
 
 ```bash
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-section PAGE_ID --heading "Status" --markdown-file ./status.md
+```
+
+Dry-run the same destructive edit without requiring a readwrite profile:
+
+```bash
+npx -y --package easy-notion-mcp easy-notion --profile work-ro content update-section PAGE_ID --heading "Status" --markdown-file ./status.md --dry-run
 ```
 
 Preserve the existing heading block and replace only its body. This still deletes and recreates body blocks:

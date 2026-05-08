@@ -225,6 +225,46 @@ describe("update_toggle handler", () => {
       await close();
     }
   });
+
+  it("dry-run plans child replacement without deleting or appending", async () => {
+    const mutations: string[] = [];
+    const notion = makeNotion({
+      "page-1": [toggle("toggle-1", "Details")],
+      "toggle-1": [paragraph("old-1", "Old one"), paragraph("old-2", "Old two")],
+    }, mutations);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "update_toggle",
+        arguments: {
+          page_id: "page-1",
+          title: "Details",
+          markdown: "New body\n\n- item",
+          dry_run: true,
+        },
+      }));
+
+      expect(response).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "update_toggle",
+        page_id: "page-1",
+        title: "Details",
+        block_id: "toggle-1",
+        type: "toggle",
+        deleted: 2,
+        appended: 2,
+        would_delete_block_ids: ["old-1", "old-2"],
+        append_parent_id: "toggle-1",
+      });
+      expect(mutations).toEqual([]);
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
 });
 
 describe("archive_toggle handler", () => {
@@ -346,6 +386,41 @@ describe("archive_toggle handler", () => {
       expect(mutations).toEqual([
         "update:toggle-1:{\"in_trash\":true}",
       ]);
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("dry-run returns the archive target without mutating the toggle", async () => {
+    const mutations: string[] = [];
+    const notion = makeNotion({
+      "page-1": [toggle("toggle-1", "Details")],
+    }, mutations);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "archive_toggle",
+        arguments: {
+          page_id: "page-1",
+          title: "Details",
+          dry_run: true,
+        },
+      }));
+
+      expect(response).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "archive_toggle",
+        page_id: "page-1",
+        would_archive: "toggle-1",
+        title: "Details",
+        type: "toggle",
+      });
+      expect(mutations).toEqual([]);
+      expect(notion.blocks.update).not.toHaveBeenCalled();
       expect(notion.blocks.delete).not.toHaveBeenCalled();
       expect(notion.blocks.children.append).not.toHaveBeenCalled();
     } finally {

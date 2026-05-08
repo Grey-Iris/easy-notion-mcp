@@ -10,7 +10,7 @@ import {
 
 const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
-import { FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
+import { detectFileUploadReferences, DRY_RUN_FILE_UPLOAD_ERROR, FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
 import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
 import { translateGfmToEnhancedMarkdown } from "./markdown-to-enhanced.js";
 import { readMarkdownFile } from "./read-markdown-file.js";
@@ -74,6 +74,12 @@ function countOccurrences(text: string, find: string): number {
     if (index === -1) return count;
     count += 1;
     fromIndex = index + find.length;
+  }
+}
+
+function assertDryRunMarkdownSafe(markdown: string): void {
+  if (detectFileUploadReferences(markdown).length > 0) {
+    throw new Error(DRY_RUN_FILE_UPLOAD_ERROR);
   }
 }
 
@@ -1191,6 +1197,7 @@ Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \
       properties: {
         page_id: { type: "string", description: "Page ID" },
         markdown: { type: "string", description: "Replacement markdown content" },
+        dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
       },
       required: ["page_id", "markdown"],
     },
@@ -1207,6 +1214,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         heading: { type: "string", description: "Heading text to find (case-insensitive)" },
         markdown: { type: "string", description: "Replacement markdown including the heading" },
         preserve_heading: { type: "boolean", description: "Preserve the existing heading block and replace only the section body. Default false." },
+        dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
       },
       required: ["page_id", "heading", "markdown"],
     },
@@ -1221,6 +1229,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         find: { type: "string", description: "Text to find (exact match)" },
         replace: { type: "string", description: "Replacement text" },
         replace_all: { type: "boolean", description: "Replace all occurrences. Default: first only." },
+        dry_run: { type: "boolean", description: "Preview match counts without mutating Notion. Default false." },
       },
       required: ["page_id", "find", "replace"],
     },
@@ -1271,6 +1280,7 @@ Update the body of one toggle by title from a page. Searches recursively and mat
         page_id: { type: "string", description: "Page ID" },
         title: { type: "string", description: "Toggle title to find (case-insensitive)" },
         markdown: { type: "string", description: "Replacement markdown for the toggle body" },
+        dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
       },
       required: ["page_id", "title", "markdown"],
     },
@@ -1283,6 +1293,7 @@ Update the body of one toggle by title from a page. Searches recursively and mat
       properties: {
         page_id: { type: "string", description: "Page ID" },
         title: { type: "string", description: "Toggle title to find (case-insensitive)" },
+        dry_run: { type: "boolean", description: "Preview the archive target without mutating Notion. Default false." },
       },
       required: ["page_id", "title"],
     },
@@ -1313,6 +1324,7 @@ To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one 
           type: "boolean",
           description: "Set true to delete the block (sends in_trash: true).",
         },
+        dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
       },
       required: ["block_id"],
     },
@@ -1380,6 +1392,7 @@ Long titles are paginated with max_property_items. For markdown conventions, war
       type: "object",
       properties: {
         page_id: { type: "string", description: "Page ID" },
+        dry_run: { type: "boolean", description: "Preview the archive target without mutating Notion. Default false." },
       },
       required: ["page_id"],
     },
@@ -1626,9 +1639,10 @@ Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-valu
       type: "object",
       properties: {
         view_id: { type: "string", description: "View ID" },
-        confirm: { type: "boolean", description: "Must be exactly true to delete the view" },
+        confirm: { type: "boolean", description: "Must be exactly true to delete the view unless dry_run is true" },
+        dry_run: { type: "boolean", description: "Preview the delete target without mutating Notion. Default false." },
       },
-      required: ["view_id", "confirm"],
+      required: ["view_id"],
     },
   },
   {
@@ -1762,6 +1776,7 @@ Not writable from this tool:
       type: "object",
       properties: {
         page_id: { type: "string", description: "Database entry page ID" },
+        dry_run: { type: "boolean", description: "Preview the entry archive/delete target without mutating Notion. Default false." },
       },
       required: ["page_id"],
     },
@@ -1949,10 +1964,25 @@ export function createServer(
         }
         case "replace_content": {
           const notion = notionClientFactory();
-          const { page_id, markdown } = args as { page_id: string; markdown: string };
-          const processedMarkdown = await processFileUploads(notion, markdown, transport);
+          const { page_id, markdown, dry_run } = args as { page_id: string; markdown: string; dry_run?: boolean };
+          if (dry_run === true) {
+            assertDryRunMarkdownSafe(markdown);
+          }
+          const inputMarkdown = dry_run === true
+            ? markdown
+            : await processFileUploads(notion, markdown, transport);
           const { enhanced, warnings: translatorWarnings } =
-            translateGfmToEnhancedMarkdown(processedMarkdown);
+            translateGfmToEnhancedMarkdown(inputMarkdown);
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "replace_content",
+              page_id,
+              would_update: true,
+              ...(translatorWarnings.length > 0 ? { warnings: translatorWarnings } : {}),
+            });
+          }
           const result = (await replacePageMarkdown(notion, page_id, enhanced, {
             allowDeletingContent: true,
           })) as any;
@@ -1969,11 +1999,12 @@ export function createServer(
         }
         case "update_section": {
           const notion = notionClientFactory();
-          const { page_id, heading, markdown, preserve_heading } = args as {
+          const { page_id, heading, markdown, preserve_heading, dry_run } = args as {
             page_id: string;
             heading: string;
             markdown: string;
             preserve_heading?: boolean;
+            dry_run?: boolean;
           };
           const allBlocks = await listChildren(notion, page_id);
           const range = findSectionRange(allBlocks, heading);
@@ -1987,13 +2018,41 @@ export function createServer(
           const headingBlock = range.headingBlock;
           const sectionBlocks = allBlocks.slice(range.headingIndex, range.sectionEnd);
           const afterBlockId = range.headingIndex > 0 ? allBlocks[range.headingIndex - 1].id : undefined;
-          const replacementBlocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+          if (dry_run === true) {
+            assertDryRunMarkdownSafe(markdown);
+          }
+          const inputMarkdown = dry_run === true
+            ? markdown
+            : await processFileUploads(notion, markdown, transport);
+          const replacementBlocks = markdownToBlocks(inputMarkdown);
 
           if (preserve_heading === true) {
             const replacementBodyBlocks = updateSectionPreserveHeadingBody(replacementBlocks, headingBlock);
             const existingHeadingChildren = isToggleableHeading(headingBlock) && headingBlock.has_children === true
               ? await listChildren(notion, headingBlock.id)
               : [];
+            const wouldDeleteBlockIds = [
+              ...existingHeadingChildren.map((child: any) => child.id),
+              ...sectionBlocks.slice(1).map((block: any) => block.id),
+            ];
+
+            if (dry_run === true) {
+              return textResponse({
+                success: true,
+                dry_run: true,
+                operation: "update_section",
+                page_id,
+                heading: getBlockHeadingText(headingBlock) ?? heading,
+                target_block_id: headingBlock.id,
+                target_block_type: headingBlock.type,
+                preserve_heading: true,
+                deleted: wouldDeleteBlockIds.length,
+                appended: replacementBodyBlocks.length,
+                would_delete_block_ids: wouldDeleteBlockIds,
+                append_parent_id: isToggleableHeading(headingBlock) ? headingBlock.id : page_id,
+                append_after_block_id: isToggleableHeading(headingBlock) ? undefined : headingBlock.id,
+              });
+            }
 
             for (const child of existingHeadingChildren) {
               await deleteBlock(notion, child.id);
@@ -2032,6 +2091,29 @@ export function createServer(
               ? await listChildren(notion, headingBlock.id)
               : [];
             const replacementHeadingChildren = getParsedBlockChildren(firstReplacement);
+            const wouldDeleteBlockIds = [
+              ...existingHeadingChildren.map((child: any) => child.id),
+              ...sectionBlocks.slice(1).map((block: any) => block.id),
+            ];
+            if (dry_run === true) {
+              return textResponse({
+                success: true,
+                dry_run: true,
+                operation: "update_section",
+                page_id,
+                heading: getBlockHeadingText(headingBlock) ?? heading,
+                target_block_id: headingBlock.id,
+                target_block_type: headingBlock.type,
+                preserve_heading: false,
+                would_update: true,
+                would_update_block_id: headingBlock.id,
+                deleted: wouldDeleteBlockIds.length,
+                appended: replacementHeadingChildren.length + replacementBlocks.slice(1).length,
+                would_delete_block_ids: wouldDeleteBlockIds,
+                append_parent_id: page_id,
+                append_after_block_id: headingBlock.id,
+              });
+            }
             await updateBlock(notion, headingBlock.id, built.payload);
             for (const child of existingHeadingChildren) {
               await deleteBlock(notion, child.id);
@@ -2052,6 +2134,25 @@ export function createServer(
             return textResponse({
               deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
               appended: appendedHeadingChildren.length + appended.length,
+            });
+          }
+
+          if (dry_run === true) {
+            const wouldDeleteBlockIds = sectionBlocks.map((block: any) => block.id);
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "update_section",
+              page_id,
+              heading: getBlockHeadingText(headingBlock) ?? heading,
+              target_block_id: headingBlock.id,
+              target_block_type: headingBlock.type,
+              preserve_heading: false,
+              deleted: wouldDeleteBlockIds.length,
+              appended: replacementBlocks.length,
+              would_delete_block_ids: wouldDeleteBlockIds,
+              append_parent_id: page_id,
+              append_after_block_id: afterBlockId,
             });
           }
 
@@ -2145,17 +2246,29 @@ export function createServer(
         }
         case "find_replace": {
           const notion = notionClientFactory();
-          const { page_id, find, replace, replace_all } = args as {
+          const { page_id, find, replace, replace_all, dry_run } = args as {
             page_id: string;
             find: string;
             replace: string;
             replace_all?: boolean;
+            dry_run?: boolean;
           };
           const current = await (notion as any).pages.retrieveMarkdown({ page_id }) as any;
           const preflightCount = countOccurrences(
             typeof current.markdown === "string" ? current.markdown : "",
             find,
           );
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "find_replace",
+              page_id,
+              would_update: preflightCount > 0,
+              match_count: replace_all ? preflightCount : Math.min(preflightCount, 1),
+              total_matches: preflightCount,
+            });
+          }
           const result = await (notion as any).pages.updateMarkdown({
             page_id,
             type: "update_content",
@@ -2179,10 +2292,11 @@ export function createServer(
         }
         case "update_toggle": {
           const notion = notionClientFactory();
-          const { page_id, title, markdown } = args as {
+          const { page_id, title, markdown, dry_run } = args as {
             page_id: string;
             title: string;
             markdown: string;
+            dry_run?: boolean;
           };
           const result = await findToggleRecursive(notion, page_id, title);
           if (!result.block) {
@@ -2195,8 +2309,29 @@ export function createServer(
           const existingChildren = result.block.has_children === true
             ? await listChildren(notion, result.block.id)
             : [];
-          const parsed = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+          if (dry_run === true) {
+            assertDryRunMarkdownSafe(markdown);
+          }
+          const inputMarkdown = dry_run === true
+            ? markdown
+            : await processFileUploads(notion, markdown, transport);
+          const parsed = markdownToBlocks(inputMarkdown);
           const replacementBlocks = replacementToggleBodyBlocks(parsed, getToggleTitle(result.block) ?? title);
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "update_toggle",
+              page_id,
+              title: getToggleTitle(result.block) ?? title,
+              block_id: result.block.id,
+              type: result.block.type,
+              deleted: existingChildren.length,
+              appended: replacementBlocks.length,
+              would_delete_block_ids: existingChildren.map((child: any) => child.id),
+              append_parent_id: result.block.id,
+            });
+          }
 
           for (const child of existingChildren) {
             await deleteBlock(notion, child.id);
@@ -2215,7 +2350,7 @@ export function createServer(
         }
         case "archive_toggle": {
           const notion = notionClientFactory();
-          const { page_id, title } = args as { page_id: string; title: string };
+          const { page_id, title, dry_run } = args as { page_id: string; title: string; dry_run?: boolean };
           const result = await findToggleRecursive(notion, page_id, title);
           if (!result.block) {
             return textResponse({
@@ -2224,6 +2359,17 @@ export function createServer(
             });
           }
 
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "archive_toggle",
+              page_id,
+              would_archive: result.block.id,
+              title: getToggleTitle(result.block) ?? title,
+              type: result.block.type,
+            });
+          }
           await updateBlock(notion, result.block.id, { in_trash: true });
           return textResponse({
             success: true,
@@ -2234,11 +2380,12 @@ export function createServer(
         }
         case "update_block": {
           const notion = notionClientFactory();
-          const { block_id, markdown, checked, archived } = args as {
+          const { block_id, markdown, checked, archived, dry_run } = args as {
             block_id: string;
             markdown?: string;
             checked?: boolean;
             archived?: boolean;
+            dry_run?: boolean;
           };
           if (!block_id || typeof block_id !== "string") {
             return textResponse({ error: "update_block: block_id is required." });
@@ -2276,6 +2423,15 @@ export function createServer(
           }
 
           if (hasArchived) {
+            if (dry_run === true) {
+              return textResponse({
+                id: block_id,
+                type: existingType,
+                dry_run: true,
+                operation: "update_block",
+                would_archive: true,
+              });
+            }
             await updateBlock(notion, block_id, { in_trash: true });
             return textResponse({ id: block_id, type: existingType, archived: true });
           }
@@ -2286,13 +2442,27 @@ export function createServer(
             });
           }
 
-          const processedMarkdown = await processFileUploads(notion, markdown!, transport);
-          const parsed = markdownToBlocks(processedMarkdown);
+          if (dry_run === true) {
+            assertDryRunMarkdownSafe(markdown!);
+          }
+          const inputMarkdown = dry_run === true
+            ? markdown!
+            : await processFileUploads(notion, markdown!, transport);
+          const parsed = markdownToBlocks(inputMarkdown);
           const built = buildUpdateBlockPayload(parsed, existingType, { checked });
           if (!built.ok) {
             return textResponse({ error: built.error });
           }
 
+          if (dry_run === true) {
+            return textResponse({
+              id: block_id,
+              type: existingType,
+              dry_run: true,
+              operation: "update_block",
+              would_update: true,
+            });
+          }
           await updateBlock(notion, block_id, built.payload);
           return textResponse({ id: block_id, type: existingType, updated: true });
         }
@@ -2429,8 +2599,16 @@ export function createServer(
           });
         }
         case "archive_page": {
+          const { page_id, dry_run } = args as { page_id: string; dry_run?: boolean };
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "archive_page",
+              would_archive: page_id,
+            });
+          }
           const notion = notionClientFactory();
-          const { page_id } = args as { page_id: string };
           await archivePage(notion, page_id);
           return textResponse({ success: true, archived: page_id });
         }
@@ -2714,17 +2892,26 @@ export function createServer(
           return textResponse(result);
         }
         case "delete_view": {
-          const notion = notionClientFactory();
-          const { view_id, confirm } = args as {
+          const { view_id, confirm, dry_run } = args as {
             view_id: string;
             confirm?: unknown;
+            dry_run?: boolean;
           };
           if (typeof view_id !== "string") {
             throw new Error("delete_view: `view_id` must be a string.");
           }
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "delete_view",
+              would_delete: view_id,
+            });
+          }
           if (confirm !== true) {
             throw new Error("delete_view: `confirm` must be exactly true.");
           }
+          const notion = notionClientFactory();
           const result = await deleteView(notion, view_id);
           return textResponse(result);
         }
@@ -2804,8 +2991,18 @@ export function createServer(
           return textResponse({ success: true, restored: page_id });
         }
         case "delete_database_entry": {
+          const { page_id, dry_run } = args as { page_id: string; dry_run?: boolean };
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "delete_database_entry",
+              would_delete: page_id,
+              would_archive: page_id,
+              note: "delete_database_entry archives the underlying Notion page.",
+            });
+          }
           const notion = notionClientFactory();
-          const { page_id } = args as { page_id: string };
           await archivePage(notion, page_id);
           return textResponse({ success: true, deleted: page_id });
         }

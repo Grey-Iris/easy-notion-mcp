@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dry-run destructive operations.** MCP destructive tools accept `dry_run:
+  true`, and the CLI accepts `--dry-run` on destructive content, page,
+  database-entry, and block commands to preview validation and planned effects
+  without mutating Notion.
 - **Toggle archiving.** `archive_toggle` and `content archive-toggle` archive
   one toggle or toggleable heading by title without deleting or rewriting its
   children.

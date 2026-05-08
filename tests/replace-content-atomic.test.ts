@@ -238,4 +238,108 @@ describe("replace_content (atomic) handler", () => {
       await close();
     }
   });
+
+  it("dry-run translates markdown and returns translator warnings without calling Notion", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "replace_content",
+        arguments: {
+          page_id: "p",
+          markdown: "https://example.com/some-bookmark",
+          dry_run: true,
+        },
+      });
+      const response = JSON.parse(parseToolText(result));
+
+      expect(response).toMatchObject({
+        success: true,
+        dry_run: true,
+        operation: "replace_content",
+        page_id: "p",
+        would_update: true,
+      });
+      expect(response).not.toHaveProperty("truncated");
+      expect(response).not.toHaveProperty("deleted");
+      expect(response).not.toHaveProperty("appended");
+      expect(response.warnings).toContainEqual(
+        expect.objectContaining({ code: "bookmark_lost_on_atomic_replace" }),
+      );
+      expect(notion.pages.updateMarkdown).not.toHaveBeenCalled();
+      expect(notion.fileUploads.create).not.toHaveBeenCalled();
+      expect(notion.fileUploads.send).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("dry-run rejects file upload markdown without creating uploads", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "replace_content",
+        arguments: {
+          page_id: "p",
+          markdown: "![photo](file:///tmp/photo.png)",
+          dry_run: true,
+        },
+      });
+      const response = JSON.parse(parseToolText(result));
+
+      expect(response.error).toMatch(/dry-run cannot validate file uploads/i);
+      expect(notion.pages.updateMarkdown).not.toHaveBeenCalled();
+      expect(notion.fileUploads.create).not.toHaveBeenCalled();
+      expect(notion.fileUploads.send).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+});
+
+describe("archive/delete dry-run handlers", () => {
+  it("archive_page dry-run returns the target without calling pages.update", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "archive_page",
+        arguments: { page_id: "page-1", dry_run: true },
+      });
+
+      expect(JSON.parse(parseToolText(result))).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "archive_page",
+        would_archive: "page-1",
+      });
+      expect(notion.pages.update).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("delete_database_entry dry-run returns the target without archiving the page", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "delete_database_entry",
+        arguments: { page_id: "entry-page-1", dry_run: true },
+      });
+
+      expect(JSON.parse(parseToolText(result))).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "delete_database_entry",
+        would_delete: "entry-page-1",
+        would_archive: "entry-page-1",
+        note: "delete_database_entry archives the underlying Notion page.",
+      });
+      expect(notion.pages.update).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
 });

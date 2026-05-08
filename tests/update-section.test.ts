@@ -502,4 +502,96 @@ describe("update_section handler", () => {
       await close();
     }
   });
+
+  it("dry-run plans a non-first section replacement without mutating blocks", async () => {
+    const notion = makeUpdateSectionNotion([
+      { id: "intro", type: "paragraph", paragraph: { rich_text: richText("Intro") } },
+      { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+      { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+    ]);
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "Replacement body",
+          dry_run: true,
+        },
+      });
+
+      expect(parseToolText(result)).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "update_section",
+        page_id: "page-1",
+        heading: "Target",
+        target_block_id: "h2-target",
+        target_block_type: "heading_2",
+        preserve_heading: false,
+        deleted: 2,
+        appended: 1,
+        would_delete_block_ids: ["h2-target", "old-body"],
+        append_parent_id: "page-1",
+        append_after_block_id: "intro",
+      });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("dry-run preserve heading includes toggleable heading children in the delete plan", async () => {
+    const notion = makeUpdateSectionNotion(
+      [
+        {
+          id: "h2-target",
+          type: "heading_2",
+          has_children: true,
+          heading_2: { rich_text: richText("Target"), is_toggleable: true },
+        },
+        { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      ],
+      {
+        "h2-target": [
+          { id: "old-child", type: "paragraph", paragraph: { rich_text: richText("Old child") } },
+        ],
+      },
+    );
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "Replacement child",
+          preserve_heading: true,
+          dry_run: true,
+        },
+      });
+
+      expect(parseToolText(result)).toMatchObject({
+        success: true,
+        dry_run: true,
+        operation: "update_section",
+        target_block_id: "h2-target",
+        preserve_heading: true,
+        deleted: 2,
+        appended: 1,
+        would_delete_block_ids: ["old-child", "old-body"],
+        append_parent_id: "h2-target",
+      });
+      expect(notion.blocks.children.list).toHaveBeenCalledWith(expect.objectContaining({ block_id: "h2-target" }));
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
 });

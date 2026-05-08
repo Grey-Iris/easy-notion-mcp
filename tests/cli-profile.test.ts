@@ -228,6 +228,22 @@ describe("profile resolution", () => {
 });
 
 describe("easy-notion CLI", () => {
+  it("help lists --dry-run on destructive commands", async () => {
+    const io = createIo({});
+
+    expect(await runCli(["--help"], io.io, { configDir: await makeTempDir(), ops: createOps() })).toBe(0);
+    const help = jsonFrom(io.stdout).result.help;
+
+    expect(help).toContain("content replace <page_id> [--dry-run]");
+    expect(help).toContain("content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run]");
+    expect(help).toContain("content update-toggle <page_id> --title <title> [--dry-run]");
+    expect(help).toContain("content archive-toggle <page_id> --title <title> [--dry-run]");
+    expect(help).toContain("content find-replace <page_id> --find <text> --replace <text> [--all] [--dry-run]");
+    expect(help).toContain("page archive <page_id> [--dry-run]");
+    expect(help).toContain("database entry delete <page_id> [--dry-run]");
+    expect(help).toContain("block update <block_id> [--dry-run]");
+  });
+
   it("adds, lists, shows, and checks profiles without leaking token values", async () => {
     const configDir = await makeTempDir();
     const env = { WORK_TOKEN: "secret-token-value" };
@@ -2297,6 +2313,167 @@ describe("easy-notion CLI", () => {
     });
     expect(ops?.createClient).not.toHaveBeenCalled();
     expect(ops?.retrieveBlock).not.toHaveBeenCalled();
+  });
+
+  it("dry-run destructive commands work with readonly profiles and skip mutation ops", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const rt = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => {
+        if (blockId === "page-section") {
+          return [
+            { id: "intro", type: "paragraph", paragraph: { rich_text: rt("Intro") } },
+            { id: "h2-target", type: "heading_2", heading_2: { rich_text: rt("Target") } },
+            { id: "old-body", type: "paragraph", paragraph: { rich_text: rt("Old") } },
+            { id: "h2-next", type: "heading_2", heading_2: { rich_text: rt("Next") } },
+          ];
+        }
+        if (blockId === "page-toggle") {
+          return [{ id: "toggle-1", type: "toggle", toggle: { rich_text: rt("Details") }, has_children: true }];
+        }
+        if (blockId === "toggle-1") {
+          return [{ id: "old-child", type: "paragraph", paragraph: { rich_text: rt("Old child") } }];
+        }
+        return [];
+      }),
+      retrieveMarkdown: vi.fn(async () => ({ markdown: "old then old again" })),
+    });
+
+    const run = async (argv: string[]) => {
+      const io = createIo({ WORK_TOKEN: "secret-token-value" });
+      const code = await runCli(argv, io.io, { configDir, ops });
+      expect(code).toBe(0);
+      return jsonFrom(io.stdout).result;
+    };
+
+    await expect(run([
+      "content", "replace", "page-1", "--markdown", "New body", "--dry-run",
+    ])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "replace_content",
+      page_id: "page-1",
+      would_update: true,
+    });
+    await expect(run([
+      "content", "update-section", "page-section", "--heading", "Target", "--markdown", "Replacement", "--dry-run",
+    ])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "update_section",
+      page_id: "page-section",
+      deleted: 2,
+      appended: 1,
+      would_delete_block_ids: ["h2-target", "old-body"],
+    });
+    await expect(run([
+      "content", "update-toggle", "page-toggle", "--title", "Details", "--markdown", "Replacement", "--dry-run",
+    ])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "update_toggle",
+      block_id: "toggle-1",
+      deleted: 1,
+      appended: 1,
+      would_delete_block_ids: ["old-child"],
+    });
+    await expect(run([
+      "content", "archive-toggle", "page-toggle", "--title", "Details", "--dry-run",
+    ])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "archive_toggle",
+      would_archive: "toggle-1",
+    });
+    await expect(run([
+      "content", "find-replace", "page-1", "--find", "old", "--replace", "new", "--all", "--dry-run",
+    ])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "find_replace",
+      match_count: 2,
+      total_matches: 2,
+    });
+    await expect(run(["page", "archive", "page-1", "--dry-run"])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "archive_page",
+      would_archive: "page-1",
+    });
+    await expect(run(["database", "entry", "delete", "entry-page-1", "--dry-run"])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "delete_database_entry",
+      would_delete: "entry-page-1",
+      would_archive: "entry-page-1",
+    });
+    await expect(run(["block", "update", "block-1", "--markdown", "Replacement", "--dry-run"])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "update_block",
+      would_update: true,
+    });
+
+    expect(ops?.processFileUploads).not.toHaveBeenCalled();
+    expect(ops?.replacePageMarkdown).not.toHaveBeenCalled();
+    expect(ops?.updateMarkdown).not.toHaveBeenCalled();
+    expect(ops?.archivePage).not.toHaveBeenCalled();
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocks).not.toHaveBeenCalled();
+    expect(ops?.appendBlocksAfter).not.toHaveBeenCalled();
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
+  });
+
+  it("content find-replace --all --dry-run reports all matches and skips update", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      retrieveMarkdown: vi.fn(async () => ({ markdown: "old old old" })),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "content", "find-replace", "page-1",
+      "--find", "old",
+      "--replace", "new",
+      "--all",
+      "--dry-run",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(jsonFrom(io.stdout).result).toMatchObject({
+      dry_run: true,
+      operation: "find_replace",
+      match_count: 3,
+      total_matches: 3,
+    });
+    expect(ops?.retrieveMarkdown).toHaveBeenCalledWith(expect.anything(), "page-1");
+    expect(ops?.updateMarkdown).not.toHaveBeenCalled();
+  });
+
+  it("CLI dry-run rejects file upload markdown before processing uploads", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "content", "replace", "page-1", "--markdown", "![photo](file:///tmp/photo.png)", "--dry-run",
+    ], io.io, { configDir, ops })).toBe(1);
+
+    expect(jsonFrom(io.stdout).error).toEqual({
+      code: "dry_run_file_upload",
+      message: "dry-run cannot validate file uploads without creating Notion uploads. Use HTTPS URLs or run without dry-run.",
+    });
+    expect(ops?.processFileUploads).not.toHaveBeenCalled();
+    expect(ops?.replacePageMarkdown).not.toHaveBeenCalled();
   });
 
   it("returns stable JSON errors for argument failures", async () => {
