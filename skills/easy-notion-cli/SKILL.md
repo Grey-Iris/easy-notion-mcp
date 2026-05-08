@@ -49,7 +49,7 @@ Use the CLI commands below. If uncertain about flags, run `easy-notion --help`.
 | Read or locate pages/content | `page read/share/list-children`, `content read-section/read-toggle/search-in-page`, `block read` |
 | Create or copy pages | `page create/create-from-file/duplicate` |
 | Update page metadata or location | `page update/archive/restore/move` |
-| Edit page content | `content append/replace/update-section/update-toggle/find-replace` |
+| Edit page content | `content append/replace/update-section/update-toggle/archive-toggle/restore-toggle/find-replace` |
 | Update or archive one block | `block update` |
 | Work with comments | `comment list/add` |
 | Read databases | `database get/list/query` |
@@ -161,6 +161,15 @@ Replace one toggle body by title:
 
 ```bash
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-toggle PAGE_ID --title "Script" --markdown-file ./script.md
+```
+
+Archive one toggle by title, then restore it by the archived block ID returned
+from the archive response. Restore is ID-based because Notion does not expose
+archived child enumeration for title search or `read_page include_archived`:
+
+```bash
+npx -y --package easy-notion-mcp easy-notion --profile work-rw content archive-toggle PAGE_ID --title "Done"
+npx -y --package easy-notion-mcp easy-notion --profile work-rw content restore-toggle ARCHIVED_BLOCK_ID
 ```
 
 Find and replace content:

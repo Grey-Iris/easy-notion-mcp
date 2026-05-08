@@ -268,6 +268,28 @@ describe("update_toggle handler", () => {
 });
 
 describe("archive_toggle handler", () => {
+  it("lists restore_toggle with block-id schema", async () => {
+    const { client, close } = await connect(makeNotion({}));
+
+    try {
+      const { tools } = await client.listTools();
+      const tool = tools.find((candidate) => candidate.name === "restore_toggle");
+      expect(tool).toBeDefined();
+      expect(tool?.inputSchema).toMatchObject({
+        type: "object",
+        required: ["block_id"],
+        properties: {
+          block_id: { type: "string" },
+          dry_run: { type: "boolean" },
+        },
+      });
+      expect((tool?.inputSchema as any).properties).not.toHaveProperty("title");
+      expect((tool?.inputSchema as any).properties).not.toHaveProperty("page_id");
+    } finally {
+      await close();
+    }
+  });
+
   it("archives a plain toggle container by title", async () => {
     const mutations: string[] = [];
     const notion = makeNotion({
@@ -421,6 +443,68 @@ describe("archive_toggle handler", () => {
       });
       expect(mutations).toEqual([]);
       expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+});
+
+describe("restore_toggle handler", () => {
+  it("dry-run returns the restore target without mutating", async () => {
+    const mutations: string[] = [];
+    const notion = makeNotion({}, mutations);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "restore_toggle",
+        arguments: {
+          block_id: "toggle-1",
+          dry_run: true,
+        },
+      }));
+
+      expect(response).toEqual({
+        success: true,
+        dry_run: true,
+        operation: "restore_toggle",
+        would_restore: "toggle-1",
+      });
+      expect(mutations).toEqual([]);
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("restores the archived block id with in_trash false", async () => {
+    const mutations: string[] = [];
+    const notion = makeNotion({}, mutations);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "restore_toggle",
+        arguments: {
+          block_id: "toggle-1",
+        },
+      }));
+
+      expect(response).toEqual({
+        success: true,
+        restored: "toggle-1",
+      });
+      expect(notion.blocks.update).toHaveBeenCalledWith({
+        block_id: "toggle-1",
+        in_trash: false,
+      });
+      expect(mutations).toEqual([
+        "update:toggle-1:{\"in_trash\":false}",
+      ]);
       expect(notion.blocks.delete).not.toHaveBeenCalled();
       expect(notion.blocks.children.append).not.toHaveBeenCalled();
     } finally {

@@ -108,6 +108,20 @@ type UpdateToggleResponse = {
   error?: string;
 };
 
+type ArchiveToggleResponse = {
+  success?: boolean;
+  archived?: string;
+  title?: string;
+  type?: string;
+  error?: string;
+};
+
+type RestoreToggleResponse = {
+  success?: boolean;
+  restored?: string;
+  error?: string;
+};
+
 type ReadToggleResponse = {
   page_id?: string;
   title?: string;
@@ -1480,6 +1494,69 @@ describe.skipIf(!env.shouldRun)(
       expect(toggle.markdown).toContain(replacementSentinel);
       expect(toggle.markdown).not.toContain(oldSentinel);
     }, 90_000);
+
+    it("G2c: archive_toggle and restore_toggle round-trip a toggle by archived block id", async () => {
+      const targetTitle = "G2c Restore Target";
+      const sentinel = "G2c restore_toggle sentinel";
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G2c restore_toggle",
+        markdown: [
+          "+++ Keep Visible",
+          "Visible body",
+          "+++",
+          "",
+          `+++ ${targetTitle}`,
+          sentinel,
+          "+++",
+        ].join("\n"),
+      }, { timeoutMs: 60_000 });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const archived = await callTool<ArchiveToggleResponse>(client, "archive_toggle", {
+        page_id: created.id,
+        title: targetTitle,
+      }, { timeoutMs: 60_000 });
+      expect(archived.error).toBeUndefined();
+      expect(archived.success).toBe(true);
+      expect(archived.archived).toEqual(expect.any(String));
+
+      let missingAfterArchive: ReadToggleResponse = {};
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        missingAfterArchive = await callTool<ReadToggleResponse>(client, "read_toggle", {
+          page_id: created.id,
+          title: targetTitle,
+        }, { timeoutMs: 60_000 });
+        if (missingAfterArchive.error) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      }
+      expect(missingAfterArchive.error ?? "").toContain("Toggle not found");
+
+      const restored = await callTool<RestoreToggleResponse>(client, "restore_toggle", {
+        block_id: archived.archived!,
+      }, { timeoutMs: 60_000 });
+      expect(restored.error).toBeUndefined();
+      expect(restored.success).toBe(true);
+      expect(restored.restored).toBe(archived.archived);
+
+      let readBack: ReadToggleResponse = {};
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        readBack = await callTool<ReadToggleResponse>(client, "read_toggle", {
+          page_id: created.id,
+          title: targetTitle,
+        }, { timeoutMs: 60_000 });
+        if (!readBack.error) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      }
+      expect(readBack.error).toBeUndefined();
+      expect(readBack.block_id).toBe(archived.archived);
+      expect(readBack.markdown).toContain(sentinel);
+    }, 120_000);
 
     it("G3: duplicate_page copies supported page content", async () => {
       const sourceSentinel = "G3 duplicate source sentinel";

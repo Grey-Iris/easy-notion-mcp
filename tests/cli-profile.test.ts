@@ -238,6 +238,7 @@ describe("easy-notion CLI", () => {
     expect(help).toContain("content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run]");
     expect(help).toContain("content update-toggle <page_id> --title <title> [--dry-run]");
     expect(help).toContain("content archive-toggle <page_id> --title <title> [--dry-run]");
+    expect(help).toContain("content restore-toggle <block_id> [--dry-run]");
     expect(help).toContain("content search-in-page <page_id> --query <text> [--within-toggle <title>]");
     expect(help).toContain("content find-replace <page_id> --find <text> --replace <text> [--all] [--dry-run]");
     expect(help).toContain("page archive <page_id> [--dry-run]");
@@ -819,6 +820,7 @@ describe("easy-notion CLI", () => {
       [["page", "archive", "page-1"], "page archive", "archivePage"],
       [["page", "restore", "page-1"], "page restore", "restorePage"],
       [["page", "move", "page-1", "--parent", "new-parent"], "page move", "movePage"],
+      [["content", "restore-toggle", "toggle-1"], "content restore-toggle", "updateBlock"],
       [["database", "entry", "delete", "page-1"], "database entry delete", "archivePage"],
     ] as const) {
       const ops = createOps();
@@ -1384,6 +1386,89 @@ describe("easy-notion CLI", () => {
     expect(ops?.updateBlock).not.toHaveBeenCalled();
     expect(ops?.deleteBlock).not.toHaveBeenCalled();
     expect(ops?.appendBlocks).not.toHaveBeenCalled();
+  });
+
+  it("routes content restore-toggle through readwrite profiles by block id", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "restore-toggle", "toggle-1",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: true,
+      result: {
+        success: true,
+        restored: "toggle-1",
+      },
+    });
+    expect(ops?.updateBlock).toHaveBeenCalledWith(expect.anything(), "toggle-1", { in_trash: false });
+    expect(ops?.listChildren).not.toHaveBeenCalled();
+  });
+
+  it("dry-runs content restore-toggle through readonly profiles without mutating", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "restore-toggle", "toggle-1", "--dry-run",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: true,
+      result: {
+        success: true,
+        dry_run: true,
+        operation: "restore_toggle",
+        would_restore: "toggle-1",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
+    expect(ops?.listChildren).not.toHaveBeenCalled();
+  });
+
+  it("blocks content restore-toggle readonly profiles before creating a Notion client", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+
+    const ops = createOps();
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli(["content", "restore-toggle", "toggle-1"], io.io, { configDir, ops });
+
+    expect(code).toBe(1);
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "readonly_profile",
+        message: "Profile 'work-ro' is readonly and cannot run mutating command 'content restore-toggle'.",
+      },
+    });
+    expect(ops?.createClient).not.toHaveBeenCalled();
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
   });
 
   it("treats a matching update-toggle wrapper as optional", async () => {
@@ -2482,6 +2567,13 @@ describe("easy-notion CLI", () => {
       dry_run: true,
       operation: "archive_toggle",
       would_archive: "toggle-1",
+    });
+    await expect(run([
+      "content", "restore-toggle", "toggle-1", "--dry-run",
+    ])).resolves.toMatchObject({
+      dry_run: true,
+      operation: "restore_toggle",
+      would_restore: "toggle-1",
     });
     await expect(run([
       "content", "find-replace", "page-1", "--find", "old", "--replace", "new", "--all", "--dry-run",

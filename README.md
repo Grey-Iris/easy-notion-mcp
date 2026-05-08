@@ -5,7 +5,7 @@
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
 
-41 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
+42 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
@@ -34,7 +34,7 @@ npx easy-notion-mcp
 | **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
 | **Block types** | ✅ 24 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
 | **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
-| **Tools** | 41 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
+| **Tools** | 42 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
 | **Database entry format** | Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
@@ -153,12 +153,13 @@ Mutating commands require a readwrite profile:
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content append PAGE_ID --markdown "## Update"
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-toggle PAGE_ID --title "Script" --markdown-file ./script.md
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content archive-toggle PAGE_ID --title "Done"
+npx -y --package easy-notion-mcp easy-notion --profile work-rw content restore-toggle ARCHIVED_BLOCK_ID
 ```
 
 Destructive CLI commands support `--dry-run` as a readonly preflight. It runs
 the same lookup and markdown validation where possible, returns planned fields
-such as `would_delete_block_ids`, `would_update`, or `would_archive`, and does
-not mutate Notion.
+such as `would_delete_block_ids`, `would_update`, `would_archive`, or
+`would_restore`, and does not mutate Notion.
 
 The lightweight skill for agent routing is published in this repo at `skills/easy-notion-cli/`. It teaches agents to prefer the CLI for profile-based Notion access instead of registering multiple MCP servers.
 
@@ -345,9 +346,9 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 41 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
+easy-notion-mcp includes 42 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
 
-### Pages (19 tools)
+### Pages (20 tools)
 
 | Tool | Description |
 |---|---|
@@ -363,6 +364,7 @@ easy-notion-mcp includes 41 individually-named tools across 6 categories. Tool d
 | `update_section` | Update a section by heading name; optional heading-preserving body replacement (destructive; duplicate_page first for irreplaceable content) |
 | `update_toggle` | Update one toggle body by title (destructive; preserves the toggle container ID) |
 | `archive_toggle` | Archive one toggle or toggleable heading by title |
+| `restore_toggle` | Restore an archived toggle or toggleable heading by archived block ID |
 | `find_replace` | Find and replace text, preserving files |
 | `update_block` | Update a single block by ID (preserves block identity for deep links and comments) |
 | `update_page` | Update title, icon, or cover |
@@ -377,6 +379,11 @@ Notion uploads; use HTTPS URLs or run without dry-run for local files.
 `replace_content` dry-run translates markdown and returns translator warnings,
 but it cannot surface Notion-side `unmatched_blocks` or `truncated` fields
 because it does not call Notion's update endpoint.
+
+`restore_toggle` is intentionally ID-based: pass the archived block ID returned
+by `archive_toggle`. Notion does not expose archived child enumeration for title
+search or a `read_page include_archived` workflow, so restore-by-title is not
+available.
 
 ### Navigation (3 tools)
 

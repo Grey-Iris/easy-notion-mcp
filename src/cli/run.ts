@@ -269,6 +269,7 @@ function helpText(): string {
     "  content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-toggle <page_id> --title <title> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content archive-toggle <page_id> --title <title> [--dry-run]",
+    "  content restore-toggle <block_id> [--dry-run]",
     "  content find-replace <page_id> --find <text> --replace <text> [--all] [--dry-run]",
     "  block read <block_id>",
     "  block update <block_id> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
@@ -1584,6 +1585,34 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       archived: found.block.id,
       title: getToggleTitle(found.block) ?? title,
       type: found.block.type,
+    });
+  }
+
+  if (subcommand === "restore-toggle") {
+    const blockId = args[1];
+    if (!blockId) {
+      throw new CliError("missing_argument", "content restore-toggle requires a block id.");
+    }
+    const dryRun = hasFlag(args, "--dry-run");
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    if (!dryRun) {
+      assertCanMutate(resolved, "content restore-toggle");
+    }
+
+    if (dryRun) {
+      return success({
+        success: true,
+        dry_run: true,
+        operation: "restore_toggle",
+        would_restore: blockId,
+      });
+    }
+
+    const client = clientFor(resolved, ops);
+    await ops.updateBlock(client, blockId, { in_trash: false });
+    return success({
+      success: true,
+      restored: blockId,
     });
   }
 

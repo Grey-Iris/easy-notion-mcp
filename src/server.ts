@@ -1516,6 +1516,18 @@ Update the body of one toggle by title from a page. Searches recursively and mat
     },
   },
   {
+    name: "restore_toggle",
+    description: "Restore an archived toggle or toggleable heading by archived block ID. Use the block ID returned by archive_toggle; Notion does not expose archived child enumeration for title search or read_page include_archived.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        block_id: { type: "string", description: "Archived toggle or toggleable heading block ID returned by archive_toggle" },
+        dry_run: { type: "boolean", description: "Preview the restore target without mutating Notion. Default false." },
+      },
+      required: ["block_id"],
+    },
+  },
+  {
     name: "update_block",
     description: `Update a single block in place by ID. Preserves the block's identity (deep-link anchors and inline-comment threads attached to the block survive the edit). Use this for surgical edits: fixing a heading, toggling a checkbox, rewriting one paragraph. For multi-block edits, use append_content, replace_content, or update_section.
 
@@ -2605,6 +2617,23 @@ export function createServer(
             archived: result.block.id,
             title: getToggleTitle(result.block) ?? title,
             type: result.block.type,
+          });
+        }
+        case "restore_toggle": {
+          const notion = notionClientFactory();
+          const { block_id, dry_run } = args as { block_id: string; dry_run?: boolean };
+          if (dry_run === true) {
+            return textResponse({
+              success: true,
+              dry_run: true,
+              operation: "restore_toggle",
+              would_restore: block_id,
+            });
+          }
+          await updateBlock(notion, block_id, { in_trash: false });
+          return textResponse({
+            success: true,
+            restored: block_id,
           });
         }
         case "update_block": {
