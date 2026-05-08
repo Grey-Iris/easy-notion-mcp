@@ -19,6 +19,13 @@ function makeNotion(
     truncated: false,
     unknown_block_ids: [],
   },
+  retrieveMarkdownResult: any = {
+    object: "page_markdown",
+    id: "page-1",
+    markdown: "...",
+    truncated: false,
+    unknown_block_ids: [],
+  },
 ) {
   return {
     databases: {
@@ -28,6 +35,7 @@ function makeNotion(
     dataSources: { retrieve: vi.fn() },
     pages: {
       retrieve: vi.fn(),
+      retrieveMarkdown: vi.fn(async () => retrieveMarkdownResult),
       create: vi.fn(),
       update: vi.fn(),
       updateMarkdown: vi.fn(async () => updateMarkdownResult),
@@ -80,6 +88,7 @@ describe("find_replace handler (synthesis C6)", () => {
         },
       };
 
+      expect(notion.pages.retrieveMarkdown).toHaveBeenCalledWith({ page_id: "page-1" });
       expect(notion.pages.updateMarkdown).toHaveBeenCalledOnce();
       expect(notion.pages.updateMarkdown.mock.calls[0]?.[0]).toEqual(expectedPayload);
     } finally {
@@ -101,6 +110,7 @@ describe("find_replace handler (synthesis C6)", () => {
         },
       });
 
+      expect(notion.pages.retrieveMarkdown).toHaveBeenCalledWith({ page_id: "page-1" });
       expect(notion.pages.updateMarkdown).toHaveBeenCalledOnce();
       expect(notion.pages.updateMarkdown.mock.calls[0]?.[0]).toEqual({
         page_id: "page-1",
@@ -178,6 +188,12 @@ describe("find_replace handler (synthesis C6)", () => {
       markdown: "...",
       truncated: false,
       unknown_block_ids: [],
+    }, {
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "Fix this typo once.",
+      truncated: false,
+      unknown_block_ids: [],
     });
     const { client, close } = await connect(notion);
     try {
@@ -191,19 +207,25 @@ describe("find_replace handler (synthesis C6)", () => {
       });
 
       const response = JSON.parse(parseToolText(result));
-      expect(response).toEqual({ success: true });
+      expect(response).toEqual({ success: true, match_count: 1 });
     } finally {
       await close();
     }
   });
 
-  it("returns {success:true, truncated:true} when Notion's response sets truncated:true", async () => {
+  it("returns first-only match_count and truncated:true when Notion's response sets truncated:true", async () => {
     const notion = makeNotion({
       object: "page_markdown",
       id: "page-1",
       markdown: "...",
       truncated: true,
       unknown_block_ids: [],
+    }, {
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "typo then typo again",
+      truncated: false,
+      unknown_block_ids: [],
     });
     const { client, close } = await connect(notion);
     try {
@@ -217,20 +239,64 @@ describe("find_replace handler (synthesis C6)", () => {
       });
 
       const response = JSON.parse(parseToolText(result));
-      expect(response).toEqual({ success: true, truncated: true });
+      expect(response).toEqual({ success: true, match_count: 1, truncated: true });
     } finally {
       await close();
     }
   });
 
-  it("KNOWN GAP: response carries no match count or zero-match indicator (handler does not inspect returned markdown)", async () => {
+  it("returns replace_all match_count from the preflight markdown", async () => {
+    const notion = makeNotion({
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "...",
+      truncated: false,
+      unknown_block_ids: [],
+    }, {
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "alpha old beta old gamma old",
+      truncated: false,
+      unknown_block_ids: [],
+    });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "find_replace",
+        arguments: {
+          page_id: "page-1",
+          find: "old",
+          replace: "new",
+          replace_all: true,
+        },
+      });
+
+      const response = JSON.parse(parseToolText(result));
+      expect(notion.pages.retrieveMarkdown).toHaveBeenCalledWith({ page_id: "page-1" });
+      expect(notion.pages.updateMarkdown).toHaveBeenCalledOnce();
+      expect(response).toEqual({ success: true, match_count: 3 });
+    } finally {
+      await close();
+    }
+  });
+
+  it("does not convert a zero preflight count plus updateMarkdown rejection into success", async () => {
     const notion = makeNotion({
       object: "page_markdown",
       id: "page-1",
       markdown: "no observable match metadata here",
       truncated: false,
       unknown_block_ids: [],
+    }, {
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "no matching text",
+      truncated: false,
+      unknown_block_ids: [],
     });
+    notion.pages.updateMarkdown.mockRejectedValueOnce(
+      new Error("validation_error: could not find old_str"),
+    );
     const { client, close } = await connect(notion);
     try {
       const result = await client.callTool({
@@ -242,15 +308,12 @@ describe("find_replace handler (synthesis C6)", () => {
         },
       });
 
-      // KNOWN GAP — Frame 1 S8 / synthesis C6.
-      // The handler never inspects the returned `markdown`, and the Notion
-      // PageMarkdownResponse type only proves the response shape includes
-      // `markdown` and `truncated`, not any match count or zero-match signal.
-      // This assertion should flip when we surface match/no-op information via
-      // markdown diffing or an explicit warnings/result field.
       const response = JSON.parse(parseToolText(result));
+      expect(notion.pages.retrieveMarkdown).toHaveBeenCalledWith({ page_id: "page-1" });
       expect(notion.pages.updateMarkdown).toHaveBeenCalledOnce();
-      expect(response).toEqual({ success: true });
+      expect(response.success).not.toBe(true);
+      expect(response.match_count).toBeUndefined();
+      expect(response.error).toMatch(/could not find old_str/);
     } finally {
       await close();
     }
@@ -263,6 +326,12 @@ describe("find_replace handler (synthesis C6)", () => {
       markdown: "updated markdown from Notion",
       truncated: false,
       unknown_block_ids: ["block-aaa", "block-bbb"],
+    }, {
+      object: "page_markdown",
+      id: "page-1",
+      markdown: "x appears once",
+      truncated: false,
+      unknown_block_ids: [],
     });
     const { client, close } = await connect(notion);
     try {
@@ -284,6 +353,7 @@ describe("find_replace handler (synthesis C6)", () => {
       expect(notion.pages.updateMarkdown).toHaveBeenCalledOnce();
       expect(response).toEqual({
         success: true,
+        match_count: 1,
         warnings: [{ code: "unmatched_blocks", block_ids: ["block-aaa", "block-bbb"] }],
       });
     } finally {

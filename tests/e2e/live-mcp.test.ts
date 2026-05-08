@@ -93,6 +93,7 @@ type AppendContentResponse = {
 
 type FindReplaceResponse = {
   success?: boolean;
+  match_count?: number;
   truncated?: boolean;
   warnings?: unknown;
   error?: string;
@@ -1418,6 +1419,7 @@ describe.skipIf(!env.shouldRun)(
 
       expect(replaced.error).toBeUndefined();
       expect(replaced.success).toBe(true);
+      expect(replaced.match_count).toBe(2);
 
       const page = await callTool<ReadPageResponse>(client, "read_page", {
         page_id: created.id,

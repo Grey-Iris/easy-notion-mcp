@@ -145,6 +145,7 @@ type NotionOps = {
     newStr: string,
     options?: { allowDeletingContent?: boolean },
   ): Promise<unknown>;
+  retrieveMarkdown(client: Client, pageId: string): Promise<unknown>;
   updateMarkdown(client: Client, payload: Record<string, unknown>): Promise<unknown>;
 };
 
@@ -210,8 +211,22 @@ const DEFAULT_OPS: NotionOps = {
   retrieveBlock,
   updateBlock,
   replacePageMarkdown,
+  retrieveMarkdown: (client, pageId) => (client as any).pages.retrieveMarkdown({ page_id: pageId }),
   updateMarkdown: (client, payload) => (client as any).pages.updateMarkdown(payload),
 };
+
+function countOccurrences(text: string, find: string): number {
+  if (find.length === 0) return 0;
+
+  let count = 0;
+  let fromIndex = 0;
+  while (true) {
+    const index = text.indexOf(find, fromIndex);
+    if (index === -1) return count;
+    count += 1;
+    fromIndex = index + find.length;
+  }
+}
 
 function helpText(): string {
   return [
@@ -1389,7 +1404,13 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     }
     const resolved = await resolveSelectedProfile(options, io, configDir);
     assertCanMutate(resolved, "content find-replace");
-    const result = await ops.updateMarkdown(clientFor(resolved, ops), {
+    const client = clientFor(resolved, ops);
+    const current = await ops.retrieveMarkdown(client, pageId) as any;
+    const preflightCount = countOccurrences(
+      typeof current.markdown === "string" ? current.markdown : "",
+      find,
+    );
+    const result = await ops.updateMarkdown(client, {
       page_id: pageId,
       type: "update_content",
       update_content: {
@@ -1403,6 +1424,7 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     const unmatched = Array.isArray(result.unknown_block_ids) ? result.unknown_block_ids : [];
     return success({
       success: true,
+      match_count: hasFlag(args, "--all") ? preflightCount : Math.min(preflightCount, 1),
       ...(result.truncated ? { truncated: true } : {}),
       ...(unmatched.length > 0
         ? { warnings: [{ code: "unmatched_blocks", block_ids: unmatched }] }

@@ -141,6 +141,7 @@ function createOps(overrides: CliDeps["ops"] = {}): CliDeps["ops"] {
     })),
     updateBlock: vi.fn(async (_client, blockId, payload) => ({ id: blockId, ...payload })),
     replacePageMarkdown: vi.fn(async () => ({ truncated: false })),
+    retrieveMarkdown: vi.fn(async () => ({ markdown: "Hello" })),
     updateMarkdown: vi.fn(async () => ({ truncated: false })),
     ...overrides,
   };
@@ -388,6 +389,7 @@ describe("easy-notion CLI", () => {
       },
     });
     const ops = createOps({
+      retrieveMarkdown: vi.fn(async () => ({ markdown: "old appears once" })),
       updateMarkdown: vi.fn(async () => ({ truncated: false })),
     });
     const env = { WORK_TOKEN: "secret-token-value", EXPLICIT_TOKEN: "explicit-secret" };
@@ -427,6 +429,7 @@ describe("easy-notion CLI", () => {
       "--find", "old",
       "--replace", "--new",
     ], replaceIo.io, { configDir, ops })).toBe(0);
+    expect(ops?.retrieveMarkdown).toHaveBeenLastCalledWith(expect.anything(), "page-1");
     expect(ops?.updateMarkdown).toHaveBeenLastCalledWith(expect.anything(), {
       page_id: "page-1",
       type: "update_content",
@@ -1655,6 +1658,7 @@ describe("easy-notion CLI", () => {
       },
     });
     const ops = createOps({
+      retrieveMarkdown: vi.fn(async () => ({ markdown: "old then old again" })),
       updateMarkdown: vi.fn(async () => ({ truncated: true, unknown_block_ids: ["unknown-1"] })),
     });
     const io = createIo({ WORK_TOKEN: "secret-token-value" });
@@ -1666,6 +1670,7 @@ describe("easy-notion CLI", () => {
       "--all",
     ], io.io, { configDir, ops })).toBe(0);
 
+    expect(ops?.retrieveMarkdown).toHaveBeenCalledWith(expect.anything(), "page-1");
     expect(ops?.updateMarkdown).toHaveBeenCalledWith(expect.anything(), {
       page_id: "page-1",
       type: "update_content",
@@ -1679,8 +1684,69 @@ describe("easy-notion CLI", () => {
     });
     expect(jsonFrom(io.stdout).result).toEqual({
       success: true,
+      match_count: 2,
       truncated: true,
       warnings: [{ code: "unmatched_blocks", block_ids: ["unknown-1"] }],
+    });
+  });
+
+  it("reports first-only find-replace match_count from preflight markdown", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      retrieveMarkdown: vi.fn(async () => ({ markdown: "old then old again" })),
+      updateMarkdown: vi.fn(async () => ({ truncated: false })),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "content", "find-replace", "page-1",
+      "--find", "old",
+      "--replace", "new",
+    ], io.io, { configDir, ops })).toBe(0);
+
+    expect(ops?.retrieveMarkdown).toHaveBeenCalledWith(expect.anything(), "page-1");
+    expect(jsonFrom(io.stdout).result).toEqual({
+      success: true,
+      match_count: 1,
+    });
+  });
+
+  it("does not convert a zero preflight find-replace count plus updateMarkdown rejection into success", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-rw",
+      profiles: {
+        "work-rw": { token_env: "WORK_TOKEN", mode: "readwrite" },
+      },
+    });
+    const ops = createOps({
+      retrieveMarkdown: vi.fn(async () => ({ markdown: "no matching text" })),
+      updateMarkdown: vi.fn(async () => {
+        throw new Error("validation_error: could not find old_str");
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    expect(await runCli([
+      "content", "find-replace", "page-1",
+      "--find", "missing",
+      "--replace", "replacement",
+    ], io.io, { configDir, ops })).toBe(1);
+
+    expect(ops?.retrieveMarkdown).toHaveBeenCalledWith(expect.anything(), "page-1");
+    expect(ops?.updateMarkdown).toHaveBeenCalledOnce();
+    expect(jsonFrom(io.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "unexpected_error",
+        message: "validation_error: could not find old_str",
+      },
     });
   });
 

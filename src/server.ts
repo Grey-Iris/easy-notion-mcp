@@ -64,6 +64,19 @@ function wrapUntrusted(markdown: string, trustContent: boolean): string {
   return trustContent ? markdown : CONTENT_NOTICE + markdown;
 }
 
+function countOccurrences(text: string, find: string): number {
+  if (find.length === 0) return 0;
+
+  let count = 0;
+  let fromIndex = 0;
+  while (true) {
+    const index = text.indexOf(find, fromIndex);
+    if (index === -1) return count;
+    count += 1;
+    fromIndex = index + find.length;
+  }
+}
+
 /** @internal Exported for test seams; not part of the public API contract. */
 export function simplifyProperty(prop: any): unknown {
   switch (prop?.type) {
@@ -2080,6 +2093,11 @@ export function createServer(
             replace: string;
             replace_all?: boolean;
           };
+          const current = await (notion as any).pages.retrieveMarkdown({ page_id }) as any;
+          const preflightCount = countOccurrences(
+            typeof current.markdown === "string" ? current.markdown : "",
+            find,
+          );
           const result = await (notion as any).pages.updateMarkdown({
             page_id,
             type: "update_content",
@@ -2094,6 +2112,7 @@ export function createServer(
           const unmatched = Array.isArray(result.unknown_block_ids) ? result.unknown_block_ids : [];
           return textResponse({
             success: true,
+            match_count: replace_all ? preflightCount : Math.min(preflightCount, 1),
             ...(result.truncated ? { truncated: true } : {}),
             ...(unmatched.length > 0
               ? { warnings: [{ code: "unmatched_blocks", block_ids: unmatched }] }

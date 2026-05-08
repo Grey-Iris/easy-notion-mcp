@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Toggle archiving.** `archive_toggle` and `content archive-toggle` archive
   one toggle or toggleable heading by title without deleting or rewriting its
   children.
+- **Find-replace match counts.** `find_replace` and `content find-replace`
+  successful responses now include `match_count`, counted from a preflight
+  Notion markdown read before the atomic update.
 
 ## [0.8.0] - 2026-05-08
 
