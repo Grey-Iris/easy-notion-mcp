@@ -5,7 +5,7 @@
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
 
-40 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
+41 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
@@ -34,7 +34,7 @@ npx easy-notion-mcp
 | **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
 | **Block types** | ✅ 24 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
 | **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
-| **Tools** | 40 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
+| **Tools** | 41 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
 | **Database entry format** | Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
@@ -144,6 +144,7 @@ Read commands work with readonly profiles:
 ```bash
 npx -y --package easy-notion-mcp easy-notion --profile work-ro search "roadmap" --filter pages
 npx -y --package easy-notion-mcp easy-notion --profile work-ro page read PAGE_ID --include-metadata
+npx -y --package easy-notion-mcp easy-notion --profile work-ro content search-in-page PAGE_ID --query "launch" --within-toggle "Script"
 ```
 
 Mutating commands require a readwrite profile:
@@ -344,9 +345,9 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 40 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
+easy-notion-mcp includes 41 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
 
-### Pages (18 tools)
+### Pages (19 tools)
 
 | Tool | Description |
 |---|---|
@@ -356,6 +357,7 @@ easy-notion-mcp includes 40 individually-named tools across 6 categories. Tool d
 | `read_section` | Read one section by heading name |
 | `read_block` | Read one block by ID, including nested children for containers |
 | `read_toggle` | Read one toggle or toggleable heading by title |
+| `search_in_page` | Search raw block text in a page or one toggle |
 | `append_content` | Append markdown to a page |
 | `replace_content` | Replace all page content atomically (preserves block IDs of matched blocks) |
 | `update_section` | Update a section by heading name; optional heading-preserving body replacement (destructive; duplicate_page first for irreplaceable content) |
@@ -510,7 +512,7 @@ easy-notion-mcp supports creating and updating databases with typed schemas, que
 
 easy-notion-mcp includes two layers of security for production deployments:
 
-**Prompt injection defense:** Markdown read responses (`read_page`, `read_section`, `read_block`, and `read_toggle`) include a content notice prefix instructing the agent to treat Notion data as content, not instructions. This prevents page content from hijacking agent behavior. Set `NOTION_TRUST_CONTENT=true` to disable this if you control the workspace.
+**Prompt injection defense:** Markdown read responses (`read_page`, `read_section`, `read_block`, and `read_toggle`) include a content notice prefix instructing the agent to treat Notion data as content, not instructions. `search_in_page` returns raw snippets/text that should be treated the same way. This prevents page content from hijacking agent behavior. Set `NOTION_TRUST_CONTENT=true` to disable the markdown notice if you control the workspace.
 
 **URL sanitization:** `javascript:`, `data:`, and other unsafe URL protocols are stripped and rendered as plain text. Only `http:`, `https:`, and `mailto:` are allowed.
 

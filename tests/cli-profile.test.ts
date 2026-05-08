@@ -238,6 +238,7 @@ describe("easy-notion CLI", () => {
     expect(help).toContain("content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run]");
     expect(help).toContain("content update-toggle <page_id> --title <title> [--dry-run]");
     expect(help).toContain("content archive-toggle <page_id> --title <title> [--dry-run]");
+    expect(help).toContain("content search-in-page <page_id> --query <text> [--within-toggle <title>]");
     expect(help).toContain("content find-replace <page_id> --find <text> --replace <text> [--all] [--dry-run]");
     expect(help).toContain("page archive <page_id> [--dry-run]");
     expect(help).toContain("database entry delete <page_id> [--dry-run]");
@@ -1023,6 +1024,101 @@ describe("easy-notion CLI", () => {
     });
     expect(jsonFrom(io.stdout).result.markdown).toContain("Hidden body");
     expect(ops?.deleteBlock).not.toHaveBeenCalled();
+  });
+
+  it("routes content search-in-page through readonly profiles and mirrors the MCP result shape", async () => {
+    const configDir = await makeTempDir();
+    await saveProfileConfig(configDir, {
+      default: "work-ro",
+      profiles: {
+        "work-ro": { token_env: "WORK_TOKEN", mode: "readonly" },
+      },
+    });
+    const richText = (text: string) => [{ plain_text: text, text: { content: text, link: null }, annotations: {} }];
+    const ops = createOps({
+      listChildren: vi.fn(async (_client, blockId) => {
+        if (blockId === "page-1") {
+          return [
+            { id: "other", type: "toggle", toggle: { rich_text: richText("Other") }, has_children: true },
+            { id: "target", type: "toggle", toggle: { rich_text: richText("Target") }, has_children: true },
+          ];
+        }
+        if (blockId === "target") {
+          return [{ id: "body", type: "paragraph", paragraph: { rich_text: richText("Needle body") } }];
+        }
+        if (blockId === "other") {
+          return [{ id: "other-body", type: "paragraph", paragraph: { rich_text: richText("Needle but unrelated") } }];
+        }
+        return [];
+      }),
+    });
+    const io = createIo({ WORK_TOKEN: "secret-token-value" });
+
+    const code = await runCli([
+      "content", "search-in-page", "page-1", "--query", "needle", "--within-toggle", "target",
+    ], io.io, { configDir, ops });
+
+    expect(code).toBe(0);
+    expect(jsonFrom(io.stdout).result).toEqual({
+      page_id: "page-1",
+      query: "needle",
+      scope: {
+        type: "toggle",
+        title: "Target",
+        block_id: "target",
+        block_type: "toggle",
+      },
+      match_count: 1,
+      block_count: 1,
+      matches: [{
+        block_id: "body",
+        type: "paragraph",
+        text: "Needle body",
+        snippets: ["Needle body"],
+        match_count: 1,
+        toggle_context: {
+          block_id: "target",
+          title: "Target",
+          type: "toggle",
+        },
+      }],
+    });
+    expect(ops?.listChildren).not.toHaveBeenCalledWith(expect.anything(), "other");
+    expect(ops?.deleteBlock).not.toHaveBeenCalled();
+    expect(ops?.updateBlock).not.toHaveBeenCalled();
+    expect(ops?.appendBlocks).not.toHaveBeenCalled();
+  });
+
+  it("reports content search-in-page missing page id and query before Notion operations", async () => {
+    const configDir = await makeTempDir();
+    const missingPageIo = createIo({});
+    const missingPageOps = createOps();
+
+    expect(await runCli([
+      "content", "search-in-page",
+    ], missingPageIo.io, { configDir, ops: missingPageOps })).toBe(1);
+    expect(jsonFrom(missingPageIo.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "missing_argument",
+        message: "content search-in-page requires a page id.",
+      },
+    });
+    expect(missingPageOps?.listChildren).not.toHaveBeenCalled();
+
+    const missingQueryIo = createIo({});
+    const missingQueryOps = createOps();
+    expect(await runCli([
+      "content", "search-in-page", "page-1",
+    ], missingQueryIo.io, { configDir, ops: missingQueryOps })).toBe(1);
+    expect(jsonFrom(missingQueryIo.stdout)).toEqual({
+      ok: false,
+      error: {
+        code: "missing_argument",
+        message: "content search-in-page requires --query.",
+      },
+    });
+    expect(missingQueryOps?.listChildren).not.toHaveBeenCalled();
   });
 
   it("routes content update-toggle through readwrite profiles for a plain toggle", async () => {

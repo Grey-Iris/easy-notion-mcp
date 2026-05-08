@@ -36,6 +36,31 @@ function callout(id: string, text: string, hasChildren = true): Raw {
   };
 }
 
+function codeBlock(id: string, text: string): Raw {
+  return {
+    id,
+    type: "code",
+    code: { rich_text: richText(text), language: "plain text" },
+  };
+}
+
+function table(id: string): Raw {
+  return {
+    id,
+    type: "table",
+    table: { table_width: 2, has_column_header: false, has_row_header: false },
+    has_children: true,
+  };
+}
+
+function tableRow(id: string, cells: string[]): Raw {
+  return {
+    id,
+    type: "table_row",
+    table_row: { cells: cells.map((cell) => richText(cell)) },
+  };
+}
+
 function columnList(id: string): Raw {
   return {
     id,
@@ -104,6 +129,27 @@ async function connect(notion: any) {
 }
 
 describe("targeted read tools", () => {
+  it("lists search_in_page with required page_id and query inputs", async () => {
+    const { client, close } = await connect(makeNotion({}));
+
+    try {
+      const { tools } = await client.listTools();
+      const tool = tools.find((candidate) => candidate.name === "search_in_page");
+      expect(tool).toBeDefined();
+      expect(tool?.inputSchema).toMatchObject({
+        type: "object",
+        required: ["page_id", "query"],
+        properties: {
+          page_id: { type: "string" },
+          query: { type: "string" },
+          within_toggle: { type: "string" },
+        },
+      });
+    } finally {
+      await close();
+    }
+  });
+
   it("read_section mirrors update_section H2 boundaries and fetches nested children only for the selected slice", async () => {
     const tree = {
       "page-1": [
@@ -303,6 +349,147 @@ describe("targeted read tools", () => {
         code: "omitted_block_types",
         blocks: [{ id: "sync-1", type: "synced_block" }],
       }]);
+    } finally {
+      await close();
+    }
+  });
+
+  it("search_in_page finds page-wide raw text recursively with snippets and toggle contexts", async () => {
+    const tree = {
+      "page-1": [
+        paragraph("top", "A top-level NEEDLE and another needle."),
+        toggle("plain-toggle", "Plain Toggle"),
+        heading("heading-toggle", "heading_2", "Heading Toggle", true),
+        table("table-1"),
+      ],
+      "plain-toggle": [paragraph("plain-child", "Plain child has needle inside.")],
+      "heading-toggle": [codeBlock("code-child", "const value = 'NEEDLE in code';")],
+      "table-1": [tableRow("row-1", ["First cell", "needle in table row"])],
+    };
+    const { client, close } = await connect(makeNotion(tree));
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "search_in_page",
+        arguments: { page_id: "page-1", query: "needle" },
+      }));
+
+      expect(response).toMatchObject({
+        page_id: "page-1",
+        query: "needle",
+        scope: { type: "page" },
+        match_count: 5,
+        block_count: 4,
+      });
+      expect(response.matches.map((match: any) => match.block_id)).toEqual([
+        "top",
+        "plain-child",
+        "code-child",
+        "row-1",
+      ]);
+      expect(response.matches[0]).toMatchObject({
+        text: "A top-level NEEDLE and another needle.",
+        snippets: ["A top-level NEEDLE and another needle.", "A top-level NEEDLE and another needle."],
+        match_count: 2,
+      });
+      expect(response.matches.find((match: any) => match.block_id === "plain-child").toggle_context).toEqual({
+        block_id: "plain-toggle",
+        title: "Plain Toggle",
+        type: "toggle",
+      });
+      expect(response.matches.find((match: any) => match.block_id === "code-child")).toMatchObject({
+        type: "code",
+        text: "const value = 'NEEDLE in code';",
+        toggle_context: {
+          block_id: "heading-toggle",
+          title: "Heading Toggle",
+          type: "heading_2",
+        },
+      });
+      expect(response.matches.find((match: any) => match.block_id === "row-1")).toMatchObject({
+        type: "table_row",
+        text: "First cell | needle in table row",
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("search_in_page scoped to a toggle avoids unrelated sibling toggle bodies", async () => {
+    const tree = {
+      "page-1": [
+        toggle("first-script", "First Script"),
+        toggle("target-script", "Target Script"),
+      ],
+      "first-script": [paragraph("first-body", "needle but should not fetch")],
+      "target-script": [paragraph("target-body", "Target needle body")],
+    };
+    const notion = makeNotion(tree);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "search_in_page",
+        arguments: { page_id: "page-1", query: "needle", within_toggle: "target script" },
+      }));
+
+      expect(response).toMatchObject({
+        page_id: "page-1",
+        scope: {
+          type: "toggle",
+          title: "Target Script",
+          block_id: "target-script",
+          block_type: "toggle",
+        },
+        match_count: 1,
+        block_count: 1,
+      });
+      expect(response.matches[0]).toMatchObject({
+        block_id: "target-body",
+        toggle_context: {
+          block_id: "target-script",
+          title: "Target Script",
+          type: "toggle",
+        },
+      });
+      expect(notion.blocks.children.list).not.toHaveBeenCalledWith(expect.objectContaining({ block_id: "first-script" }));
+    } finally {
+      await close();
+    }
+  });
+
+  it("search_in_page reports missing toggle titles, no-match success, and empty-query rejection", async () => {
+    const { client, close } = await connect(makeNotion({
+      "page-1": [toggle("toggle-1", "Available"), paragraph("body", "No target here")],
+      "toggle-1": [paragraph("child", "Still no target")],
+    }));
+
+    try {
+      const missing = parseToolText(await client.callTool({
+        name: "search_in_page",
+        arguments: { page_id: "page-1", query: "target", within_toggle: "Missing" },
+      }));
+      expect(missing.error).toBe(`Toggle not found: 'Missing'. Available toggles: ["Available"]`);
+      expect(missing.available_toggles).toEqual(["Available"]);
+
+      const noMatch = parseToolText(await client.callTool({
+        name: "search_in_page",
+        arguments: { page_id: "page-1", query: "absent" },
+      }));
+      expect(noMatch).toMatchObject({
+        page_id: "page-1",
+        query: "absent",
+        scope: { type: "page" },
+        match_count: 0,
+        block_count: 0,
+        matches: [],
+      });
+
+      const empty = parseToolText(await client.callTool({
+        name: "search_in_page",
+        arguments: { page_id: "page-1", query: " " },
+      }));
+      expect(empty.error).toBe("search_in_page: `query` must not be empty.");
     } finally {
       await close();
     }

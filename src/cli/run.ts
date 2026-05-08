@@ -44,6 +44,7 @@ import {
   getToggleTitle,
   isToggleableHeading,
   normalizeBlock,
+  searchInPage,
   simplifyProperty,
   SUPPORTED_BLOCK_TYPES,
   updateSectionPreserveHeadingBody,
@@ -174,12 +175,14 @@ const COMMAND_VALUE_FLAGS = new Set([
   "--mode",
   "--parent",
   "--properties-json",
+  "--query",
   "--replace",
   "--root-page-id",
   "--sorts-json",
   "--text",
   "--title",
   "--token-env",
+  "--within-toggle",
 ]);
 
 const DEFAULT_OPS: NotionOps = {
@@ -261,6 +264,7 @@ function helpText(): string {
     "  content append <page> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content read-section <page_id> --heading <heading>",
     "  content read-toggle <page_id> --title <title>",
+    "  content search-in-page <page_id> --query <text> [--within-toggle <title>]",
     "  content replace <page_id> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-toggle <page_id> --title <title> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
@@ -1212,6 +1216,33 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       markdown: `${CONTENT_NOTICE}${targetedBlocksToMarkdown(blocks as any[])}`,
       ...(warnings.length > 0 ? { warnings } : {}),
     });
+  }
+
+  if (subcommand === "search-in-page") {
+    const pageId = args[1];
+    if (!pageId) {
+      throw new CliError("missing_argument", "content search-in-page requires a page id.");
+    }
+    const query = readFlag(args, "--query");
+    if (query === undefined) {
+      throw new CliError("missing_argument", "content search-in-page requires --query.");
+    }
+    if (query.trim().length === 0) {
+      throw new CliError("invalid_argument", "search_in_page: `query` must not be empty.");
+    }
+    const resolved = await resolveSelectedProfile(options, io, configDir);
+    const client = clientFor(resolved, ops);
+    const result = await searchInPage(
+      client,
+      pageId,
+      query,
+      { withinToggle: readFlag(args, "--within-toggle") },
+      ops.listChildren as any,
+    );
+    if ("error" in result) {
+      throw new CliError("toggle_not_found", result.error, 1, { available_toggles: result.available_toggles });
+    }
+    return success(result);
   }
 
   if (subcommand === "append") {

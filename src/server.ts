@@ -77,6 +77,10 @@ function countOccurrences(text: string, find: string): number {
   }
 }
 
+function countOccurrencesCaseInsensitive(text: string, find: string): number {
+  return countOccurrences(text.toLowerCase(), find.toLowerCase());
+}
+
 function assertDryRunMarkdownSafe(markdown: string): void {
   if (detectFileUploadReferences(markdown).length > 0) {
     throw new Error(DRY_RUN_FILE_UPLOAD_ERROR);
@@ -951,11 +955,22 @@ export async function findToggleRecursive(
   pageId: string,
   title: string,
 ): Promise<{ block: any | null; availableTitles: string[] }> {
+  return findToggleRecursiveWithListChildren(client, pageId, title);
+}
+
+type ListChildrenFn = (client: ReturnType<typeof createNotionClient>, blockId: string) => Promise<unknown[]>;
+
+export async function findToggleRecursiveWithListChildren(
+  client: ReturnType<typeof createNotionClient>,
+  pageId: string,
+  title: string,
+  listChildrenFn: ListChildrenFn = listChildren,
+): Promise<{ block: any | null; availableTitles: string[] }> {
   const target = title.trim().toLowerCase();
   const availableTitles: string[] = [];
 
   async function visit(parentId: string): Promise<any | null> {
-    const children = await listChildren(client, parentId);
+    const children = await listChildrenFn(client, parentId);
 
     for (const child of children as any[]) {
       const toggleTitle = getToggleTitle(child);
@@ -980,6 +995,195 @@ export async function findToggleRecursive(
   }
 
   return { block: await visit(pageId), availableTitles };
+}
+
+export type SearchInPageScope =
+  | { type: "page" }
+  | { type: "toggle"; title: string; block_id: string; block_type: string };
+
+export type SearchInPageToggleContext = { block_id: string; title: string; type: string };
+
+export type SearchInPageMatch = {
+  block_id: string;
+  type: string;
+  text: string;
+  snippets: string[];
+  match_count: number;
+  toggle_context?: SearchInPageToggleContext;
+};
+
+export type SearchInPageResponse = {
+  page_id: string;
+  query: string;
+  scope: SearchInPageScope;
+  match_count: number;
+  block_count: number;
+  matches: SearchInPageMatch[];
+};
+
+function searchRichTextPlainText(richText: unknown): string {
+  return Array.isArray(richText) ? richTextPlainText(richText) : "";
+}
+
+function searchMediaText(body: any): string {
+  const parts = [
+    body?.name,
+    searchRichTextPlainText(body?.caption),
+    body?.external?.url,
+    body?.file?.url,
+    body?.file_upload?.id,
+  ].filter((part): part is string => typeof part === "string" && part.length > 0);
+  return parts.join(" ");
+}
+
+export function blockSearchText(block: any): string {
+  switch (block?.type) {
+    case "heading_1":
+    case "heading_2":
+    case "heading_3":
+      return searchRichTextPlainText(block[block.type]?.rich_text);
+    case "paragraph":
+      return searchRichTextPlainText(block.paragraph?.rich_text);
+    case "toggle":
+      return searchRichTextPlainText(block.toggle?.rich_text);
+    case "bulleted_list_item":
+      return searchRichTextPlainText(block.bulleted_list_item?.rich_text);
+    case "numbered_list_item":
+      return searchRichTextPlainText(block.numbered_list_item?.rich_text);
+    case "quote":
+      return searchRichTextPlainText(block.quote?.rich_text);
+    case "callout":
+      return searchRichTextPlainText(block.callout?.rich_text);
+    case "to_do":
+      return searchRichTextPlainText(block.to_do?.rich_text);
+    case "code":
+      return searchRichTextPlainText(block.code?.rich_text);
+    case "equation":
+      return typeof block.equation?.expression === "string" ? block.equation.expression : "";
+    case "table_row":
+      return Array.isArray(block.table_row?.cells)
+        ? block.table_row.cells.map((cell: unknown) => searchRichTextPlainText(cell)).join(" | ")
+        : "";
+    case "bookmark":
+      return typeof block.bookmark?.url === "string" ? block.bookmark.url : "";
+    case "embed":
+      return typeof block.embed?.url === "string" ? block.embed.url : "";
+    case "image":
+      return searchMediaText(block.image);
+    case "file":
+      return searchMediaText(block.file);
+    case "audio":
+      return searchMediaText(block.audio);
+    case "video":
+      return searchMediaText(block.video);
+    default:
+      return "";
+  }
+}
+
+function snippetsForMatches(text: string, query: string, cap = 5): string[] {
+  const snippets: string[] = [];
+  const haystack = text.toLowerCase();
+  const needle = query.toLowerCase();
+  let fromIndex = 0;
+
+  while (snippets.length < cap) {
+    const index = haystack.indexOf(needle, fromIndex);
+    if (index === -1) {
+      break;
+    }
+    const start = Math.max(0, index - 32);
+    const end = Math.min(text.length, index + query.length + 32);
+    snippets.push(`${start > 0 ? "..." : ""}${text.slice(start, end)}${end < text.length ? "..." : ""}`);
+    fromIndex = index + query.length;
+  }
+
+  return snippets;
+}
+
+export async function searchInPage(
+  client: ReturnType<typeof createNotionClient>,
+  pageId: string,
+  query: string,
+  options: { withinToggle?: string } = {},
+  listChildrenFn: ListChildrenFn = listChildren,
+): Promise<SearchInPageResponse | { error: string; available_toggles: string[] }> {
+  if (query.trim().length === 0) {
+    throw new Error("search_in_page: `query` must not be empty.");
+  }
+
+  let rootBlocks: any[];
+  let scope: SearchInPageScope = { type: "page" };
+
+  if (options.withinToggle !== undefined) {
+    const found = await findToggleRecursiveWithListChildren(
+      client,
+      pageId,
+      options.withinToggle,
+      listChildrenFn,
+    );
+    if (!found.block) {
+      return {
+        error: `Toggle not found: '${options.withinToggle}'. Available toggles: ${JSON.stringify(found.availableTitles)}`,
+        available_toggles: found.availableTitles,
+      };
+    }
+    const title = getToggleTitle(found.block) ?? options.withinToggle;
+    scope = {
+      type: "toggle",
+      title,
+      block_id: found.block.id,
+      block_type: found.block.type,
+    };
+    rootBlocks = [found.block];
+  } else {
+    rootBlocks = await listChildrenFn(client, pageId) as any[];
+  }
+
+  const matches: SearchInPageMatch[] = [];
+
+  async function visit(block: any, inheritedToggle?: SearchInPageToggleContext): Promise<void> {
+    if (block?.archived === true || block?.in_trash === true) {
+      return;
+    }
+
+    const toggleTitle = getToggleTitle(block);
+    const toggleContext = toggleTitle !== null
+      ? { block_id: block.id, title: toggleTitle, type: block.type }
+      : inheritedToggle;
+    const text = blockSearchText(block);
+    const matchCount = text.length > 0 ? countOccurrencesCaseInsensitive(text, query) : 0;
+    if (matchCount > 0) {
+      matches.push({
+        block_id: block.id,
+        type: block.type,
+        text,
+        snippets: snippetsForMatches(text, query),
+        match_count: matchCount,
+        ...(toggleContext ? { toggle_context: toggleContext } : {}),
+      });
+    }
+
+    if (block?.has_children === true) {
+      const children = await listChildrenFn(client, block.id) as any[];
+      for (const child of children) {
+        await visit(child, toggleContext);
+      }
+    }
+  }
+
+  for (const block of rootBlocks) {
+    await visit(block);
+  }
+
+  return {
+    page_id: pageId,
+    query,
+    scope,
+    match_count: matches.reduce((sum, match) => sum + match.match_count, 0),
+    block_count: matches.length,
+    matches,
+  };
 }
 
 function replacementToggleBodyBlocks(parsed: NotionBlock[], targetTitle: string): NotionBlock[] {
@@ -1267,6 +1471,19 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         title: { type: "string", description: "Toggle title to find (case-insensitive)" },
       },
       required: ["page_id", "title"],
+    },
+  },
+  {
+    name: "search_in_page",
+    description: "Search raw Notion block plain text inside a page, optionally scoped to one toggle or toggleable heading by title. Matching is case-insensitive plain substring search.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page_id: { type: "string", description: "Page ID" },
+        query: { type: "string", description: "Plain substring to search for (case-insensitive, non-empty)" },
+        within_toggle: { type: "string", description: "Optional toggle title to restrict search scope (case-insensitive)" },
+      },
+      required: ["page_id", "query"],
     },
   },
   {
@@ -2243,6 +2460,18 @@ export function createServer(
             markdown: wrapUntrusted(targetedBlocksToMarkdown(blocks), trustContent),
             ...(warnings.length > 0 ? { warnings } : {}),
           });
+        }
+        case "search_in_page": {
+          const notion = notionClientFactory();
+          const { page_id, query, within_toggle } = args as {
+            page_id: string;
+            query: string;
+            within_toggle?: string;
+          };
+          if (query.trim().length === 0) {
+            return textResponse({ error: "search_in_page: `query` must not be empty." });
+          }
+          return textResponse(await searchInPage(notion, page_id, query, { withinToggle: within_toggle }));
         }
         case "find_replace": {
           const notion = notionClientFactory();

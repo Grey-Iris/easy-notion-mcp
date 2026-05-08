@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `preserve_heading`, and `content update-section` accepts
   `--preserve-heading`, to keep the matched heading block while destructively
   replacing only its body.
+- **Page-content search.** `search_in_page` and `content search-in-page`
+  perform read-only, case-insensitive raw block text search across a page or
+  one toggle scope, with snippets and toggle context for matches.
 
 ## [0.8.0] - 2026-05-08
 
