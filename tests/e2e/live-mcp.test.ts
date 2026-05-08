@@ -852,7 +852,7 @@ describe.skipIf(!env.shouldRun)(
 
         const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
           database_id: target.id,
-        });
+        }, { timeoutMs: 60_000 });
 
         expect(rowsResponse.results).toHaveLength(1);
         const row = rowsResponse.results[0];
