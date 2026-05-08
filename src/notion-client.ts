@@ -1,6 +1,7 @@
 import { Client } from "@notionhq/client";
 import type {
   AppendBlockChildrenParameters,
+  ListDatabaseViewsParameters,
   UpdateDataSourceParameters,
 } from "@notionhq/client/build/src/api-endpoints.js";
 import { readFile, realpath, stat } from "fs/promises";
@@ -1307,6 +1308,42 @@ export async function queryDatabase(
   } while (start_cursor);
 
   return results;
+}
+
+export type ListViewsParameters = Pick<
+  ListDatabaseViewsParameters,
+  "database_id" | "data_source_id" | "page_size" | "start_cursor"
+>;
+
+export async function listViews(client: Client, params: ListViewsParameters) {
+  return client.views.list(params);
+}
+
+export async function getView(client: Client, viewId: string) {
+  return client.views.retrieve({ view_id: viewId });
+}
+
+export async function queryView(
+  client: Client,
+  viewId: string,
+  options: { page_size?: number; start_cursor?: string } = {},
+) {
+  const query = await client.views.queries.create({
+    view_id: viewId,
+    ...(options.page_size !== undefined ? { page_size: options.page_size } : {}),
+  });
+
+  try {
+    const results = await client.views.queries.results({
+      view_id: viewId,
+      query_id: query.id,
+      ...(options.page_size !== undefined ? { page_size: options.page_size } : {}),
+      ...(options.start_cursor !== undefined ? { start_cursor: options.start_cursor } : {}),
+    });
+    return { query, results };
+  } finally {
+    await client.views.queries.delete({ view_id: viewId, query_id: query.id });
+  }
 }
 
 export async function listComments(client: Client, pageId: string) {

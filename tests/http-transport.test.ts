@@ -139,7 +139,7 @@ describe("HTTP Transport — Static Token Mode", () => {
     expect(toolsBody.result).toBeDefined();
     expect(toolsBody.result.tools).toBeDefined();
     expect(Array.isArray(toolsBody.result.tools)).toBe(true);
-    expect(toolsBody.result.tools.length).toBe(31);
+    expect(toolsBody.result.tools.length).toBe(34);
 
     const toolNames = toolsBody.result.tools.map((t: any) => t.name);
     expect(toolNames).toContain("create_page");

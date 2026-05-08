@@ -29,13 +29,16 @@ import {
   getCachedSchema,
   getDatabase,
   getMe,
+  getView,
   getPage,
+  listViews,
   listComments,
   listChildren,
   listUsers,
   movePage,
   paginatePageProperties,
   queryDatabase,
+  queryView,
   replacePageMarkdown,
   restorePage,
   retrieveBlock,
@@ -1416,6 +1419,43 @@ Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-valu
     },
   },
   {
+    name: "list_views",
+    description: "List Notion database views. Pass exactly one of database_id or data_source_id. Returns the raw Notion views list response.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        database_id: { type: "string", description: "Database ID" },
+        data_source_id: { type: "string", description: "Data source ID" },
+        page_size: { type: "number", description: "Maximum number of views to return" },
+        start_cursor: { type: "string", description: "Pagination cursor from a previous response" },
+      },
+    },
+  },
+  {
+    name: "get_view",
+    description: "Retrieve one Notion database view by ID. Returns the raw Notion view response.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        view_id: { type: "string", description: "View ID" },
+      },
+      required: ["view_id"],
+    },
+  },
+  {
+    name: "query_view",
+    description: "Query a Notion database view. Creates a temporary view query, fetches raw page results, then deletes the query.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        view_id: { type: "string", description: "View ID" },
+        page_size: { type: "number", description: "Maximum number of results to return" },
+        start_cursor: { type: "string", description: "Pagination cursor from a previous view query results response" },
+      },
+      required: ["view_id"],
+    },
+  },
+  {
     name: "add_database_entry",
     description: `Create one database entry using simple key-value property inputs. Call get_database first to see available property names and valid select/status options.
 
@@ -2292,6 +2332,49 @@ export function createServer(
           }
 
           return textResponse(response);
+        }
+        case "list_views": {
+          const notion = notionClientFactory();
+          const { database_id, data_source_id, page_size, start_cursor } = args as {
+            database_id?: unknown;
+            data_source_id?: unknown;
+            page_size?: number;
+            start_cursor?: string;
+          };
+          const hasDatabaseId = database_id !== undefined;
+          const hasDataSourceId = data_source_id !== undefined;
+          if (hasDatabaseId === hasDataSourceId) {
+            throw new Error("list_views: pass exactly one of `database_id` or `data_source_id`.");
+          }
+          if (database_id !== undefined && typeof database_id !== "string") {
+            throw new Error("list_views: `database_id` must be a string.");
+          }
+          if (data_source_id !== undefined && typeof data_source_id !== "string") {
+            throw new Error("list_views: `data_source_id` must be a string.");
+          }
+          const result = await listViews(notion, {
+            ...(database_id !== undefined ? { database_id } : {}),
+            ...(data_source_id !== undefined ? { data_source_id } : {}),
+            ...(page_size !== undefined ? { page_size } : {}),
+            ...(start_cursor !== undefined ? { start_cursor } : {}),
+          });
+          return textResponse(result);
+        }
+        case "get_view": {
+          const notion = notionClientFactory();
+          const { view_id } = args as { view_id: string };
+          const result = await getView(notion, view_id);
+          return textResponse(result);
+        }
+        case "query_view": {
+          const notion = notionClientFactory();
+          const { view_id, page_size, start_cursor } = args as {
+            view_id: string;
+            page_size?: number;
+            start_cursor?: string;
+          };
+          const result = await queryView(notion, view_id, { page_size, start_cursor });
+          return textResponse(result);
         }
         case "add_database_entry": {
           const notion = notionClientFactory();
