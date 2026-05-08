@@ -39,7 +39,10 @@ function makeNotion(
   return {
     blocks: {
       retrieve: vi.fn(),
-      update: vi.fn(),
+      update: vi.fn(async ({ block_id, ...payload }: any) => {
+        mutations.push(`update:${block_id}:${JSON.stringify(payload)}`);
+        return { id: block_id, ...payload };
+      }),
       delete: vi.fn(async ({ block_id }: any) => {
         mutations.push(`delete:${block_id}`);
         return { id: block_id };
@@ -218,6 +221,133 @@ describe("update_toggle handler", () => {
           rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Wrapped replacement" } })]),
         }),
       }));
+    } finally {
+      await close();
+    }
+  });
+});
+
+describe("archive_toggle handler", () => {
+  it("archives a plain toggle container by title", async () => {
+    const mutations: string[] = [];
+    const notion = makeNotion({
+      "page-1": [toggle("toggle-1", "Details")],
+      "toggle-1": [paragraph("child-1", "Child")],
+    }, mutations);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "archive_toggle",
+        arguments: {
+          page_id: "page-1",
+          title: " details ",
+        },
+      }));
+
+      expect(response).toEqual({
+        success: true,
+        archived: "toggle-1",
+        title: "Details",
+        type: "toggle",
+      });
+      expect(notion.blocks.update).toHaveBeenCalledWith({
+        block_id: "toggle-1",
+        in_trash: true,
+      });
+      expect(notion.blocks.children.list).toHaveBeenCalledWith(expect.objectContaining({
+        block_id: "page-1",
+      }));
+      expect(notion.blocks.children.list).not.toHaveBeenCalledWith(expect.objectContaining({
+        block_id: "toggle-1",
+      }));
+    } finally {
+      await close();
+    }
+  });
+
+  it("archives a toggleable heading container by title", async () => {
+    const mutations: string[] = [];
+    const notion = makeNotion({
+      "page-1": [heading("heading-toggle", "heading_3", "Heading Toggle")],
+      "heading-toggle": [paragraph("child-1", "Child")],
+    }, mutations);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "archive_toggle",
+        arguments: {
+          page_id: "page-1",
+          title: "heading toggle",
+        },
+      }));
+
+      expect(response).toEqual({
+        success: true,
+        archived: "heading-toggle",
+        title: "Heading Toggle",
+        type: "heading_3",
+      });
+      expect(notion.blocks.update).toHaveBeenCalledWith({
+        block_id: "heading-toggle",
+        in_trash: true,
+      });
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("returns available toggles when the title is missing", async () => {
+    const notion = makeNotion({
+      "page-1": [toggle("toggle-1", "Available"), heading("heading-toggle", "heading_2", "Heading Toggle")],
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "archive_toggle",
+        arguments: {
+          page_id: "page-1",
+          title: "Missing",
+        },
+      }));
+
+      expect(response.error).toBe(`Toggle not found: 'Missing'. Available toggles: ["Available","Heading Toggle"]`);
+      expect(response.available_toggles).toEqual(["Available", "Heading Toggle"]);
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("archives only the matched container without deleting children or appending blocks", async () => {
+    const mutations: string[] = [];
+    const notion = makeNotion({
+      "page-1": [toggle("toggle-1", "Details")],
+      "toggle-1": [paragraph("child-1", "Child one"), paragraph("child-2", "Child two")],
+    }, mutations);
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "archive_toggle",
+        arguments: {
+          page_id: "page-1",
+          title: "Details",
+        },
+      }));
+
+      expect(response).toMatchObject({ success: true, archived: "toggle-1" });
+      expect(mutations).toEqual([
+        "update:toggle-1:{\"in_trash\":true}",
+      ]);
+      expect(notion.blocks.delete).not.toHaveBeenCalled();
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
     } finally {
       await close();
     }

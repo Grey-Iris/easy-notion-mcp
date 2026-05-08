@@ -1231,6 +1231,18 @@ Update the body of one toggle by title from a page. Searches recursively and mat
     },
   },
   {
+    name: "archive_toggle",
+    description: "Archive one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. Archives the matched container block; children are not deleted individually. Missing titles return the available toggle titles.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page_id: { type: "string", description: "Page ID" },
+        title: { type: "string", description: "Toggle title to find (case-insensitive)" },
+      },
+      required: ["page_id", "title"],
+    },
+  },
+  {
     name: "update_block",
     description: `Update a single block in place by ID. Preserves the block's identity (deep-link anchors and inline-comment threads attached to the block survive the edit). Use this for surgical edits: fixing a heading, toggling a checkbox, rewriting one paragraph. For multi-block edits, use append_content, replace_content, or update_section.
 
@@ -2122,6 +2134,25 @@ export function createServer(
             type: result.block.type,
             deleted: existingChildren.length,
             appended: appended.length,
+          });
+        }
+        case "archive_toggle": {
+          const notion = notionClientFactory();
+          const { page_id, title } = args as { page_id: string; title: string };
+          const result = await findToggleRecursive(notion, page_id, title);
+          if (!result.block) {
+            return textResponse({
+              error: `Toggle not found: '${title}'. Available toggles: ${JSON.stringify(result.availableTitles)}`,
+              available_toggles: result.availableTitles,
+            });
+          }
+
+          await updateBlock(notion, result.block.id, { in_trash: true });
+          return textResponse({
+            success: true,
+            archived: result.block.id,
+            title: getToggleTitle(result.block) ?? title,
+            type: result.block.type,
           });
         }
         case "update_block": {

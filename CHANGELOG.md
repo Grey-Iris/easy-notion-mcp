@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Toggle archiving.** `archive_toggle` archives one toggle or toggleable
+  heading by title without deleting or rewriting its children.
+
 ## [0.8.0] - 2026-05-08
 
 ### Added

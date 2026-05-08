@@ -5,7 +5,7 @@
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
 
-39 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
+40 tools · 24 block types · 92% fewer tokens vs official Notion MCP · Full round-trip fidelity
 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
@@ -34,7 +34,7 @@ npx easy-notion-mcp
 | **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
 | **Block types** | ✅ 24 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
 | **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
-| **Tools** | 32 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
+| **Tools** | 40 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
 | **Database entry format** | Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
@@ -338,9 +338,9 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 39 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
+easy-notion-mcp includes 40 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
 
-### Pages (17 tools)
+### Pages (18 tools)
 
 | Tool | Description |
 |---|---|
@@ -354,6 +354,7 @@ easy-notion-mcp includes 39 individually-named tools across 6 categories. Tool d
 | `replace_content` | Replace all page content atomically (preserves block IDs of matched blocks) |
 | `update_section` | Update a section by heading name (destructive; duplicate_page first for irreplaceable content) |
 | `update_toggle` | Update one toggle body by title (destructive; preserves the toggle container ID) |
+| `archive_toggle` | Archive one toggle or toggleable heading by title |
 | `find_replace` | Find and replace text, preserving files |
 | `update_block` | Update a single block by ID (preserves block identity for deep links and comments) |
 | `update_page` | Update title, icon, or cover |
