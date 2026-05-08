@@ -124,6 +124,41 @@ type QueryDatabaseResponse = {
   warnings?: QueryDatabaseWarning[];
 };
 
+type ViewReference = {
+  object?: string;
+  id: string;
+  type?: string;
+};
+
+type ListViewsResponse = {
+  object?: string;
+  results?: ViewReference[];
+  next_cursor?: string | null;
+  has_more?: boolean;
+  error?: string;
+};
+
+type GetViewResponse = ViewReference & {
+  parent?: unknown;
+  name?: string;
+  error?: string;
+};
+
+type QueryViewResponse = {
+  query?: {
+    object?: string;
+    id?: string;
+    view_id?: string;
+  };
+  results?: {
+    object?: string;
+    results?: unknown[];
+    next_cursor?: string | null;
+    has_more?: boolean;
+  };
+  error?: string;
+};
+
 type ReadPageResponse = {
   id: string;
   title: string | null;
@@ -1471,6 +1506,70 @@ describe.skipIf(!env.shouldRun)(
       expect(rowTwo).toBeDefined();
       expect(rowTwo?.Count).toBe(20);
     }, 30_000);
+
+    it("V1: read-only view tools expose live response shape", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "V1 read-only views",
+        schema: [{ name: "Title", type: "title" }],
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const listed = await callTool<ListViewsResponse>(client, "list_views", {
+        database_id: created.id,
+        page_size: 10,
+      });
+      expect(listed.error).toBeUndefined();
+      expect(listed.object).toBe("list");
+      expect(Array.isArray(listed.results)).toBe(true);
+
+      const views = listed.results ?? [];
+      console.error(`[e2e] V1 list_views returned ${views.length} default view(s)`);
+      if (views.length === 0) {
+        // Current live API behavior can be pinned here if Notion stops creating
+        // a default view for newly-created databases.
+        expect(views).toHaveLength(0);
+        return;
+      }
+      expect(views.length).toBeGreaterThanOrEqual(1);
+
+      const view = views[0];
+      expect(view.object).toBe("view");
+      expect(view.id).toEqual(expect.any(String));
+      if (view.type !== undefined) {
+        expect(view.type).toEqual(expect.any(String));
+      }
+
+      const retrieved = await callTool<GetViewResponse>(client, "get_view", {
+        view_id: view.id,
+      });
+      expect(retrieved.error).toBeUndefined();
+      expect(retrieved.object).toBe("view");
+      expect(retrieved.id).toBe(view.id);
+      expect(retrieved.type).toEqual(expect.any(String));
+      if (view.type !== undefined) {
+        expect(retrieved.type).toBe(view.type);
+      }
+      console.error(
+        `[e2e] V1 get_view returned type=${retrieved.type} list_ref_type=${view.type ?? "absent"}`,
+      );
+
+      const queried = await callTool<QueryViewResponse>(client, "query_view", {
+        view_id: view.id,
+        page_size: 10,
+      });
+      expect(queried.error).toBeUndefined();
+      expect(queried.query?.id).toEqual(expect.any(String));
+      if (queried.query?.view_id !== undefined) {
+        expect(queried.query.view_id).toBe(view.id);
+      }
+      expect(queried.results?.object).toBe("list");
+      expect(Array.isArray(queried.results?.results)).toBe(true);
+      console.error(
+        `[e2e] V1 query_view returned results.object=${queried.results?.object} results_count=${queried.results?.results?.length ?? "unknown"}`,
+      );
+    }, 45_000);
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {
       const scratchParent = await callTool<CreatePageResponse>(client, "create_page", {
