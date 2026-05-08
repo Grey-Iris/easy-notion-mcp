@@ -932,6 +932,19 @@ export async function findToggleRecursive(
   return { block: await visit(pageId), availableTitles };
 }
 
+function replacementToggleBodyBlocks(parsed: NotionBlock[], targetTitle: string): NotionBlock[] {
+  if (parsed.length !== 1) {
+    return parsed;
+  }
+
+  const wrapperTitle = getToggleTitle(parsed[0] as any);
+  if (wrapperTitle === null || wrapperTitle.trim().toLowerCase() !== targetTitle.trim().toLowerCase()) {
+    return parsed;
+  }
+
+  return getParsedBlockChildren(parsed[0]);
+}
+
 function omittedBlockWarnings(ctx: FetchContext): unknown[] {
   return ctx.omitted.length > 0
     ? [{ code: "omitted_block_types", blocks: ctx.omitted }]
@@ -1200,6 +1213,21 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         title: { type: "string", description: "Toggle title to find (case-insensitive)" },
       },
       required: ["page_id", "title"],
+    },
+  },
+  {
+    name: "update_toggle",
+    description: `DESTRUCTIVE — no rollback: this tool preserves the matched toggle container block ID, then deletes its body children and appends replacement body blocks. Child block IDs inside the body change, and if the write fails mid-call the toggle can be left partially or fully emptied. For irreplaceable content, duplicate_page the target first so you have a restore point.
+
+Update the body of one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. The markdown is replacement body content, not a wrapper that renames the toggle. If the markdown parses as one matching top-level toggle or toggleable heading wrapper, that wrapper is ignored and only its children are used as the replacement body.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        page_id: { type: "string", description: "Page ID" },
+        title: { type: "string", description: "Toggle title to find (case-insensitive)" },
+        markdown: { type: "string", description: "Replacement markdown for the toggle body" },
+      },
+      required: ["page_id", "title", "markdown"],
     },
   },
   {
@@ -2058,6 +2086,42 @@ export function createServer(
             ...(unmatched.length > 0
               ? { warnings: [{ code: "unmatched_blocks", block_ids: unmatched }] }
               : {}),
+          });
+        }
+        case "update_toggle": {
+          const notion = notionClientFactory();
+          const { page_id, title, markdown } = args as {
+            page_id: string;
+            title: string;
+            markdown: string;
+          };
+          const result = await findToggleRecursive(notion, page_id, title);
+          if (!result.block) {
+            return textResponse({
+              error: `Toggle not found: '${title}'. Available toggles: ${JSON.stringify(result.availableTitles)}`,
+              available_toggles: result.availableTitles,
+            });
+          }
+
+          const existingChildren = result.block.has_children === true
+            ? await listChildren(notion, result.block.id)
+            : [];
+          const parsed = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+          const replacementBlocks = replacementToggleBodyBlocks(parsed, getToggleTitle(result.block) ?? title);
+
+          for (const child of existingChildren) {
+            await deleteBlock(notion, child.id);
+          }
+          const appended = replacementBlocks.length > 0
+            ? await appendBlocks(notion, result.block.id, replacementBlocks)
+            : [];
+
+          return textResponse({
+            success: true,
+            block_id: result.block.id,
+            type: result.block.type,
+            deleted: existingChildren.length,
+            appended: appended.length,
           });
         }
         case "update_block": {
