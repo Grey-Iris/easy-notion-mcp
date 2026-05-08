@@ -16,7 +16,13 @@ function parseToolJson<T>(result: { content?: Array<{ type: string; text?: strin
 
 function makeNotion() {
   return {
+    databases: {
+      retrieve: vi.fn(),
+    },
     views: {
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
       list: vi.fn(),
       retrieve: vi.fn(),
       queries: {
@@ -44,8 +50,8 @@ async function connect(notion: any) {
   };
 }
 
-describe("Views MCP read tools", () => {
-  it("lists read-only view tools with expected schemas", async () => {
+describe("Views MCP tools", () => {
+  it("lists view tools with expected schemas", async () => {
     const { client, close } = await connect(makeNotion());
 
     try {
@@ -53,6 +59,9 @@ describe("Views MCP read tools", () => {
       const listViews = tools.find((tool) => tool.name === "list_views");
       const getView = tools.find((tool) => tool.name === "get_view");
       const queryView = tools.find((tool) => tool.name === "query_view");
+      const createView = tools.find((tool) => tool.name === "create_view");
+      const updateView = tools.find((tool) => tool.name === "update_view");
+      const deleteView = tools.find((tool) => tool.name === "delete_view");
 
       expect(listViews?.inputSchema).toMatchObject({
         properties: {
@@ -72,6 +81,42 @@ describe("Views MCP read tools", () => {
           view_id: { type: "string" },
           page_size: { type: "number" },
           start_cursor: { type: "string" },
+        },
+      });
+      expect(createView?.inputSchema).toMatchObject({
+        required: ["database_id", "name", "type"],
+        properties: {
+          database_id: { type: "string" },
+          name: { type: "string" },
+          type: {
+            type: "string",
+            enum: ["table", "board", "list", "calendar", "timeline", "gallery", "form", "chart", "map"],
+          },
+          filter: { type: "object" },
+          sorts: { type: "array" },
+          quick_filters: { type: "object" },
+          configuration: { type: "object" },
+          position: { type: "object" },
+        },
+      });
+      expect(createView?.inputSchema.properties).not.toHaveProperty("placement");
+      expect(createView?.inputSchema.properties).not.toHaveProperty("view_id");
+      expect(updateView?.inputSchema).toMatchObject({
+        required: ["view_id"],
+        properties: {
+          view_id: { type: "string" },
+          name: { type: "string" },
+          filter: { anyOf: [{ type: "object" }, { type: "null" }] },
+          sorts: { anyOf: [{ type: "array", items: { type: "object" } }, { type: "null" }] },
+          quick_filters: { anyOf: [{ type: "object" }, { type: "null" }] },
+          configuration: { type: "object" },
+        },
+      });
+      expect(deleteView?.inputSchema).toMatchObject({
+        required: ["view_id", "confirm"],
+        properties: {
+          view_id: { type: "string" },
+          confirm: { type: "boolean" },
         },
       });
     } finally {
@@ -271,6 +316,305 @@ describe("Views MCP read tools", () => {
       expect(notion.views.queries.delete).toHaveBeenCalledWith({
         view_id: "view-1",
         query_id: "query-1",
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("create_view validates database_id and rejects data_source_id", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+
+    try {
+      const missing = parseToolJson<{ error: string }>(
+        await client.callTool({
+          name: "create_view",
+          arguments: { name: "Table", type: "table" },
+        }),
+      );
+      const dataSourceId = parseToolJson<{ error: string }>(
+        await client.callTool({
+          name: "create_view",
+          arguments: { data_source_id: "ds-1", name: "Table", type: "table" },
+        }),
+      );
+
+      expect(missing.error).toContain("database_id");
+      expect(dataSourceId.error).toContain("data_source_id");
+      expect(notion.views.create).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("create_view forwards database_id and maps compact response", async () => {
+    const notion = makeNotion();
+    notion.databases.retrieve.mockResolvedValue({ id: "db-1", data_sources: [{ id: "ds-1" }] });
+    notion.views.create.mockResolvedValue({
+      object: "view",
+      id: "view-1",
+      name: "Table",
+      type: "table",
+      url: "https://notion.so/view-1",
+      data_source_id: "ds-1",
+      extra: "ignored",
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolJson<Record<string, unknown>>(
+        await client.callTool({
+          name: "create_view",
+          arguments: { database_id: "db-1", name: "Table", type: "table" },
+        }),
+      );
+
+      expect(notion.databases.retrieve).toHaveBeenCalledWith({ database_id: "db-1" });
+      expect(notion.views.create).toHaveBeenCalledWith({
+        database_id: "db-1",
+        data_source_id: "ds-1",
+        name: "Table",
+        type: "table",
+      });
+      expect(response).toEqual({
+        id: "view-1",
+        object: "view",
+        name: "Table",
+        type: "table",
+        url: "https://notion.so/view-1",
+        data_source_id: "ds-1",
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("create_view rejects dashboard type, dashboard config, and dashboard widget fields", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+
+    try {
+      const dashboardType = parseToolJson<{ error: string }>(
+        await client.callTool({
+          name: "create_view",
+          arguments: { database_id: "db-1", name: "Dashboard", type: "dashboard" },
+        }),
+      );
+      const dashboardConfig = parseToolJson<{ error: string }>(
+        await client.callTool({
+          name: "create_view",
+          arguments: {
+            database_id: "db-1",
+            name: "Table",
+            type: "table",
+            configuration: { type: "dashboard" },
+          },
+        }),
+      );
+      const placement = parseToolJson<{ error: string }>(
+        await client.callTool({
+          name: "create_view",
+          arguments: {
+            database_id: "db-1",
+            name: "Table",
+            type: "table",
+            placement: { type: "new_row" },
+          },
+        }),
+      );
+      const widgetViewId = parseToolJson<{ error: string }>(
+        await client.callTool({
+          name: "create_view",
+          arguments: {
+            database_id: "db-1",
+            name: "Table",
+            type: "table",
+            view_id: "view-widget",
+          },
+        }),
+      );
+
+      expect(dashboardType.error).toContain("dashboard");
+      expect(dashboardConfig.error).toContain("dashboard");
+      expect(placement.error).toContain("placement");
+      expect(widgetViewId.error).toContain("view_id");
+      expect(notion.views.create).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("create_view forwards raw optional fields and maps compact response", async () => {
+    const notion = makeNotion();
+    notion.databases.retrieve.mockResolvedValue({ id: "db-1", data_sources: [{ id: "ds-1" }] });
+    const filter = { property: "Status", select: { equals: "Todo" } };
+    const sorts = [{ property: "Due", direction: "ascending" }];
+    const quickFilters = { Mine: { people: { contains: "user-1" } } };
+    const configuration = { type: "table", properties: [{ property_id: "title", visible: true }] };
+    const position = { type: "after_view", view_id: "view-0" };
+    notion.views.create.mockResolvedValue({
+      object: "view",
+      id: "view-1",
+      name: "Roadmap",
+      type: "table",
+      url: "https://notion.so/view-1",
+      data_source_id: "ds-1",
+      filter: {},
+      sorts: [],
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolJson<Record<string, unknown>>(
+        await client.callTool({
+          name: "create_view",
+          arguments: {
+            database_id: "db-1",
+            name: "Roadmap",
+            type: "table",
+            filter,
+            sorts,
+            quick_filters: quickFilters,
+            configuration,
+            position,
+          },
+        }),
+      );
+
+      expect(notion.views.create).toHaveBeenCalledWith({
+        database_id: "db-1",
+        data_source_id: "ds-1",
+        name: "Roadmap",
+        type: "table",
+        filter,
+        sorts,
+        quick_filters: quickFilters,
+        configuration,
+        position,
+      });
+      expect(response).toEqual({
+        id: "view-1",
+        object: "view",
+        name: "Roadmap",
+        type: "table",
+        url: "https://notion.so/view-1",
+        data_source_id: "ds-1",
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("update_view rejects empty update and dashboard config", async () => {
+    const notion = makeNotion();
+    const { client, close } = await connect(notion);
+
+    try {
+      const empty = parseToolJson<{ error: string }>(
+        await client.callTool({ name: "update_view", arguments: { view_id: "view-1" } }),
+      );
+      const dashboardConfig = parseToolJson<{ error: string }>(
+        await client.callTool({
+          name: "update_view",
+          arguments: { view_id: "view-1", configuration: { type: "dashboard" } },
+        }),
+      );
+
+      expect(empty.error).toContain("at least one");
+      expect(dashboardConfig.error).toContain("dashboard");
+      expect(notion.views.update).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("update_view forwards null clears and raw fields, then maps compact response", async () => {
+    const notion = makeNotion();
+    const quickFilters = { Urgent: null };
+    const configuration = { type: "table", wrap_cells: true };
+    notion.views.update.mockResolvedValue({
+      object: "view",
+      id: "view-1",
+      name: "Updated",
+      type: "table",
+      url: "https://notion.so/view-1",
+      data_source_id: "ds-1",
+      filter: null,
+      sorts: null,
+      quick_filters: null,
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolJson<Record<string, unknown>>(
+        await client.callTool({
+          name: "update_view",
+          arguments: {
+            view_id: "view-1",
+            name: "Updated",
+            filter: null,
+            sorts: null,
+            quick_filters: quickFilters,
+            configuration,
+          },
+        }),
+      );
+
+      expect(notion.views.update).toHaveBeenCalledWith({
+        view_id: "view-1",
+        name: "Updated",
+        filter: null,
+        sorts: null,
+        quick_filters: quickFilters,
+        configuration,
+      });
+      expect(response).toEqual({
+        id: "view-1",
+        object: "view",
+        name: "Updated",
+        type: "table",
+        url: "https://notion.so/view-1",
+        data_source_id: "ds-1",
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("delete_view requires confirm true, calls SDK delete, and maps response", async () => {
+    const notion = makeNotion();
+    notion.views.delete.mockResolvedValue({
+      object: "view",
+      id: "view-1",
+      type: "table",
+      parent: { type: "database_id", database_id: "db-1" },
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const missingConfirm = parseToolJson<{ error: string }>(
+        await client.callTool({ name: "delete_view", arguments: { view_id: "view-1" } }),
+      );
+      expect(missingConfirm.error).toContain("confirm");
+      expect(notion.views.delete).not.toHaveBeenCalled();
+
+      const response = parseToolJson<Record<string, unknown>>(
+        await client.callTool({
+          name: "delete_view",
+          arguments: { view_id: "view-1", confirm: true },
+        }),
+      );
+
+      expect(notion.views.delete).toHaveBeenCalledWith({ view_id: "view-1" });
+      expect(response).toEqual({
+        success: true,
+        deleted: "view-1",
+        view: {
+          id: "view-1",
+          object: "view",
+          type: "table",
+        },
       });
     } finally {
       await close();

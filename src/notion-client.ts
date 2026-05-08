@@ -1,8 +1,11 @@
 import { Client } from "@notionhq/client";
 import type {
   AppendBlockChildrenParameters,
+  CreateViewParameters,
+  DeleteViewParameters,
   ListDatabaseViewsParameters,
   UpdateDataSourceParameters,
+  UpdateViewParameters,
 } from "@notionhq/client/build/src/api-endpoints.js";
 import { readFile, realpath, stat } from "fs/promises";
 import { basename, extname, isAbsolute, resolve as pathResolve, sep } from "path";
@@ -1321,6 +1324,98 @@ export async function listViews(client: Client, params: ListViewsParameters) {
 
 export async function getView(client: Client, viewId: string) {
   return client.views.retrieve({ view_id: viewId });
+}
+
+export type ViewType =
+  | "table"
+  | "board"
+  | "list"
+  | "calendar"
+  | "timeline"
+  | "gallery"
+  | "form"
+  | "chart"
+  | "map";
+
+export type CreateViewInput = {
+  database_id: string;
+  name: string;
+  type: ViewType;
+  filter?: unknown;
+  sorts?: unknown;
+  quick_filters?: unknown;
+  configuration?: unknown;
+  position?: unknown;
+};
+
+export type UpdateViewInput = {
+  name?: string;
+  filter?: unknown;
+  sorts?: unknown;
+  quick_filters?: unknown;
+  configuration?: unknown;
+};
+
+export type CompactView = {
+  id: unknown;
+  object: unknown;
+  name?: unknown;
+  type?: unknown;
+  url?: unknown;
+  data_source_id?: unknown;
+};
+
+export function compactView(view: any): CompactView {
+  return {
+    id: view?.id,
+    object: view?.object,
+    ...(view?.name !== undefined ? { name: view.name } : {}),
+    ...(view?.type !== undefined ? { type: view.type } : {}),
+    ...(view?.url !== undefined ? { url: view.url } : {}),
+    ...(view?.data_source_id !== undefined ? { data_source_id: view.data_source_id } : {}),
+  };
+}
+
+export async function createView(client: Client, input: CreateViewInput) {
+  const dataSourceId = await getDataSourceId(client, input.database_id);
+  const body: Record<string, unknown> = {
+    database_id: input.database_id,
+    data_source_id: dataSourceId,
+    name: input.name,
+    type: input.type,
+  };
+  if (input.filter !== undefined) body.filter = input.filter;
+  if (input.sorts !== undefined) body.sorts = input.sorts;
+  if (input.quick_filters !== undefined) body.quick_filters = input.quick_filters;
+  if (input.configuration !== undefined) body.configuration = input.configuration;
+  if (input.position !== undefined) body.position = input.position;
+
+  // Live create-view needs database_id, while the generated SDK layer still
+  // requires data_source_id. Send both after resolving the database's primary
+  // data source.
+  const result = await client.views.create(body as CreateViewParameters);
+  return compactView(result);
+}
+
+export async function updateView(client: Client, viewId: string, updates: UpdateViewInput) {
+  const body: Record<string, unknown> = { view_id: viewId };
+  for (const key of ["name", "filter", "sorts", "quick_filters", "configuration"] as const) {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) {
+      body[key] = updates[key];
+    }
+  }
+
+  const result = await client.views.update(body as UpdateViewParameters);
+  return compactView(result);
+}
+
+export async function deleteView(client: Client, viewId: string) {
+  const result = await client.views.delete({ view_id: viewId } as DeleteViewParameters);
+  return {
+    success: true,
+    deleted: viewId,
+    view: compactView(result),
+  };
 }
 
 export async function queryView(

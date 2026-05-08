@@ -20,10 +20,12 @@ import {
   appendBlocksAfter,
   archivePage,
   buildTextFilter,
+  createView,
   createDatabase,
   createDatabaseEntry,
   createNotionClient,
   createPage,
+  deleteView,
   deleteBlock,
   findWorkspacePages,
   getCachedSchema,
@@ -45,6 +47,7 @@ import {
   schemaToProperties,
   searchNotion,
   updateBlock,
+  updateView,
   uploadFile,
   updateDataSource,
   updateDatabaseEntry,
@@ -165,6 +168,28 @@ function textResponse(result: unknown) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify(result) }],
   };
+}
+
+const VIEW_UPDATE_FIELDS = ["name", "filter", "sorts", "quick_filters", "configuration"] as const;
+const VIEW_TYPES = new Set(["table", "board", "list", "calendar", "timeline", "gallery", "form", "chart", "map"]);
+
+function hasOwn(obj: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function isDashboardConfiguration(value: unknown): boolean {
+  return typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "dashboard";
+}
+
+function rejectDashboardViewRequest(toolName: string, args: Record<string, unknown>) {
+  if (args.type === "dashboard") {
+    throw new Error(`${toolName}: dashboard views are not supported by this tool.`);
+  }
+  if (isDashboardConfiguration(args.configuration)) {
+    throw new Error(`${toolName}: dashboard view configuration is not supported by this tool.`);
+  }
 }
 
 const MCP_DOC_MIME_TYPE = "text/markdown";
@@ -1456,6 +1481,72 @@ Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-valu
     },
   },
   {
+    name: "create_view",
+    description: "Create a Notion database view. Pass database_id. Dashboard views and dashboard widget placement are not supported.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        database_id: { type: "string", description: "Database ID" },
+        name: { type: "string", description: "View name" },
+        type: {
+          type: "string",
+          enum: ["table", "board", "list", "calendar", "timeline", "gallery", "form", "chart", "map"],
+          description: "View type. Dashboard is intentionally unsupported.",
+        },
+        filter: { type: "object", description: "Raw Notion view filter payload" },
+        sorts: {
+          type: "array",
+          description: "Raw Notion view sorts payload",
+          items: { type: "object" },
+        },
+        quick_filters: { type: "object", description: "Raw Notion quick filters payload" },
+        configuration: { type: "object", description: "Raw Notion view configuration payload. Dashboard configuration is rejected." },
+        position: { type: "object", description: "Raw Notion view tab position payload" },
+      },
+      required: ["database_id", "name", "type"],
+    },
+  },
+  {
+    name: "update_view",
+    description: "Update a Notion database view. Pass at least one update field. Null filter, sorts, or quick_filters values are forwarded to clear those fields.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        view_id: { type: "string", description: "View ID" },
+        name: { type: "string", description: "Updated view name" },
+        filter: {
+          anyOf: [{ type: "object" }, { type: "null" }],
+          description: "Raw Notion view filter payload, or null to clear",
+        },
+        sorts: {
+          anyOf: [
+            { type: "array", items: { type: "object" } },
+            { type: "null" },
+          ],
+          description: "Raw Notion view sorts payload, or null to clear",
+        },
+        quick_filters: {
+          anyOf: [{ type: "object" }, { type: "null" }],
+          description: "Raw Notion quick filters payload, or null to clear",
+        },
+        configuration: { type: "object", description: "Raw Notion view configuration payload. Dashboard configuration is rejected." },
+      },
+      required: ["view_id"],
+    },
+  },
+  {
+    name: "delete_view",
+    description: "Delete a Notion database view. Destructive: confirm must be exactly true.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        view_id: { type: "string", description: "View ID" },
+        confirm: { type: "boolean", description: "Must be exactly true to delete the view" },
+      },
+      required: ["view_id", "confirm"],
+    },
+  },
+  {
     name: "add_database_entry",
     description: `Create one database entry using simple key-value property inputs. Call get_database first to see available property names and valid select/status options.
 
@@ -2374,6 +2465,95 @@ export function createServer(
             start_cursor?: string;
           };
           const result = await queryView(notion, view_id, { page_size, start_cursor });
+          return textResponse(result);
+        }
+        case "create_view": {
+          const notion = notionClientFactory();
+          const rawArgs = args as Record<string, unknown>;
+          const {
+            database_id,
+            name,
+            type,
+            filter,
+            sorts,
+            quick_filters,
+            configuration,
+            position,
+          } = rawArgs;
+          if (hasOwn(rawArgs, "data_source_id")) {
+            throw new Error("create_view: `data_source_id` is not supported by Notion's live create-view endpoint. Pass `database_id`.");
+          }
+          if (typeof database_id !== "string") {
+            throw new Error("create_view: `database_id` must be a string.");
+          }
+          if (typeof name !== "string") {
+            throw new Error("create_view: `name` must be a string.");
+          }
+          if (typeof type !== "string") {
+            throw new Error("create_view: `type` must be a string.");
+          }
+          if (!VIEW_TYPES.has(type)) {
+            throw new Error("create_view: `type` must be a supported non-dashboard view type.");
+          }
+          if (hasOwn(rawArgs, "placement")) {
+            throw new Error("create_view: dashboard widget `placement` is not supported.");
+          }
+          if (hasOwn(rawArgs, "view_id")) {
+            throw new Error("create_view: dashboard widget `view_id` is not supported.");
+          }
+          rejectDashboardViewRequest("create_view", rawArgs);
+
+          const result = await createView(notion, {
+            database_id,
+            name,
+            type: type as any,
+            ...(filter !== undefined ? { filter } : {}),
+            ...(sorts !== undefined ? { sorts } : {}),
+            ...(quick_filters !== undefined ? { quick_filters } : {}),
+            ...(configuration !== undefined ? { configuration } : {}),
+            ...(position !== undefined ? { position } : {}),
+          });
+          return textResponse(result);
+        }
+        case "update_view": {
+          const notion = notionClientFactory();
+          const rawArgs = args as Record<string, unknown>;
+          const { view_id, name, filter, sorts, quick_filters, configuration } = rawArgs;
+          if (typeof view_id !== "string") {
+            throw new Error("update_view: `view_id` must be a string.");
+          }
+          if (hasOwn(rawArgs, "name") && typeof name !== "string") {
+            throw new Error("update_view: `name` must be a string.");
+          }
+          rejectDashboardViewRequest("update_view", rawArgs);
+          const hasUpdate = VIEW_UPDATE_FIELDS.some((field) => hasOwn(rawArgs, field));
+          if (!hasUpdate) {
+            throw new Error("update_view: pass at least one update field.");
+          }
+
+          const updates: Record<string, unknown> = {};
+          if (hasOwn(rawArgs, "name")) updates.name = name;
+          if (hasOwn(rawArgs, "filter")) updates.filter = filter;
+          if (hasOwn(rawArgs, "sorts")) updates.sorts = sorts;
+          if (hasOwn(rawArgs, "quick_filters")) updates.quick_filters = quick_filters;
+          if (hasOwn(rawArgs, "configuration")) updates.configuration = configuration;
+
+          const result = await updateView(notion, view_id, updates as any);
+          return textResponse(result);
+        }
+        case "delete_view": {
+          const notion = notionClientFactory();
+          const { view_id, confirm } = args as {
+            view_id: string;
+            confirm?: unknown;
+          };
+          if (typeof view_id !== "string") {
+            throw new Error("delete_view: `view_id` must be a string.");
+          }
+          if (confirm !== true) {
+            throw new Error("delete_view: `confirm` must be exactly true.");
+          }
+          const result = await deleteView(notion, view_id);
           return textResponse(result);
         }
         case "add_database_entry": {
