@@ -71,8 +71,8 @@ src/
 └── types.ts              # Shared types
 ```
 
-- `server.ts` exports `createServer(notionClientFactory, config)` — a factory that builds an MCP Server with all 29 tools registered
-<!-- Maintainer: update this count when adding/removing tools. Canonical source: grep for name: in src/server.ts tool definitions array. -->
+- `server.ts` exports `createServer(notionClientFactory, config)` — a factory that builds an MCP Server with the tool definitions registered from `src/server.ts`
+<!-- Maintainer: canonical tool list lives in the tool definitions array in src/server.ts. Avoid hardcoding counts here. -->
 - `index.ts` is a thin stdio entry point: creates one Notion client, passes it to `createServer`, connects via `StdioServerTransport`
 - `http.ts` exports `createApp(options)` — builds an Express app with MCP endpoints; supports two modes:
   - **Static token mode**: uses a fixed `NOTION_TOKEN`, no auth middleware
@@ -136,7 +136,7 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 ## Key decisions
 
 - **`marked`** for markdown parsing (nested token tree, bundled TS types, simpler than remark/unified)
-- **`@notionhq/client` v5.13.x** — matches Notion-Version: 2025-09-03
+- **`@notionhq/client` v5.20.x** — matches Notion-Version: 2026-03-11
 - **Markdown as the interface** — agents never construct Notion block objects. This keeps tool usage simple and lets the conversion logic evolve independently
 - **Database entry conversion** — fetches database schema at runtime to correctly map simple key-value pairs to Notion property format
 - **Schema caching** — database schemas are cached in-memory with a 5-minute TTL to avoid redundant API calls during batch operations

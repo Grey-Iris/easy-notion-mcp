@@ -40,11 +40,18 @@ function makeNotion(
         parent: { type: "page_id", page_id: "parent-page-id" },
         ...page,
       })),
-      create: vi.fn(async ({ parent, ...rest }: any) => ({
-        id: "new-page-id",
-        url: "https://notion.so/new-page-id",
-        ...rest,
-      })),
+      create: vi.fn(async ({ parent, ...rest }: any) => {
+        tree["new-page-id"] = (rest.children ?? []).map((block: any, index: number) => ({
+          id: `created-block-${index}`,
+          has_children: false,
+          ...block,
+        }));
+        return {
+          id: "new-page-id",
+          url: "https://notion.so/new-page-id",
+          ...rest,
+        };
+      }),
       update: vi.fn(),
     },
     blocks: {
@@ -54,7 +61,12 @@ function makeNotion(
           has_more: false,
           next_cursor: null,
         })),
-        append: vi.fn(),
+        append: vi.fn(async ({ children }: any) => ({
+          results: (children ?? []).map((block: any, index: number) => ({
+            id: `appended-block-${index}`,
+            ...block,
+          })),
+        })),
       },
       retrieve: vi.fn(async ({ block_id }: any) => {
         const block = byId[block_id];
@@ -108,7 +120,7 @@ function transcription(id: string, children: Record<string, string | undefined>,
     has_children,
   };
 }
-function meetingNotes(id: string, children: Record<string, string | undefined>, has_children = false): Raw {
+function meetingNotes(id: string, children: Record<string, string | undefined> = {}, has_children = false): Raw {
   return {
     id,
     type: "meeting_notes",
@@ -174,6 +186,26 @@ describe("Block-warnings on read_page and duplicate_page (G-3b)", () => {
       const response = extractResponse(parseToolText(result));
       expect(response.warnings).toEqual([
         { code: "omitted_block_types", blocks: [{ id: "sync-1", type: "synced_block" }] },
+      ]);
+    } finally {
+      await close();
+    }
+  });
+
+  it("read_page with a meeting_notes block reports it as rendered read-only content", async () => {
+    const tree: Record<string, Raw[]> = {
+      "page-meeting-notes": [para("b1"), meetingNotes("meeting-1")],
+    };
+    const { client, close } = await connect(makeNotion(tree));
+    try {
+      const result = await client.callTool({ name: "read_page", arguments: { page_id: "page-meeting-notes" } });
+      const response = extractResponse(parseToolText(result));
+      expect(response.warnings).toEqual([
+        {
+          code: "read_only_block_rendered",
+          blocks: [{ id: "meeting-1", type: "meeting_notes" }],
+          message: expect.stringContaining("read-only Notion AI meeting notes"),
+        },
       ]);
     } finally {
       await close();
@@ -541,10 +573,13 @@ describe("Block-warnings on read_page and duplicate_page (G-3b)", () => {
         },
       ]);
       const createCall = notion.pages.create.mock.calls[0][0];
-      const markdownSource = JSON.stringify(createCall.children);
-      expect(markdownSource).toContain("Dup summary");
-      expect(markdownSource).toContain("Dup notes");
-      expect(markdownSource).not.toContain("Dup transcript");
+      const writtenSource = JSON.stringify({
+        created: createCall.children,
+        appended: notion.blocks.children.append.mock.calls,
+      });
+      expect(writtenSource).toContain("Dup summary");
+      expect(writtenSource).toContain("Dup notes");
+      expect(writtenSource).not.toContain("Dup transcript");
       expect((createCall.children ?? []).map((block: any) => block.type)).toEqual(["toggle"]);
     } finally {
       await close();

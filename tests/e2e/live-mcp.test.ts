@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { markdownToBlocks } from "../../src/markdown-to-blocks.js";
+import { NOTION_VERSION } from "../../src/notion-version.js";
 import type { NotionBlock } from "../../src/types.js";
 import { checkE2eEnv } from "./helpers/env-gate.js";
 import { McpStdioClient } from "./helpers/mcp-stdio-client.js";
@@ -84,6 +85,34 @@ type AddDatabaseEntryResponse = {
   error?: string;
 };
 
+type AppendContentResponse = {
+  success?: boolean;
+  blocks_added?: number;
+  error?: string;
+};
+
+type FindReplaceResponse = {
+  success?: boolean;
+  truncated?: boolean;
+  warnings?: unknown;
+  error?: string;
+};
+
+type DuplicatePageResponse = {
+  id: string;
+  title?: string;
+  url: string;
+  source_page_id?: string;
+  warnings?: unknown;
+  error?: string;
+};
+
+type AddDatabaseEntriesResponse = {
+  succeeded: Array<{ id: string; url: string }>;
+  failed: Array<{ index: number; error: string }>;
+  error?: string;
+};
+
 type QueryDatabaseWarning = {
   code?: string;
   properties?: Array<Record<string, unknown>>;
@@ -93,6 +122,57 @@ type QueryDatabaseWarning = {
 type QueryDatabaseResponse = {
   results: Array<Record<string, unknown>>;
   warnings?: QueryDatabaseWarning[];
+};
+
+type ViewReference = {
+  object?: string;
+  id: string;
+  type?: string;
+};
+
+type ListViewsResponse = {
+  object?: string;
+  results?: ViewReference[];
+  next_cursor?: string | null;
+  has_more?: boolean;
+  error?: string;
+};
+
+type GetViewResponse = ViewReference & {
+  parent?: unknown;
+  name?: string;
+  error?: string;
+};
+
+type CreateViewResponse = ViewReference & {
+  name?: string;
+  url?: string;
+  data_source_id?: string;
+  error?: string;
+};
+
+type UpdateViewResponse = CreateViewResponse;
+
+type DeleteViewResponse = {
+  success?: boolean;
+  deleted?: string;
+  view?: ViewReference;
+  error?: string;
+};
+
+type QueryViewResponse = {
+  query?: {
+    object?: string;
+    id?: string;
+    view_id?: string;
+  };
+  results?: {
+    object?: string;
+    results?: unknown[];
+    next_cursor?: string | null;
+    has_more?: boolean;
+  };
+  error?: string;
 };
 
 type ReadPageResponse = {
@@ -819,6 +899,114 @@ describe.skipIf(!env.shouldRun)(
       expect(String(row?.Ticket)).toMatch(/^ENG-\d+$/);
     }, 30_000);
 
+    it("D1: update_data_source removes a status option and reassigns rows", async () => {
+      const statusOptions = [
+        { name: "Todo", color: "gray" },
+        { name: "Blocked", color: "red" },
+        { name: "Done", color: "green" },
+      ];
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "D1 status option removal",
+        schema: [
+          { name: "Task", type: "title" },
+          { name: "Status", type: "status", options: statusOptions },
+        ],
+      });
+
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const entry = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Task: "D1 blocked row",
+          Status: "Blocked",
+        },
+      });
+
+      expect(entry.error).toBeUndefined();
+      ctx.createdPageIds.push(entry.id);
+
+      const rowsBeforeRemoval = await callTool<QueryDatabaseResponse>(client, "query_database", {
+        database_id: created.id,
+      });
+      const rowBeforeRemoval = rowsBeforeRemoval.results.find(
+        (candidate) => candidate.Task === "D1 blocked row",
+      );
+      expect(rowBeforeRemoval).toBeDefined();
+      expect(rowBeforeRemoval?.Status).toBe("Blocked");
+
+      const databaseBeforeRemoval = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+      expect(databaseBeforeRemoval.error).toBeUndefined();
+      const statusBeforeRemoval = databaseBeforeRemoval.properties.find(
+        (property) => property.name === "Status",
+      );
+      expect(statusBeforeRemoval).toEqual(
+        expect.objectContaining({ name: "Status", type: "status" }),
+      );
+      expect(statusBeforeRemoval?.options).toEqual(
+        expect.arrayContaining(["Todo", "Blocked", "Done"]),
+      );
+
+      const createdOptionsByName = new Map(
+        statusOptions.map((option) => [option.name, option]),
+      );
+      const keptStatusOptions = (statusBeforeRemoval?.options ?? [])
+        .filter((name) => name !== "Blocked")
+        .map((name) => createdOptionsByName.get(name) ?? { name });
+      const keptStatusNames = keptStatusOptions.map((option) => option.name);
+
+      expect(keptStatusNames).toEqual(["Todo", "Done"]);
+
+      const updated = await callTool<UpdateDataSourceResponse>(client, "update_data_source", {
+        database_id: created.id,
+        properties: {
+          Status: {
+            status: {
+              options: keptStatusOptions,
+            },
+          },
+        },
+      });
+
+      expect(updated.error).toBeUndefined();
+
+      const databaseAfterRemoval = await callTool<GetDatabaseResponse>(client, "get_database", {
+        database_id: created.id,
+      });
+      expect(databaseAfterRemoval.error).toBeUndefined();
+      const statusAfterRemoval = databaseAfterRemoval.properties.find(
+        (property) => property.name === "Status",
+      );
+      expect(statusAfterRemoval).toEqual(
+        expect.objectContaining({ name: "Status", type: "status" }),
+      );
+      expect(statusAfterRemoval?.options).not.toContain("Blocked");
+      expect(statusAfterRemoval?.options).toEqual(keptStatusNames);
+
+      let rowAfterRemoval: Record<string, unknown> | undefined;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const rowsAfterRemoval = await callTool<QueryDatabaseResponse>(client, "query_database", {
+          database_id: created.id,
+        });
+        rowAfterRemoval = rowsAfterRemoval.results.find(
+          (candidate) => candidate.Task === "D1 blocked row",
+        );
+        if (rowAfterRemoval?.Status !== "Blocked") {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+      }
+
+      expect(rowAfterRemoval).toBeDefined();
+      expect(rowAfterRemoval?.Status).not.toBe("Blocked");
+      expect(keptStatusNames).toContain(rowAfterRemoval?.Status);
+      expect(rowAfterRemoval?.Status).toBe(keptStatusNames[0]);
+    }, 45_000);
+
     it("E1: stdio file upload", async () => {
       const created = await callTool<CreatePageResponse>(client, "create_page", {
         parent_page_id: ctx.sandboxId!,
@@ -958,7 +1146,7 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(created.id);
 
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const before = await liveClient.blocks.children.list({ block_id: created.id });
       const beforeIds = before.results.map((b: any) => b.id);
       const beforeTypes = before.results.map((b: any) => b.type);
@@ -1029,7 +1217,7 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(created.id);
 
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const before = await liveClient.blocks.children.list({ block_id: created.id });
       const anchorBlock = before.results.find((b: any) => {
         const text = b?.paragraph?.rich_text?.map((t: any) => t.plain_text).join("");
@@ -1090,7 +1278,7 @@ describe.skipIf(!env.shouldRun)(
 
       // Pull the block IDs directly via the same Notion client the e2e harness uses.
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const beforeList = await liveClient.blocks.children.list({ block_id: created.id });
       const middleBlock = beforeList.results.find((b: any) => {
         const text = b?.paragraph?.rich_text?.map((t: any) => t.plain_text).join("");
@@ -1134,7 +1322,7 @@ describe.skipIf(!env.shouldRun)(
       ctx.createdPageIds.push(created.id);
 
       const { Client: NotionClient } = await import("@notionhq/client");
-      const liveClient = new NotionClient({ auth: env.token!, notionVersion: "2025-09-03" });
+      const liveClient = new NotionClient({ auth: env.token!, notionVersion: NOTION_VERSION });
       const before = await liveClient.blocks.children.list({ block_id: created.id });
       const todoBlock = before.results.find((b: any) => b.type === "to_do") as any;
       expect(todoBlock).toBeDefined();
@@ -1154,6 +1342,344 @@ describe.skipIf(!env.shouldRun)(
       expect(afterTodo).toBeDefined();
       expect(afterTodo.to_do.checked).toBe(true);
     }, 30_000);
+
+    it("G1: append_content appends content to an existing page", async () => {
+      const originalSentinel = "G1 original sentinel";
+      const appendedSentinel = "G1 appended sentinel";
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G1 append_content",
+        markdown: originalSentinel,
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const appended = await callTool<AppendContentResponse>(client, "append_content", {
+        page_id: created.id,
+        markdown: appendedSentinel,
+      });
+
+      expect(appended.error).toBeUndefined();
+      expect(appended.success).toBe(true);
+      expect(appended.blocks_added).toBeGreaterThanOrEqual(1);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      });
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+
+      const body = stripContentNotice(page.markdown);
+      expect(body).toContain(originalSentinel);
+      expect(body).toContain(appendedSentinel);
+      expect(body.indexOf(originalSentinel)).toBeLessThan(body.indexOf(appendedSentinel));
+    }, 30_000);
+
+    it("G2: find_replace updates matching page content through native updateMarkdown", async () => {
+      const oldSentinel = "G2 old sentinel";
+      const replacementSentinel = "G2 replacement sentinel";
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G2 find_replace",
+        markdown: [
+          `First paragraph has ${oldSentinel}.`,
+          "",
+          `Second paragraph has ${oldSentinel}.`,
+        ].join("\n"),
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const replaced = await callTool<FindReplaceResponse>(client, "find_replace", {
+        page_id: created.id,
+        find: oldSentinel,
+        replace: replacementSentinel,
+        replace_all: true,
+      });
+
+      expect(replaced.error).toBeUndefined();
+      expect(replaced.success).toBe(true);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      });
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+
+      const body = stripContentNotice(page.markdown);
+      expect(body).not.toContain(oldSentinel);
+      expect(body.split(replacementSentinel).length - 1).toBe(2);
+    }, 30_000);
+
+    it("G3: duplicate_page copies supported page content", async () => {
+      const sourceSentinel = "G3 duplicate source sentinel";
+      const duplicateTitle = "G3 duplicate copy";
+      const source = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G3 duplicate source",
+        markdown: `## Supported content\n\n${sourceSentinel}`,
+      });
+      expect(source.error).toBeUndefined();
+      ctx.createdPageIds.push(source.id);
+
+      const duplicate = await callTool<DuplicatePageResponse>(client, "duplicate_page", {
+        page_id: source.id,
+        title: duplicateTitle,
+        parent_page_id: ctx.sandboxId!,
+      });
+      if (duplicate.id) {
+        ctx.createdPageIds.push(duplicate.id);
+      }
+
+      expect(duplicate.error).toBeUndefined();
+      expect(duplicate.id).toEqual(expect.any(String));
+      expect(duplicate.source_page_id).toBe(source.id);
+      expect(duplicate.title).toBe(duplicateTitle);
+      assertNoWarnings(duplicate);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: duplicate.id,
+      });
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+      expect(stripContentNotice(page.markdown)).toContain(sourceSentinel);
+    }, 30_000);
+
+    it("G4: update_database_entry updates a row property", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G4 update_database_entry",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Count", type: "number" },
+        ],
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const row = await callTool<AddDatabaseEntryResponse>(client, "add_database_entry", {
+        database_id: created.id,
+        properties: {
+          Title: "G4 row",
+          Count: 1,
+        },
+      });
+      expect(row.error).toBeUndefined();
+      ctx.createdPageIds.push(row.id);
+
+      const updated = await callTool<AddDatabaseEntryResponse>(client, "update_database_entry", {
+        page_id: row.id,
+        properties: {
+          Count: 2,
+        },
+      });
+      expect(updated.error).toBeUndefined();
+      expect(updated.id).toBe(row.id);
+
+      const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
+        database_id: created.id,
+      });
+      const updatedRow = rowsResponse.results.find((candidate) => candidate.Title === "G4 row");
+      expect(updatedRow).toBeDefined();
+      expect(updatedRow?.Count).toBe(2);
+    }, 30_000);
+
+    it("G5: add_database_entries creates multiple rows", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G5 add_database_entries",
+        schema: [
+          { name: "Title", type: "title" },
+          { name: "Count", type: "number" },
+        ],
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const added = await callTool<AddDatabaseEntriesResponse>(client, "add_database_entries", {
+        database_id: created.id,
+        entries: [
+          { Title: "G5 row one", Count: 10 },
+          { Title: "G5 row two", Count: 20 },
+        ],
+      });
+      for (const entry of added.succeeded ?? []) {
+        ctx.createdPageIds.push(entry.id);
+      }
+
+      expect(added.error).toBeUndefined();
+      expect(added.succeeded).toHaveLength(2);
+      expect(added.failed).toHaveLength(0);
+
+      const rowsResponse = await callTool<QueryDatabaseResponse>(client, "query_database", {
+        database_id: created.id,
+      });
+      const rowOne = rowsResponse.results.find((candidate) => candidate.Title === "G5 row one");
+      const rowTwo = rowsResponse.results.find((candidate) => candidate.Title === "G5 row two");
+
+      expect(rowOne).toBeDefined();
+      expect(rowOne?.Count).toBe(10);
+      expect(rowTwo).toBeDefined();
+      expect(rowTwo?.Count).toBe(20);
+    }, 30_000);
+
+    it("V1: read-only view tools expose live response shape", async () => {
+      const created = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "V1 read-only views",
+        schema: [{ name: "Title", type: "title" }],
+      });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const listed = await callTool<ListViewsResponse>(client, "list_views", {
+        database_id: created.id,
+        page_size: 10,
+      });
+      expect(listed.error).toBeUndefined();
+      expect(listed.object).toBe("list");
+      expect(Array.isArray(listed.results)).toBe(true);
+
+      const views = listed.results ?? [];
+      console.error(`[e2e] V1 list_views returned ${views.length} default view(s)`);
+      if (views.length === 0) {
+        // Current live API behavior can be pinned here if Notion stops creating
+        // a default view for newly-created databases.
+        expect(views).toHaveLength(0);
+        return;
+      }
+      expect(views.length).toBeGreaterThanOrEqual(1);
+
+      const view = views[0];
+      expect(view.object).toBe("view");
+      expect(view.id).toEqual(expect.any(String));
+      if (view.type !== undefined) {
+        expect(view.type).toEqual(expect.any(String));
+      }
+
+      const retrieved = await callTool<GetViewResponse>(client, "get_view", {
+        view_id: view.id,
+      });
+      expect(retrieved.error).toBeUndefined();
+      expect(retrieved.object).toBe("view");
+      expect(retrieved.id).toBe(view.id);
+      expect(retrieved.type).toEqual(expect.any(String));
+      if (view.type !== undefined) {
+        expect(retrieved.type).toBe(view.type);
+      }
+      console.error(
+        `[e2e] V1 get_view returned type=${retrieved.type} list_ref_type=${view.type ?? "absent"}`,
+      );
+
+      const queried = await callTool<QueryViewResponse>(client, "query_view", {
+        view_id: view.id,
+        page_size: 10,
+      });
+      expect(queried.error).toBeUndefined();
+      expect(queried.query?.id).toEqual(expect.any(String));
+      if (queried.query?.view_id !== undefined) {
+        expect(queried.query.view_id).toBe(view.id);
+      }
+      expect(queried.results?.object).toBe("list");
+      expect(Array.isArray(queried.results?.results)).toBe(true);
+      console.error(
+        `[e2e] V1 query_view returned results.object=${queried.results?.object} results_count=${queried.results?.results?.length ?? "unknown"}`,
+      );
+    }, 45_000);
+
+    it("V2: view mutation tools create, update, and delete a live view", async () => {
+      const initialName = "V2 Table View";
+      const renamedName = "V2 Renamed View";
+      const createdDatabase = await callTool<CreateDatabaseResponse>(client, "create_database", {
+        parent_page_id: ctx.sandboxId!,
+        title: "V2 view mutations",
+        schema: [{ name: "Title", type: "title" }],
+      });
+      expect(createdDatabase.error).toBeUndefined();
+      ctx.createdPageIds.push(createdDatabase.id);
+
+      const createdView = await callTool<CreateViewResponse>(client, "create_view", {
+        database_id: createdDatabase.id,
+        name: initialName,
+        type: "table",
+      });
+      expect(createdView.error).toBeUndefined();
+      expect(createdView.id).toEqual(expect.any(String));
+      expect(createdView.id.length).toBeGreaterThan(0);
+      if (createdView.object !== undefined) {
+        expect(createdView.object).toBe("view");
+      }
+      if (createdView.type !== undefined) {
+        expect(createdView.type).toBe("table");
+      }
+      if (createdView.name !== undefined) {
+        expect(createdView.name).toBe(initialName);
+      }
+
+      const retrievedCreatedView = await callTool<GetViewResponse>(client, "get_view", {
+        view_id: createdView.id,
+      });
+      expect(retrievedCreatedView.error).toBeUndefined();
+      expect(retrievedCreatedView.id).toBe(createdView.id);
+      expect(retrievedCreatedView.object).toBe("view");
+      if (retrievedCreatedView.name !== undefined) {
+        expect(retrievedCreatedView.name).toBe(initialName);
+      } else {
+        expect(retrievedCreatedView.type).toBe("table");
+      }
+
+      const updatedView = await callTool<UpdateViewResponse>(client, "update_view", {
+        view_id: createdView.id,
+        name: renamedName,
+      });
+      expect(updatedView.error).toBeUndefined();
+      expect(updatedView.id).toBe(createdView.id);
+      if (updatedView.object !== undefined) {
+        expect(updatedView.object).toBe("view");
+      }
+      if (updatedView.type !== undefined) {
+        expect(updatedView.type).toBe("table");
+      }
+
+      const retrievedUpdatedView = await callTool<GetViewResponse>(client, "get_view", {
+        view_id: createdView.id,
+      });
+      expect(retrievedUpdatedView.error).toBeUndefined();
+      expect(retrievedUpdatedView.id).toBe(createdView.id);
+      expect((updatedView.name ?? retrievedUpdatedView.name)).toBe(renamedName);
+
+      const deletedView = await callTool<DeleteViewResponse>(client, "delete_view", {
+        view_id: createdView.id,
+        confirm: true,
+      });
+      expect(deletedView.error).toBeUndefined();
+      expect(deletedView.success).toBe(true);
+      expect(deletedView.deleted).toBe(createdView.id);
+      if (deletedView.view !== undefined) {
+        expect(deletedView.view.id).toBe(createdView.id);
+      }
+
+      let listedAfterDelete: ListViewsResponse = {};
+      let remainingViewIds: string[] = [];
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        listedAfterDelete = await callTool<ListViewsResponse>(client, "list_views", {
+          database_id: createdDatabase.id,
+          page_size: 10,
+        });
+        expect(listedAfterDelete.error).toBeUndefined();
+        remainingViewIds = (listedAfterDelete.results ?? []).map((view) => view.id);
+        if (!remainingViewIds.includes(createdView.id)) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+      }
+      expect(remainingViewIds).not.toContain(createdView.id);
+      console.error(
+        `[e2e] V2 create/update/delete view_id=${createdView.id} create_name=${createdView.name ?? "absent"} ` +
+          `create_type=${createdView.type ?? "absent"} updated_name=${updatedView.name ?? retrievedUpdatedView.name ?? "absent"} ` +
+          `delete_success=${deletedView.success === true} listed_after_delete_count=${listedAfterDelete.results?.length ?? "unknown"}`,
+      );
+    }, 60_000);
 
     it("KNOWN GAP: archiving a parent does not cascade archive to children", async () => {
       const scratchParent = await callTool<CreatePageResponse>(client, "create_page", {

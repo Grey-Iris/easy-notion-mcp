@@ -1,0 +1,4 @@
+interface:
+  display_name: "Easy Notion CLI"
+  short_description: "Use Notion through the CLI"
+  default_prompt: "Use $easy-notion-cli to search, read, edit pages, manage comments, and work with database entries through the easy-notion CLI."

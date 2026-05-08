@@ -221,7 +221,7 @@ describe("create_page_from_file", () => {
         const toolNames = result.tools.map((tool) => tool.name);
 
         expect(toolNames).toContain("create_page_from_file");
-        expect(result.tools).toHaveLength(29);
+        expect(result.tools).toHaveLength(38);
       } finally {
         await close();
       }
@@ -235,7 +235,7 @@ describe("create_page_from_file", () => {
         const toolNames = result.tools.map((tool) => tool.name);
 
         expect(toolNames).not.toContain("create_page_from_file");
-        expect(result.tools).toHaveLength(28);
+        expect(result.tools).toHaveLength(37);
       } finally {
         await close();
       }
