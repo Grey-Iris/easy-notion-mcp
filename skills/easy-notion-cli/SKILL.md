@@ -137,6 +137,12 @@ Replace one section by heading:
 npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-section PAGE_ID --heading "Status" --markdown-file ./status.md
 ```
 
+Preserve the existing heading block and replace only its body. This still deletes and recreates body blocks:
+
+```bash
+npx -y --package easy-notion-mcp easy-notion --profile work-rw content update-section PAGE_ID --heading "Status" --preserve-heading --markdown-file ./status-body.md
+```
+
 Replace one toggle body by title:
 
 ```bash

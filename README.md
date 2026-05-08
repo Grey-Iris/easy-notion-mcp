@@ -353,7 +353,7 @@ easy-notion-mcp includes 40 individually-named tools across 6 categories. Tool d
 | `read_toggle` | Read one toggle or toggleable heading by title |
 | `append_content` | Append markdown to a page |
 | `replace_content` | Replace all page content atomically (preserves block IDs of matched blocks) |
-| `update_section` | Update a section by heading name (destructive; duplicate_page first for irreplaceable content) |
+| `update_section` | Update a section by heading name; optional heading-preserving body replacement (destructive; duplicate_page first for irreplaceable content) |
 | `update_toggle` | Update one toggle body by title (destructive; preserves the toggle container ID) |
 | `archive_toggle` | Archive one toggle or toggleable heading by title |
 | `find_replace` | Find and replace text, preserving files |
@@ -482,7 +482,7 @@ easy-notion-mcp enables agents to read a page, modify the markdown string, and w
 easy-notion-mcp provides three editing strategies for different use cases:
 
 - **`replace_content`** — Replaces all content on a page with new markdown. Best for full rewrites.
-- **`update_section`** — Replaces a single section identified by heading name. Best for updating one part of a page.
+- **`update_section`** — Replaces a single section identified by heading name. By default the replacement markdown includes the heading and replaces the full section. Pass `preserve_heading: true` (or CLI `--preserve-heading`) to keep the existing heading block ID, text, type, comments, and toggleable state while destructively replacing only the section body.
 - **`find_replace`** — Finds and replaces specific text anywhere on the page, preserving all other content and attached files. Best for surgical edits.
 
 ## How does easy-notion-mcp handle databases?

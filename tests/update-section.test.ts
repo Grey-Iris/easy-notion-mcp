@@ -187,6 +187,205 @@ describe("update_section boundary logic", () => {
 });
 
 describe("update_section handler", () => {
+  it("preserves a non-first plain heading and replaces only its body", async () => {
+    const notion = makeUpdateSectionNotion([
+      { id: "intro", type: "paragraph", paragraph: { rich_text: richText("Intro") } },
+      { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+      { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+    ]);
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "Replacement body",
+          preserve_heading: true,
+        },
+      });
+
+      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 1 });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).toHaveBeenCalledWith({ block_id: "old-body" });
+      expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
+        block_id: "page-1",
+        position: { type: "after_block", after_block: { id: "h2-target" } },
+      }));
+      expect(notion.blocks.children.append.mock.calls[0][0].children[0]).toEqual(expect.objectContaining({
+        type: "paragraph",
+        paragraph: expect.objectContaining({
+          rich_text: expect.arrayContaining([expect.objectContaining({ text: { content: "Replacement body" } })]),
+        }),
+      }));
+    } finally {
+      await close();
+    }
+  });
+
+  it("preserves first-section ordering when preserve mode markdown is body-only", async () => {
+    const notion = makeUpdateSectionNotion([
+      { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+      { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+    ]);
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "Replacement body",
+          preserve_heading: true,
+        },
+      });
+
+      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 1 });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).toHaveBeenCalledWith({ block_id: "old-body" });
+      expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
+        block_id: "page-1",
+        position: { type: "after_block", after_block: { id: "h2-target" } },
+      }));
+    } finally {
+      await close();
+    }
+  });
+
+  it("preserves the heading and allows an empty replacement body", async () => {
+    const notion = makeUpdateSectionNotion([
+      { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+      { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+    ]);
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "",
+          preserve_heading: true,
+        },
+      });
+
+      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 0 });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(notion.blocks.delete).toHaveBeenCalledWith({ block_id: "old-body" });
+      expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("preserves a toggleable heading and replaces its children plus section body", async () => {
+    const mutations: string[] = [];
+    const notion = makeUpdateSectionNotion(
+      [
+        {
+          id: "h2-target",
+          type: "heading_2",
+          has_children: true,
+          heading_2: { rich_text: richText("Target"), is_toggleable: true },
+        },
+        { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+        { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+      ],
+      {
+        "h2-target": [
+          { id: "old-child", type: "paragraph", paragraph: { rich_text: richText("Old child") } },
+        ],
+      },
+      mutations,
+    );
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "Replacement child",
+          preserve_heading: true,
+        },
+      });
+
+      expect(parseToolText(result)).toEqual({ deleted: 2, appended: 1 });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(mutations).toEqual([
+        "delete:old-child",
+        "delete:old-body",
+        "append:h2-target:",
+      ]);
+      expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
+        block_id: "h2-target",
+      }));
+    } finally {
+      await close();
+    }
+  });
+
+  it("strips a leading matching heading in preserve mode and uses its children plus following blocks", async () => {
+    const notion = makeUpdateSectionNotion([
+      { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+      { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+    ]);
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "+++ ##  TARGET \nInside\n+++\nAfter",
+          preserve_heading: true,
+        },
+      });
+
+      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 2 });
+      const children = notion.blocks.children.append.mock.calls[0][0].children;
+      expect(children.map((block: any) => block.type)).toEqual(["paragraph", "paragraph"]);
+      expect(children[0].paragraph.rich_text[0].text.content).toBe("Inside");
+      expect(children[1].paragraph.rich_text[0].text.content).toBe("After");
+    } finally {
+      await close();
+    }
+  });
+
+  it("keeps default non-preserve behavior as full-section replacement", async () => {
+    const notion = makeUpdateSectionNotion([
+      { id: "intro", type: "paragraph", paragraph: { rich_text: richText("Intro") } },
+      { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+      { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+    ]);
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "Replacement body",
+        },
+      });
+
+      expect(parseToolText(result)).toEqual({ deleted: 2, appended: 1 });
+      expect(notion.blocks.delete).toHaveBeenNthCalledWith(1, { block_id: "h2-target" });
+      expect(notion.blocks.delete).toHaveBeenNthCalledWith(2, { block_id: "old-body" });
+      expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
+        block_id: "page-1",
+        position: { type: "after_block", after_block: { id: "intro" } },
+      }));
+    } finally {
+      await close();
+    }
+  });
+
   it("replaces the first section without moving replacement blocks after the next sibling heading", async () => {
     const notion = makeUpdateSectionNotion([
       { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },

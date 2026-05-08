@@ -42,9 +42,11 @@ import {
   findSectionRange,
   getPageTitle,
   getToggleTitle,
+  isToggleableHeading,
   normalizeBlock,
   simplifyProperty,
   SUPPORTED_BLOCK_TYPES,
+  updateSectionPreserveHeadingBody,
   UPDATABLE_BLOCK_TYPES,
   type FetchContext,
 } from "../server.js";
@@ -254,7 +256,7 @@ function helpText(): string {
     "  content read-section <page_id> --heading <heading>",
     "  content read-toggle <page_id> --title <title>",
     "  content replace <page_id> (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  content update-section <page_id> --heading <heading> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content update-section <page_id> --heading <heading> [--preserve-heading] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content update-toggle <page_id> --title <title> (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content archive-toggle <page_id> --title <title>",
     "  content find-replace <page_id> --find <text> --replace <text> [--all]",
@@ -1262,6 +1264,32 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     const markdown = await readMarkdownInput(args, io);
     const processedMarkdown = await ops.processFileUploads(client, markdown);
     const replacementBlocks = markdownToBlocks(processedMarkdown);
+    const preserveHeading = hasFlag(args, "--preserve-heading");
+
+    if (preserveHeading) {
+      const replacementBodyBlocks = updateSectionPreserveHeadingBody(replacementBlocks, headingBlock);
+      const existingHeadingChildren = isToggleableHeading(headingBlock) && headingBlock.has_children === true
+        ? await ops.listChildren(client, headingBlock.id)
+        : [];
+
+      for (const child of existingHeadingChildren as any[]) {
+        await ops.deleteBlock(client, child.id);
+      }
+      for (const block of sectionBlocks.slice(1)) {
+        await ops.deleteBlock(client, block.id);
+      }
+
+      const appended = replacementBodyBlocks.length === 0
+        ? []
+        : isToggleableHeading(headingBlock)
+          ? await ops.appendBlocks(client, headingBlock.id, replacementBodyBlocks)
+          : await ops.appendBlocksAfter(client, pageId, replacementBodyBlocks, headingBlock.id);
+
+      return success({
+        deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
+        appended: appended.length,
+      });
+    }
 
     if (afterBlockId === undefined && replacementBlocks.length > 0) {
       const firstReplacement = replacementBlocks[0] as any;

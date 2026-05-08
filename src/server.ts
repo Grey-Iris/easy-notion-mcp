@@ -424,6 +424,10 @@ function richTextPlainText(richText: any[]): string {
   return richText.map((text: any) => text.plain_text ?? text.text?.content ?? "").join("");
 }
 
+function normalizedHeadingText(text: string): string {
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export function getToggleTitle(block: any): string | null {
   if (block.type === "toggle") {
     return richTextPlainText(block.toggle?.rich_text ?? []).trim();
@@ -474,6 +478,33 @@ export function findSectionRange(
 function getParsedBlockChildren(block: NotionBlock): NotionBlock[] {
   const body = (block as any)[block.type];
   return Array.isArray(body?.children) ? body.children : [];
+}
+
+export function isToggleableHeading(block: any): boolean {
+  return (
+    (block.type === "heading_1" || block.type === "heading_2" || block.type === "heading_3") &&
+    block[block.type]?.is_toggleable === true
+  );
+}
+
+export function updateSectionPreserveHeadingBody(
+  replacementBlocks: NotionBlock[],
+  headingBlock: any,
+): NotionBlock[] {
+  const firstReplacement = replacementBlocks[0] as any;
+  if (
+    firstReplacement &&
+    firstReplacement.type === headingBlock.type &&
+    normalizedHeadingText(getBlockHeadingText(firstReplacement) ?? "") ===
+      normalizedHeadingText(getBlockHeadingText(headingBlock) ?? "")
+  ) {
+    return [
+      ...getParsedBlockChildren(firstReplacement),
+      ...replacementBlocks.slice(1),
+    ];
+  }
+
+  return replacementBlocks;
 }
 
 export type OmittedBlock = { id: string; type: string };
@@ -1168,13 +1199,14 @@ Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \
     name: "update_section",
     description: `DESTRUCTIVE — no rollback: this tool deletes blocks in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied; for most sections the heading anchor is deleted, so a retry can fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
 
-Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. If the section starts at the first block, the replacement markdown must start with the same heading type so following sections stay in place. More efficient than replace_content for editing one section of a large page.`,
+Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. If the section starts at the first block, the replacement markdown must start with the same heading type so following sections stay in place. With preserve_heading:true, the existing heading block ID, text, type, comments, and toggleable state are preserved, but the section body blocks and existing toggleable-heading children are still destructively replaced; replacement markdown is treated as body-only, and a leading matching heading is stripped for compatibility. More efficient than replace_content for editing one section of a large page.`,
     inputSchema: {
       type: "object",
       properties: {
         page_id: { type: "string", description: "Page ID" },
         heading: { type: "string", description: "Heading text to find (case-insensitive)" },
         markdown: { type: "string", description: "Replacement markdown including the heading" },
+        preserve_heading: { type: "boolean", description: "Preserve the existing heading block and replace only the section body. Default false." },
       },
       required: ["page_id", "heading", "markdown"],
     },
@@ -1937,10 +1969,11 @@ export function createServer(
         }
         case "update_section": {
           const notion = notionClientFactory();
-          const { page_id, heading, markdown } = args as {
+          const { page_id, heading, markdown, preserve_heading } = args as {
             page_id: string;
             heading: string;
             markdown: string;
+            preserve_heading?: boolean;
           };
           const allBlocks = await listChildren(notion, page_id);
           const range = findSectionRange(allBlocks, heading);
@@ -1955,6 +1988,31 @@ export function createServer(
           const sectionBlocks = allBlocks.slice(range.headingIndex, range.sectionEnd);
           const afterBlockId = range.headingIndex > 0 ? allBlocks[range.headingIndex - 1].id : undefined;
           const replacementBlocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+
+          if (preserve_heading === true) {
+            const replacementBodyBlocks = updateSectionPreserveHeadingBody(replacementBlocks, headingBlock);
+            const existingHeadingChildren = isToggleableHeading(headingBlock) && headingBlock.has_children === true
+              ? await listChildren(notion, headingBlock.id)
+              : [];
+
+            for (const child of existingHeadingChildren) {
+              await deleteBlock(notion, child.id);
+            }
+            for (const block of sectionBlocks.slice(1)) {
+              await deleteBlock(notion, block.id);
+            }
+
+            const appended = replacementBodyBlocks.length === 0
+              ? []
+              : isToggleableHeading(headingBlock)
+                ? await appendBlocks(notion, headingBlock.id, replacementBodyBlocks)
+                : await appendBlocksAfter(notion, page_id, replacementBodyBlocks, headingBlock.id);
+
+            return textResponse({
+              deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
+              appended: appended.length,
+            });
+          }
 
           if (afterBlockId === undefined && replacementBlocks.length > 0) {
             const firstReplacement = replacementBlocks[0] as any;

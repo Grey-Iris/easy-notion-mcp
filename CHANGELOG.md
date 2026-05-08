@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Find-replace match counts.** `find_replace` and `content find-replace`
   successful responses now include `match_count`, counted from a preflight
   Notion markdown read before the atomic update.
+- **Heading-preserving section updates.** `update_section` now accepts
+  `preserve_heading`, and `content update-section` accepts
+  `--preserve-heading`, to keep the matched heading block while destructively
+  replacing only its body.
 
 ## [0.8.0] - 2026-05-08
 
