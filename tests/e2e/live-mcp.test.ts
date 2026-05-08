@@ -1863,7 +1863,7 @@ describe.skipIf(!env.shouldRun)(
       expect(child.id).toBe(scratchChild.id);
       expect(child.in_trash).not.toBe(true);
       expectContentNoticePresent(child.markdown);
-    });
+    }, 60_000);
 
     describe("HTTP parity", () => {
       let httpHandle: HttpHandle;
