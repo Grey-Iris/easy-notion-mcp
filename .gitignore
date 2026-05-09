@@ -20,6 +20,9 @@ internal/
 .meta/bench/transcripts/
 .meta/bench/.runner-pids/
 
+# Local working artifacts
+tmp/
+
 # Internal documents (not for public repo)
 audit-report-*.md
 competitor-comparison.md
