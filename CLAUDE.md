@@ -38,21 +38,26 @@ CI runs on every PR and push to `main`/`dev` (GitHub Actions: build, typecheck, 
 
 ## Releasing
 
-Manual publish is the primary path (CI Trusted Publishing is upstream-blocked; tracked in tasuku as `debug-npm-trusted-publishing-for`).
+CI Trusted Publishing is the primary path. Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs build/typecheck/test, publishes to npm via OIDC (no `NPM_TOKEN` required), and creates the GitHub release. Total runtime is under a minute when green.
 
 1. Bump `version` in **both** `package.json` and `package-lock.json` (top-level `version` field AND `packages."".version`) in the same commit
 2. Commit: `git commit -am "chore: bump to vX.Y.Z"`
 3. Tag: `git tag vX.Y.Z`
 4. Push: `git push public dev && git push public --tags`
-5. `npm login --auth-type=web` (if session expired)
-6. `npm publish --access public` (from the tagged commit)
-7. `npm run release:smoke` (post-publish verification)
-8. `gh release create vX.Y.Z --generate-notes` (GitHub release)
-9. Merge `main` ← release PR, then `dev` ← `main` catch-up merge
+5. Watch the Release workflow run (`gh run watch` or the Actions tab). It should succeed end-to-end: `npm publish --provenance` via Trusted Publishing, then `gh release create` from inside the workflow.
+6. Verify npm picked up the new version: `curl -s https://registry.npmjs.org/easy-notion-mcp/latest | jq -r .version` (avoid `npm view`, which can return stale local-cached data for several minutes).
+7. Merge `main` ← release PR, then `dev` ← `main` catch-up merge.
 
-Tag-triggered Release workflow exists in CI and runs tests, but its publish step currently 404s. Once Trusted Publishing is fixed upstream, CI will become the primary path and steps 5-6 can be removed.
+### Manual fallback
 
-Requires `NPM_TOKEN` secret in repo settings (used by CI workflow).
+Use the manual path when CI is unavailable, the npm registry is rejecting OIDC, or you deliberately want to publish from local state. Steps 1-4 above are unchanged; replace step 5 with:
+
+1. `npm login --auth-type=web` (if the session is expired)
+2. `npm publish --access public` from the tagged commit
+3. `npm run release:smoke` (post-publish verification)
+4. `gh release create vX.Y.Z --generate-notes`
+
+The Release workflow previously failed because it ran on Node 20 (npm 10), but Trusted Publishing requires npm ≥ 11.5.1 (Node 22.14+ or 24). Commit `e06e2ee` bumped the workflow to Node 24; v0.9.1 was the first release published end-to-end via Trusted Publishing.
 
 ## Architecture
 
