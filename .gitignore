@@ -20,6 +20,9 @@ internal/
 .meta/bench/transcripts/
 .meta/bench/.runner-pids/
 
+# Private handoffs (failed public-default screen but locally useful)
+.meta/handoffs-private/
+
 # Local working artifacts
 tmp/
 
