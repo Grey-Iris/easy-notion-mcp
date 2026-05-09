@@ -907,6 +907,92 @@ export function attachChildren(block: NotionBlock, children: NotionBlock[]): voi
   }
 }
 
+async function hydrateMeetingNotesBlock(
+  client: ReturnType<typeof createNotionClient>,
+  raw: any,
+  normalized: NotionBlock,
+  ctx: FetchContext,
+): Promise<boolean> {
+  if (raw.type !== "meeting_notes" && raw.type !== "transcription") {
+    return false;
+  }
+
+  const payload = raw[raw.type] ?? {};
+  const pointers = payload.children ?? {};
+  const summaryBlockId = typeof pointers.summary_block_id === "string" ? pointers.summary_block_id : undefined;
+  const notesBlockId = typeof pointers.notes_block_id === "string" ? pointers.notes_block_id : undefined;
+  const transcriptBlockId = typeof pointers.transcript_block_id === "string" ? pointers.transcript_block_id : undefined;
+  const hasSectionPointers = Boolean(summaryBlockId || notesBlockId || transcriptBlockId);
+  const includeTranscript = ctx.includeTranscript === true;
+
+  const children: NotionBlock[] = [];
+  const recording = payload.recording;
+  if (
+    typeof recording?.start_time === "string" &&
+    recording.start_time.length > 0 &&
+    typeof recording?.end_time === "string" &&
+    recording.end_time.length > 0
+  ) {
+    children.push({
+      type: "callout",
+      callout: {
+        rich_text: [{ type: "text", text: { content: `Recorded ${recording.start_time} – ${recording.end_time}`, link: null } }],
+        icon: { type: "emoji", emoji: "ℹ️" },
+      },
+    });
+  }
+
+  if (typeof payload.status === "string" && payload.status.length > 0 && payload.status !== "notes_ready") {
+    children.push({
+      type: "paragraph",
+      paragraph: { rich_text: [{ type: "text", text: { content: `Status: ${payload.status}`, link: null } }] },
+    });
+  }
+
+  const sectionsUnreadable: Array<{ key: string; block_id: string; code?: string }> = [];
+  const fetchSection = async (title: string, sectionBlockId: string, key: string): Promise<void> => {
+    try {
+      await retrieveBlock(client, sectionBlockId);
+      const descendants = await fetchBlocksRecursive(client, sectionBlockId, ctx);
+      children.push({
+        type: "heading_2",
+        heading_2: { rich_text: [{ type: "text", text: { content: title, link: null } }], is_toggleable: false },
+      });
+      children.push(...descendants);
+    } catch (err) {
+      const code = (err as any)?.body?.code ?? (err as any)?.code;
+      sectionsUnreadable.push({
+        key,
+        block_id: sectionBlockId,
+        ...(typeof code === "string" ? { code } : {}),
+      });
+    }
+  };
+
+  if (hasSectionPointers) {
+    if (summaryBlockId) await fetchSection("Summary", summaryBlockId, "summary_block_id");
+    if (notesBlockId) await fetchSection("Notes", notesBlockId, "notes_block_id");
+    if (includeTranscript && transcriptBlockId) await fetchSection("Transcript", transcriptBlockId, "transcript_block_id");
+  } else if (raw.has_children) {
+    children.push(...await fetchBlocksRecursive(client, raw.id, ctx));
+  }
+
+  if (children.length > 0) {
+    attachChildren(normalized, children);
+  }
+
+  const transcriptOmitted = Boolean(transcriptBlockId && !includeTranscript);
+  const entry: ReadOnlyRenderedBlock = {
+    id: raw.id,
+    type: raw.type as "meeting_notes" | "transcription",
+    ...(transcriptOmitted ? { transcript_omitted: true } : {}),
+    ...(sectionsUnreadable.length > 0 ? { sections_unreadable: sectionsUnreadable } : {}),
+  };
+  ctx.renderedReadOnly?.push(entry);
+
+  return true;
+}
+
 export async function fetchBlocksRecursive(
   client: ReturnType<typeof createNotionClient>,
   blockId: string,
@@ -924,7 +1010,11 @@ export async function fetchBlocksRecursive(
       continue;
     }
 
-    if (raw.has_children) {
+    const hydratedMeetingNotes = ctx
+      ? await hydrateMeetingNotesBlock(client, raw, normalized, ctx)
+      : false;
+
+    if (!hydratedMeetingNotes && raw.has_children) {
       const children = await fetchBlocksRecursive(client, raw.id, ctx);
       if (children.length > 0) {
         attachChildren(normalized, children);
@@ -948,7 +1038,11 @@ export async function fetchBlockRecursive(
     return { raw, block: null };
   }
 
-  if ((raw as any).has_children) {
+  const hydratedMeetingNotes = ctx
+    ? await hydrateMeetingNotesBlock(client, raw, block, ctx)
+    : false;
+
+  if (!hydratedMeetingNotes && (raw as any).has_children) {
     const children = await fetchBlocksRecursive(client, blockId, ctx);
     if (children.length > 0) {
       attachChildren(block, children);
@@ -974,7 +1068,11 @@ export async function fetchRawBlocksRecursive(
       continue;
     }
 
-    if (raw.has_children) {
+    const hydratedMeetingNotes = ctx
+      ? await hydrateMeetingNotesBlock(client, raw, normalized, ctx)
+      : false;
+
+    if (!hydratedMeetingNotes && raw.has_children) {
       const children = await fetchBlocksRecursive(client, raw.id, ctx);
       if (children.length > 0) {
         attachChildren(normalized, children);
@@ -1308,7 +1406,11 @@ export async function fetchBlocksWithLimit(
         continue;
       }
 
-      if (raw.has_children) {
+      const hydratedMeetingNotes = ctx
+        ? await hydrateMeetingNotesBlock(client, raw, normalized, ctx)
+        : false;
+
+      if (!hydratedMeetingNotes && raw.has_children) {
         const children = await fetchBlocksRecursive(client, raw.id, ctx);
         if (children.length > 0) {
           attachChildren(normalized, children);
