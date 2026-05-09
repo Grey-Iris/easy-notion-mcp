@@ -272,11 +272,38 @@ Shape:
 \`\`\`json
 {
   "code": "omitted_block_types",
-  "blocks": [{ "id": "block-id", "type": "meeting_notes" }]
+  "blocks": [{ "id": "block-id", "type": "synced_block" }]
 }
 \`\`\`
 
-Do not round-trip markdown through replace_content when omitted_block_types is present. The omitted blocks would be deleted from the page.
+Do not round-trip markdown through replace_content when omitted_block_types or read_only_block_rendered is present. omitted_block_types means the blocks are absent from the markdown and would be deleted; read_only_block_rendered means a Notion AI meeting-notes block was rendered as ordinary markdown and round-tripping replaces the native block with ordinary blocks.
+
+## read_only_block_rendered
+
+Returned by read_page, read_section, read_block, read_toggle, and duplicate_page when a Notion AI meeting-notes (or deprecated transcription) block is rendered as ordinary markdown. The native block is read-only and cannot be reconstructed from markdown, so round-tripping through replace_content replaces it with ordinary toggle/heading/paragraph blocks.
+
+Shape:
+\`\`\`json
+{
+  "code": "read_only_block_rendered",
+  "blocks": [
+    {
+      "id": "block-id",
+      "type": "meeting_notes",
+      "transcript_omitted": true,
+      "sections_unreadable": [
+        { "key": "transcript_block_id", "block_id": "section-id", "code": "object_not_found" }
+      ]
+    }
+  ],
+  "message": "Rendered read-only Notion AI meeting notes ..."
+}
+\`\`\`
+
+Subfields:
+
+- \`transcript_omitted\` (boolean, optional) — set to \`true\` when the meeting block had a transcript section pointer that was not fetched. Only emitted when transcript content was available but suppressed; a meeting block without a separate transcript pointer never carries this field. read_page accepts \`include_transcript: true\` to opt in; targeted-read tools always omit transcripts.
+- \`sections_unreadable\` (array, optional) — entries describe section pointers whose retrieve or descendant fetch failed. Each entry has \`key\` (the canonical pointer name: \`summary_block_id\`, \`notes_block_id\`, or \`transcript_block_id\`), \`block_id\` (the failed pointer), and an optional \`code\` (the Notion error code, e.g. \`object_not_found\`). Other sections continue to render even when one fails.
 
 ## truncated_properties
 
@@ -1588,7 +1615,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
   },
   {
     name: "read_section",
-    description: `Read a single page section by heading name. Uses the same heading matching and boundary rules as update_section: headings are matched case-insensitively, H1 sections end at the next heading of any level, and H2/H3 sections end at the next heading of the same or higher level. Includes the heading block itself and recursively renders nested children only for blocks inside the selected section. If unsupported nested block types are omitted, the response includes warnings.`,
+    description: `Read a single page section by heading name. Uses the same heading matching and boundary rules as update_section: headings are matched case-insensitively, H1 sections end at the next heading of any level, and H2/H3 sections end at the next heading of the same or higher level. Includes the heading block itself and recursively renders nested children only for blocks inside the selected section. If unsupported nested block types are omitted, the response includes warnings. Notion AI meeting-notes blocks encountered in the result are rendered as a synthetic toggle and produce a \`read_only_block_rendered\` warning. Transcripts are not included from these tools.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1600,7 +1627,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
   },
   {
     name: "read_block",
-    description: "Read one block by ID as markdown. Container blocks are fetched recursively with children. Unsupported root block types return a clear error; unsupported nested blocks are omitted and listed in warnings.",
+    description: "Read one block by ID as markdown. Container blocks are fetched recursively with children. Unsupported root block types return a clear error; unsupported nested blocks are omitted and listed in warnings. Notion AI meeting-notes blocks encountered in the result are rendered as a synthetic toggle and produce a `read_only_block_rendered` warning. Transcripts are not included from these tools.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1611,7 +1638,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
   },
   {
     name: "read_toggle",
-    description: "Read one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. Missing titles return the available toggle titles.",
+    description: "Read one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. Missing titles return the available toggle titles. Notion AI meeting-notes blocks encountered in the result are rendered as a synthetic toggle and produce a `read_only_block_rendered` warning. Transcripts are not included from these tools.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1710,6 +1737,10 @@ To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one 
     name: "read_page",
     description: `Read a page and return metadata plus markdown. Recursively fetches nested blocks and uses the same markdown conventions accepted by create_page. If unsupported block types are omitted from the markdown, they are listed in warnings. Do NOT round-trip markdown through replace_content when omitted_block_types warnings are present; omitted blocks would be deleted.
 
+Notion AI meeting notes are rendered as a synthetic toggle containing the title, an optional recording timestamp callout, and \`## Summary\` / \`## Notes\` heading sections. Transcript sections are included only with \`include_transcript: true\`. A \`read_only_block_rendered\` warning is emitted whenever such a block is rendered, indicating that round-tripping the markdown through \`replace_content\` will replace the native meeting-notes block with ordinary blocks.
+
+Note on \`max_blocks\`: the cap counts top-level page blocks only; section descendants of meeting-notes blocks are fetched in full regardless of the cap, consistent with how nested children of normal blocks are fetched.
+
 Long titles are paginated with max_property_items. For markdown conventions, warning shapes, and pagination details, read resources easy-notion://docs/markdown, easy-notion://docs/warnings, and easy-notion://docs/property-pagination.`,
     inputSchema: {
       type: "object",
@@ -1738,7 +1769,7 @@ Long titles are paginated with max_property_items. For markdown conventions, war
   },
   {
     name: "duplicate_page",
-    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page, meeting_notes), those are omitted from the duplicate AND listed in a \`warnings\` field. Deep-duplication of subpages is not yet supported.`,
+    description: `Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a \`warnings\` field with code \`omitted_block_types\`. Notion AI meeting notes are duplicated as ordinary toggle/heading/paragraph blocks (summary and notes only — transcripts are not duplicated); a \`read_only_block_rendered\` warning is emitted to identify meeting-notes blocks whose native identity was not preserved across the duplicate. Deep-duplication of subpages is not yet supported.`,
     inputSchema: {
       type: "object",
       properties: {
