@@ -44,6 +44,7 @@ import {
   getToggleTitle,
   isToggleableHeading,
   normalizeBlock,
+  READ_ONLY_BLOCK_RENDERED_MESSAGE,
   searchInPage,
   simplifyProperty,
   SUPPORTED_BLOCK_TYPES,
@@ -124,12 +125,12 @@ type NotionOps = {
     page: unknown,
     opts: { maxPropertyItems: number; onlyTypes?: Array<"title" | "rich_text" | "relation" | "people"> },
   ): Promise<{ page: unknown; warnings: unknown[] }>;
-  fetchBlocksRecursive(client: Client, pageId: string, ctx: { omitted: Array<{ id: string; type: string }> }): Promise<unknown[]>;
+  fetchBlocksRecursive(client: Client, pageId: string, ctx: FetchContext): Promise<unknown[]>;
   fetchBlocksWithLimit(
     client: Client,
     pageId: string,
     maxBlocks: number,
-    ctx: { omitted: Array<{ id: string; type: string }> },
+    ctx: FetchContext,
   ): Promise<{ blocks: unknown[]; hasMore: boolean }>;
   processFileUploads(client: Client, markdown: string): Promise<string>;
   appendBlocks(client: Client, pageId: string, blocks: ReturnType<typeof markdownToBlocks>): Promise<unknown[]>;
@@ -251,7 +252,7 @@ function helpText(): string {
     "  user me",
     "  user list",
     "  search <query> [--filter pages|databases]",
-    "  page read <page> [--include-metadata] [--max-blocks <n>] [--max-property-items <n>]",
+    "  page read <page> [--include-metadata] [--include-transcript] [--max-blocks <n>] [--max-property-items <n>]",
     "  page create --title <title> [--parent <page_id>] [--icon <emoji>] [--cover <url>] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  page create-from-file --title <title> --file <path> [--parent <page_id>]",
     "  page duplicate <page_id> [--title <title>] [--parent <page_id>]",
@@ -625,10 +626,19 @@ async function findToggleRecursiveForCli(
   return { block: await visit(pageId), availableTitles };
 }
 
-function omittedBlockWarnings(ctx: FetchContext): unknown[] {
-  return ctx.omitted.length > 0
-    ? [{ code: "omitted_block_types", blocks: ctx.omitted }]
-    : [];
+function readWarnings(ctx: FetchContext): unknown[] {
+  const out: unknown[] = [];
+  if (ctx.omitted.length > 0) {
+    out.push({ code: "omitted_block_types", blocks: ctx.omitted });
+  }
+  if ((ctx.renderedReadOnly ?? []).length > 0) {
+    out.push({
+      code: "read_only_block_rendered",
+      blocks: ctx.renderedReadOnly,
+      message: READ_ONLY_BLOCK_RENDERED_MESSAGE,
+    });
+  }
+  return out;
 }
 
 function targetedBlocksToMarkdown(blocks: any[]): string {
@@ -925,19 +935,17 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
     const client = clientFor(resolved, ops);
     const cap = parseNonNegativeInteger(readFlag(args, "--max-property-items"), "--max-property-items") ?? 75;
     const maxBlocks = parseNonNegativeInteger(readFlag(args, "--max-blocks"), "--max-blocks");
+    const includeTranscript = hasFlag(args, "--include-transcript");
     const rawPage = await ops.getPage(client, pageId);
     const { page, warnings: propertyWarnings } = await ops.paginatePageProperties(client, rawPage, {
       maxPropertyItems: cap,
       onlyTypes: ["title"],
     });
-    const ctx: { omitted: Array<{ id: string; type: string }> } = { omitted: [] };
+    const ctx: FetchContext = { omitted: [], renderedReadOnly: [], includeTranscript };
     const blockResult = maxBlocks && maxBlocks > 0
       ? await ops.fetchBlocksWithLimit(client, pageId, maxBlocks, ctx)
       : { blocks: await ops.fetchBlocksRecursive(client, pageId, ctx), hasMore: false };
-    const warnings: unknown[] = [];
-    if (ctx.omitted.length > 0) {
-      warnings.push({ code: "omitted_block_types", blocks: ctx.omitted });
-    }
+    const warnings: unknown[] = [...readWarnings(ctx)];
     if (propertyWarnings.length > 0) {
       warnings.push({
         code: "truncated_properties",
@@ -1029,16 +1037,15 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
       resolved.rootPageId,
       "page duplicate",
     );
-    const ctx: { omitted: Array<{ id: string; type: string }> } = { omitted: [] };
+    const ctx: FetchContext = { omitted: [], renderedReadOnly: [], includeTranscript: false };
     const blocks = await ops.fetchBlocksRecursive(client, pageId, ctx);
     const icon = sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
     const page = await ops.createPage(client, parent, title, blocks as ReturnType<typeof markdownToBlocks>, icon) as any;
+    const warnings = readWarnings(ctx);
     return success({
       ...mapMutationResultPage(page, title),
       source_page_id: pageId,
-      ...(ctx.omitted.length > 0
-        ? { warnings: [{ code: "omitted_block_types", blocks: ctx.omitted }] }
-        : {}),
+      ...(warnings.length > 0 ? { warnings } : {}),
     });
   }
 
@@ -1167,14 +1174,14 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       );
     }
 
-    const ctx: FetchContext = { omitted: [] };
+    const ctx: FetchContext = { omitted: [], renderedReadOnly: [] };
     const blocks = await fetchRawBlocksRecursiveForCli(
       client,
       (allBlocks as any[]).slice(range.headingIndex, range.sectionEnd),
       ctx,
       ops,
     );
-    const warnings = omittedBlockWarnings(ctx);
+    const warnings = readWarnings(ctx);
     return success({
       page_id: pageId,
       heading: getBlockHeadingText(range.headingBlock) ?? heading,
@@ -1206,9 +1213,9 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       );
     }
 
-    const ctx: FetchContext = { omitted: [] };
+    const ctx: FetchContext = { omitted: [], renderedReadOnly: [] };
     const blocks = await fetchRawBlocksRecursiveForCli(client, [found.block], ctx, ops);
-    const warnings = omittedBlockWarnings(ctx);
+    const warnings = readWarnings(ctx);
     return success({
       page_id: pageId,
       title: getToggleTitle(found.block) ?? title,
@@ -1686,7 +1693,7 @@ async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, co
     }
     const resolved = await resolveSelectedProfile(options, io, configDir);
     const client = clientFor(resolved, ops);
-    const ctx: FetchContext = { omitted: [] };
+    const ctx: FetchContext = { omitted: [], renderedReadOnly: [] };
     const { raw, block } = await fetchBlockRecursiveForCli(client, blockId, ctx, ops);
     if (!block) {
       throw new CliError(
@@ -1697,7 +1704,7 @@ async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, co
       );
     }
 
-    const warnings = omittedBlockWarnings(ctx);
+    const warnings = readWarnings(ctx);
     return success({
       id: raw.id ?? blockId,
       type: raw.type ?? (block as any).type,
