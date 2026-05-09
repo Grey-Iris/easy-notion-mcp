@@ -8,6 +8,11 @@ vi.mock("../src/notion-client.js", async () => {
   );
   return {
     ...actual,
+    resolveWorkspaceUploadPath: vi.fn(async (fileUrl: string) => ({
+      filePath: fileUrl.replace(/^file:\/\//, ""),
+      realFilePath: fileUrl.replace(/^file:\/\//, ""),
+      fileStat: { isFile: () => true, size: 0 },
+    })),
     uploadFile: vi.fn(),
     createPage: vi.fn(),
     appendBlocks: vi.fn(),

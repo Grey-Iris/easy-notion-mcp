@@ -1,11 +1,12 @@
 {
   "name": "easy-notion-mcp",
-  "version": "0.6.0",
+  "version": "0.9.0",
   "mcpName": "io.github.misterwigglesworth/easy-notion",
   "description": "Token-efficient, markdown-first Notion MCP server — agents write markdown, never touch raw Notion JSON",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
+    "easy-notion": "dist/cli.js",
     "easy-notion-mcp": "dist/index.js",
     "easy-notion-mcp-http": "dist/http.js"
   },
@@ -25,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Grey-Iris/easy-notion-mcp.git"
+    "url": "git+https://github.com/Grey-Iris/easy-notion-mcp.git"
   },
   "keywords": [
     "notion",
@@ -43,12 +44,13 @@
   },
   "files": [
     "dist",
+    "skills",
     "README.md",
     "LICENSE"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "@notionhq/client": "^5.13.0",
+    "@notionhq/client": "^5.20.0",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "marked": "^17.0.0"

@@ -1,12 +1,16 @@
 import type { Client } from "@notionhq/client";
-import { uploadFile } from "./notion-client.js";
+import { resolveWorkspaceUploadPath, uploadFile } from "./notion-client.js";
 
 export type FileUploadTransport = "stdio" | "http";
 
 export const FILE_SCHEME_HTTP_ERROR =
   "file:// URLs are only supported in stdio transport, where the server runs on your machine. In HTTP mode, host the file at an HTTPS URL and use that instead.";
 
+export const DRY_RUN_FILE_UPLOAD_ERROR =
+  "dry-run cannot validate file uploads without creating Notion uploads. Use HTTPS URLs or run without dry-run.";
+
 type CodeRange = { start: number; end: number };
+export type FileUploadReference = { full: string; url: string; start: number };
 
 function isInRange(position: number, ranges: CodeRange[]): boolean {
   return ranges.some((range) => position >= range.start && position < range.end);
@@ -61,28 +65,34 @@ export function getCodeRanges(markdown: string): CodeRange[] {
   return ranges.sort((left, right) => left.start - right.start);
 }
 
-export async function processFileUploads(
-  client: Client,
-  markdown: string,
-  transport: FileUploadTransport,
-): Promise<string> {
+export function detectFileUploadReferences(markdown: string): FileUploadReference[] {
   // Match file:// URLs in both ![alt](file://...) and [text](file://...) syntax
   const fileUrlRegex = /(?:!\[[^\]]*\]|(?<!\!)\[[^\]]*\])\((file:\/\/[^)]+)\)/g;
 
-  const matches: { full: string; url: string; start: number }[] = [];
+  const matches: FileUploadReference[] = [];
   let match;
   while ((match = fileUrlRegex.exec(markdown)) !== null) {
     matches.push({ full: match[0], url: match[1], start: match.index });
   }
 
-  if (matches.length === 0) return markdown;
+  if (matches.length === 0) return [];
   const codeRanges = getCodeRanges(markdown);
-  const realMatches = matches.filter((m) => !isInRange(m.start, codeRanges));
+  return matches.filter((m) => !isInRange(m.start, codeRanges));
+}
+
+export async function processFileUploads(
+  client: Client,
+  markdown: string,
+  transport: FileUploadTransport,
+): Promise<string> {
+  const realMatches = detectFileUploadReferences(markdown);
   if (realMatches.length === 0) return markdown;
 
   if (transport !== "stdio") {
     throw new Error(FILE_SCHEME_HTTP_ERROR);
   }
+
+  await Promise.all(realMatches.map((m) => resolveWorkspaceUploadPath(m.url)));
 
   // Upload all files in parallel
   const uploads = await Promise.all(

@@ -1,8 +1,21 @@
 import { Client } from "@notionhq/client";
-import type { UpdateDataSourceParameters } from "@notionhq/client/build/src/api-endpoints.js";
-import { readFile, stat } from "fs/promises";
-import { basename, extname } from "path";
+import type {
+  AppendBlockChildrenParameters,
+  CreateViewParameters,
+  DeleteViewParameters,
+  ListDatabaseViewsParameters,
+  UpdateDataSourceParameters,
+  UpdateViewParameters,
+} from "@notionhq/client/build/src/api-endpoints.js";
+import { readFile, realpath, stat } from "fs/promises";
+import { basename, extname, isAbsolute, resolve as pathResolve, sep } from "path";
 import { fileURLToPath } from "url";
+import { NOTION_VERSION } from "./notion-version.js";
+import {
+  normalizeBlockRichTextForWrite,
+  normalizeBlockUpdatePayloadRichTextForWrite,
+  splitLongRichText,
+} from "./rich-text.js";
 import type { NotionBlock } from "./types.js";
 
 export type PageParent =
@@ -10,10 +23,11 @@ export type PageParent =
   | { type: "workspace"; workspace: true };
 
 export function createNotionClient(token: string) {
-  return new Client({ auth: token, notionVersion: "2025-09-03" });
+  return new Client({ auth: token, notionVersion: NOTION_VERSION });
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const NOTION_BLOCK_CHILDREN_LIMIT = 100;
 
 const MIME_TYPES: Record<string, string> = {
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -33,8 +47,278 @@ function getMimeType(filePath: string): string {
   return MIME_TYPES[ext] ?? "application/octet-stream";
 }
 
+export async function resolveWorkspaceUploadPath(fileUrl: string): Promise<{
+  filePath: string;
+  realFilePath: string;
+  fileStat: Awaited<ReturnType<typeof stat>>;
+}> {
+  const filePath = fileURLToPath(fileUrl);
+  if (!isAbsolute(filePath)) {
+    throw new Error(`uploadFile: file path must be absolute: ${filePath}`);
+  }
+
+  const workspaceRoot = process.env.NOTION_MCP_WORKSPACE_ROOT || process.cwd();
+  let realFilePath: string;
+  let realWorkspaceRoot: string;
+
+  try {
+    realFilePath = await realpath(pathResolve(filePath));
+  } catch (err: any) {
+    if (err?.code === "ENOENT") {
+      throw new Error(`uploadFile: file not found: ${filePath}`);
+    }
+    throw err;
+  }
+
+  try {
+    realWorkspaceRoot = await realpath(pathResolve(workspaceRoot));
+  } catch {
+    throw new Error(`uploadFile: configured workspace root does not resolve: ${workspaceRoot}`);
+  }
+
+  const rootWithSep = realWorkspaceRoot.endsWith(sep)
+    ? realWorkspaceRoot
+    : realWorkspaceRoot + sep;
+  if (
+    realFilePath !== realWorkspaceRoot &&
+    !realFilePath.startsWith(rootWithSep)
+  ) {
+    throw new Error(`uploadFile: file resolves outside the allowed workspace root: ${filePath}`);
+  }
+
+  const fileStat = await stat(realFilePath);
+  if (!fileStat.isFile()) throw new Error(`Not a regular file: ${filePath}`);
+  if (fileStat.size > MAX_FILE_SIZE) throw new Error(`File too large (${Math.round(fileStat.size / 1024 / 1024)}MB). Max 20MB: ${filePath}`);
+
+  return { filePath, realFilePath, fileStat };
+}
+
 function titleRichText(content: string) {
-  return [{ type: "text" as const, text: { content } }];
+  return splitLongRichText([{ type: "text" as const, text: { content } }]);
+}
+
+function emptyParagraphBlock(): NotionBlock {
+  return {
+    type: "paragraph",
+    paragraph: { rich_text: [] },
+  };
+}
+
+function getBlockChildren(block: NotionBlock): NotionBlock[] {
+  const body = (block as any)[block.type];
+  return Array.isArray(body?.children) ? body.children : [];
+}
+
+function withoutBlockChildren(block: NotionBlock): any {
+  const body = { ...((block as any)[block.type] ?? {}) };
+  delete body.children;
+  return { ...block, [block.type]: body };
+}
+
+function isOptionalChildrenContainer(block: NotionBlock): boolean {
+  switch (block.type) {
+    case "bulleted_list_item":
+    case "numbered_list_item":
+    case "toggle":
+    case "callout":
+      return true;
+    case "heading_1":
+      return block.heading_1.is_toggleable === true;
+    case "heading_2":
+      return block.heading_2.is_toggleable === true;
+    case "heading_3":
+      return block.heading_3.is_toggleable === true;
+    default:
+      return false;
+  }
+}
+
+function canUseAsColumnSeed(block: NotionBlock): boolean {
+  return block.type !== "table" && block.type !== "column_list";
+}
+
+function usesPlaceholderColumnSeed(block: NotionBlock): boolean {
+  if (block.type !== "column") {
+    return false;
+  }
+  const firstChild = getBlockChildren(block)[0];
+  return firstChild !== undefined && !canUseAsColumnSeed(firstChild);
+}
+
+function prepareBlockForWrite(block: NotionBlock): any {
+  block = normalizeBlockRichTextForWrite(block);
+
+  if (isOptionalChildrenContainer(block)) {
+    return withoutBlockChildren(block);
+  }
+
+  if (block.type === "table") {
+    const rows = getBlockChildren(block);
+    const table = { ...block.table };
+    delete (table as any).children;
+    if (rows.length > 0) {
+      table.children = [prepareBlockForWrite(rows[0])];
+    }
+    return { ...block, table };
+  }
+
+  if (block.type === "column_list") {
+    return {
+      ...block,
+      column_list: {
+        ...block.column_list,
+        children: getBlockChildren(block).map((child) => prepareBlockForWrite(child)),
+      },
+    };
+  }
+
+  if (block.type === "column") {
+    const children = getBlockChildren(block);
+    const column = { ...block.column };
+    delete (column as any).children;
+    const seed = children[0] && canUseAsColumnSeed(children[0])
+      ? children[0]
+      : emptyParagraphBlock();
+    column.children = [prepareBlockForWrite(seed)];
+    return { ...block, column };
+  }
+
+  return block;
+}
+
+function needsDeferredChildWrites(block: NotionBlock): boolean {
+  const children = getBlockChildren(block);
+
+  if (isOptionalChildrenContainer(block)) {
+    return children.length > 0;
+  }
+
+  if (block.type === "table") {
+    return children.length > 1;
+  }
+
+  if (block.type === "column") {
+    return usesPlaceholderColumnSeed(block) ||
+      children.length > 1 ||
+      (children[0] ? needsDeferredChildWrites(children[0]) : false);
+  }
+
+  if (block.type === "column_list") {
+    return children.some((child) => needsDeferredChildWrites(child));
+  }
+
+  return false;
+}
+
+async function requireCreatedChildId(
+  client: Client,
+  parentId: string,
+  index: number,
+  context: string,
+): Promise<string> {
+  const children = await listChildren(client, parentId);
+  const childId = (children[index] as any)?.id;
+  if (typeof childId !== "string" || childId.length === 0) {
+    throw new Error(`Notion append returned no id for ${context}`);
+  }
+  return childId;
+}
+
+async function appendDeferredChildren(client: Client, blockId: string, sourceBlock: NotionBlock): Promise<void> {
+  const children = getBlockChildren(sourceBlock);
+
+  if (isOptionalChildrenContainer(sourceBlock)) {
+    if (children.length > 0) {
+      await appendBlocks(client, blockId, children);
+    }
+    return;
+  }
+
+  if (sourceBlock.type === "table") {
+    if (children.length > 1) {
+      await appendBlocks(client, blockId, children.slice(1));
+    }
+    return;
+  }
+
+  if (sourceBlock.type === "column") {
+    if (children.length === 0) {
+      return;
+    }
+
+    if (usesPlaceholderColumnSeed(sourceBlock)) {
+      await appendBlocks(client, blockId, children);
+      return;
+    }
+
+    if (needsDeferredChildWrites(children[0])) {
+      const firstChildId = await requireCreatedChildId(client, blockId, 0, "column child block");
+      await appendDeferredChildren(client, firstChildId, children[0]);
+    }
+
+    if (children.length > 1) {
+      await appendBlocks(client, blockId, children.slice(1));
+    }
+    return;
+  }
+
+  if (sourceBlock.type === "column_list") {
+    const columns = children.filter((child): child is Extract<NotionBlock, { type: "column" }> => child.type === "column");
+    if (columns.length === 0 || !columns.some((column) => needsDeferredChildWrites(column))) {
+      return;
+    }
+
+    const createdColumns = await listChildren(client, blockId);
+    for (let index = 0; index < columns.length; index += 1) {
+      if (!needsDeferredChildWrites(columns[index])) {
+        continue;
+      }
+      const columnId = (createdColumns[index] as any)?.id;
+      if (typeof columnId !== "string" || columnId.length === 0) {
+        throw new Error("Notion append returned no id for column block");
+      }
+      await appendDeferredChildren(client, columnId, columns[index]);
+    }
+  }
+}
+
+async function appendPreparedBlocks(
+  client: Client,
+  parentBlockId: string,
+  blocks: NotionBlock[],
+  afterBlockId?: string,
+) {
+  const results: any[] = [];
+
+  for (let index = 0; index < blocks.length; index += NOTION_BLOCK_CHILDREN_LIMIT) {
+    const chunk = blocks.slice(index, index + NOTION_BLOCK_CHILDREN_LIMIT);
+    const appendRequest: AppendBlockChildrenParameters = {
+      block_id: parentBlockId,
+      children: chunk.map((block) => prepareBlockForWrite(block)) as AppendBlockChildrenParameters["children"],
+      ...(afterBlockId
+        ? { position: { type: "after_block", after_block: { id: afterBlockId } } }
+        : {}),
+    };
+    const response = await client.blocks.children.append(appendRequest);
+    results.push(...response.results);
+
+    if (response.results.length > 0) {
+      afterBlockId = (response.results[response.results.length - 1] as any).id;
+    }
+
+    for (let offset = 0; offset < chunk.length; offset += 1) {
+      if (!needsDeferredChildWrites(chunk[offset])) {
+        continue;
+      }
+      const createdBlockId = (response.results[offset] as any)?.id;
+      if (typeof createdBlockId !== "string" || createdBlockId.length === 0) {
+        throw new Error("Notion append returned no id for child block");
+      }
+      await appendDeferredChildren(client, createdBlockId, chunk[offset]);
+    }
+  }
+
+  return results;
 }
 
 type PropertiesUpdate = UpdateDataSourceParameters["properties"];
@@ -260,7 +544,7 @@ async function getDataSourceId(client: Client, dbId: string): Promise<string> {
 
 /**
  * Get cached schema (properties) for a database.
- * In API 2025-09-03, properties live on the data source, not the database.
+ * Database properties live on the data source, not the database container.
  */
 export async function getCachedSchema(client: Client, dbId: string) {
   const cached = schemaCache.get(dbId);
@@ -274,13 +558,9 @@ export async function getCachedSchema(client: Client, dbId: string) {
 }
 
 export async function uploadFile(client: Client, fileUrl: string): Promise<{ id: string; blockType: string }> {
-  const filePath = fileURLToPath(fileUrl);
+  const { filePath, realFilePath } = await resolveWorkspaceUploadPath(fileUrl);
   const filename = basename(filePath);
   const contentType = getMimeType(filePath);
-
-  const fileStat = await stat(filePath);
-  if (!fileStat.isFile()) throw new Error(`Not a regular file: ${filePath}`);
-  if (fileStat.size > MAX_FILE_SIZE) throw new Error(`File too large (${Math.round(fileStat.size / 1024 / 1024)}MB). Max 20MB: ${filePath}`);
 
   const upload = await client.fileUploads.create({
     mode: "single_part",
@@ -288,7 +568,7 @@ export async function uploadFile(client: Client, fileUrl: string): Promise<{ id:
     content_type: contentType,
   });
 
-  const buffer = await readFile(filePath);
+  const buffer = await readFile(realFilePath);
   const blob = new Blob([buffer], { type: contentType });
 
   await client.fileUploads.send({
@@ -714,18 +994,52 @@ export async function createPage(
   const resolvedParent = typeof parent === "string"
     ? { type: "page_id" as const, page_id: parent }
     : parent;
+  const initialBlocks = blocks.slice(0, NOTION_BLOCK_CHILDREN_LIMIT);
+  const initialBlocksNeedDeferredWrites = initialBlocks.some((block) => needsDeferredChildWrites(block));
 
-  return client.pages.create({
+  const page = await client.pages.create({
     parent: resolvedParent,
     properties: {
       title: {
         title: titleRichText(title),
       },
     },
-    children: blocks as any[],
+    children: initialBlocks.map((block) => prepareBlockForWrite(block)) as any[],
     ...(icon ? { icon: { type: "emoji", emoji: icon as any } } : {}),
     ...(cover ? { cover: { type: "external", external: { url: cover } } } : {}),
   } as any);
+
+  const remainingBlocks = blocks.slice(NOTION_BLOCK_CHILDREN_LIMIT);
+  if (initialBlocksNeedDeferredWrites || remainingBlocks.length > 0) {
+    try {
+      if (initialBlocksNeedDeferredWrites) {
+        const createdInitialBlocks = await listChildren(client, (page as any).id);
+        for (let index = 0; index < initialBlocks.length; index += 1) {
+          if (!needsDeferredChildWrites(initialBlocks[index])) {
+            continue;
+          }
+          const createdBlockId = (createdInitialBlocks[index] as any)?.id;
+          if (typeof createdBlockId !== "string" || createdBlockId.length === 0) {
+            throw new Error("Notion page creation returned no id for child block");
+          }
+          await appendDeferredChildren(client, createdBlockId, initialBlocks[index]);
+        }
+      }
+
+      if (remainingBlocks.length > 0) {
+        await appendBlocks(client, (page as any).id, remainingBlocks);
+      }
+    } catch (error) {
+      try {
+        await client.pages.update({ page_id: (page as any).id, in_trash: true } as any);
+      } catch {
+        // Best-effort rollback: preserve the append failure as the caller-visible error.
+      }
+      throw error;
+    }
+  }
+
+  return page;
 }
 
 export async function findWorkspacePages(
@@ -768,18 +1082,7 @@ export async function findWorkspacePages(
 }
 
 export async function appendBlocks(client: Client, pageId: string, blocks: NotionBlock[]) {
-  const results: any[] = [];
-
-  for (let index = 0; index < blocks.length; index += 100) {
-    const chunk = blocks.slice(index, index + 100);
-    const response = await client.blocks.children.append({
-      block_id: pageId,
-      children: chunk as any[],
-    });
-    results.push(...response.results);
-  }
-
-  return results;
+  return appendPreparedBlocks(client, pageId, blocks);
 }
 
 export async function appendBlocksAfter(
@@ -788,23 +1091,7 @@ export async function appendBlocksAfter(
   blocks: NotionBlock[],
   afterBlockId?: string,
 ) {
-  const results: any[] = [];
-
-  for (let index = 0; index < blocks.length; index += 100) {
-    const chunk = blocks.slice(index, index + 100);
-    const response = await client.blocks.children.append({
-      block_id: pageId,
-      children: chunk as any[],
-      ...(afterBlockId ? { after: afterBlockId } : {}),
-    } as any);
-    results.push(...response.results);
-
-    if (response.results.length > 0) {
-      afterBlockId = (response.results[response.results.length - 1] as any).id;
-    }
-  }
-
-  return results;
+  return appendPreparedBlocks(client, pageId, blocks, afterBlockId);
 }
 
 export async function listChildren(client: Client, blockId: string) {
@@ -853,7 +1140,10 @@ export async function updateBlock(
   blockId: string,
   payload: Record<string, unknown>,
 ) {
-  return (client.blocks as any).update({ block_id: blockId, ...payload });
+  return (client.blocks as any).update({
+    block_id: blockId,
+    ...normalizeBlockUpdatePayloadRichTextForWrite(payload),
+  });
 }
 
 export async function getPage(client: Client, pageId: string) {
@@ -1023,6 +1313,134 @@ export async function queryDatabase(
   return results;
 }
 
+export type ListViewsParameters = Pick<
+  ListDatabaseViewsParameters,
+  "database_id" | "data_source_id" | "page_size" | "start_cursor"
+>;
+
+export async function listViews(client: Client, params: ListViewsParameters) {
+  return client.views.list(params);
+}
+
+export async function getView(client: Client, viewId: string) {
+  return client.views.retrieve({ view_id: viewId });
+}
+
+export type ViewType =
+  | "table"
+  | "board"
+  | "list"
+  | "calendar"
+  | "timeline"
+  | "gallery"
+  | "form"
+  | "chart"
+  | "map";
+
+export type CreateViewInput = {
+  database_id: string;
+  name: string;
+  type: ViewType;
+  filter?: unknown;
+  sorts?: unknown;
+  quick_filters?: unknown;
+  configuration?: unknown;
+  position?: unknown;
+};
+
+export type UpdateViewInput = {
+  name?: string;
+  filter?: unknown;
+  sorts?: unknown;
+  quick_filters?: unknown;
+  configuration?: unknown;
+};
+
+export type CompactView = {
+  id: unknown;
+  object: unknown;
+  name?: unknown;
+  type?: unknown;
+  url?: unknown;
+  data_source_id?: unknown;
+};
+
+export function compactView(view: any): CompactView {
+  return {
+    id: view?.id,
+    object: view?.object,
+    ...(view?.name !== undefined ? { name: view.name } : {}),
+    ...(view?.type !== undefined ? { type: view.type } : {}),
+    ...(view?.url !== undefined ? { url: view.url } : {}),
+    ...(view?.data_source_id !== undefined ? { data_source_id: view.data_source_id } : {}),
+  };
+}
+
+export async function createView(client: Client, input: CreateViewInput) {
+  const dataSourceId = await getDataSourceId(client, input.database_id);
+  const body: Record<string, unknown> = {
+    database_id: input.database_id,
+    data_source_id: dataSourceId,
+    name: input.name,
+    type: input.type,
+  };
+  if (input.filter !== undefined) body.filter = input.filter;
+  if (input.sorts !== undefined) body.sorts = input.sorts;
+  if (input.quick_filters !== undefined) body.quick_filters = input.quick_filters;
+  if (input.configuration !== undefined) body.configuration = input.configuration;
+  if (input.position !== undefined) body.position = input.position;
+
+  // Live create-view needs database_id, while the generated SDK layer still
+  // requires data_source_id. Send both after resolving the database's primary
+  // data source.
+  const result = await client.views.create(body as CreateViewParameters);
+  return compactView(result);
+}
+
+export async function updateView(client: Client, viewId: string, updates: UpdateViewInput) {
+  const body: Record<string, unknown> = { view_id: viewId };
+  for (const key of ["name", "filter", "sorts", "quick_filters", "configuration"] as const) {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) {
+      body[key] = updates[key];
+    }
+  }
+
+  const result = await client.views.update(body as UpdateViewParameters);
+  return compactView(result);
+}
+
+export async function deleteView(client: Client, viewId: string) {
+  const result = await client.views.delete({ view_id: viewId } as DeleteViewParameters);
+  return {
+    success: true,
+    deleted: viewId,
+    view: compactView(result),
+  };
+}
+
+export async function queryView(
+  client: Client,
+  viewId: string,
+  options: { page_size?: number; start_cursor?: string } = {},
+) {
+  const query = await client.views.queries.create({
+    view_id: viewId,
+    ...(options.page_size !== undefined ? { page_size: options.page_size } : {}),
+  });
+
+  try {
+    const results = await client.views.queries.results({
+      view_id: viewId,
+      query_id: query.id,
+      ...(options.page_size !== undefined ? { page_size: options.page_size } : {}),
+      ...(options.start_cursor !== undefined ? { start_cursor: options.start_cursor } : {}),
+    });
+    return { query, results };
+  } finally {
+    await client.views.queries.delete({ view_id: viewId, query_id: query.id });
+  }
+}
+
 export async function listComments(client: Client, pageId: string) {
   const results: any[] = [];
   let start_cursor: string | undefined;
@@ -1043,8 +1461,8 @@ export async function listComments(client: Client, pageId: string) {
 export async function addComment(client: Client, pageId: string, richText: any[]) {
   return client.comments.create({
     parent: { page_id: pageId },
-    rich_text: richText,
-  });
+    rich_text: splitLongRichText(richText),
+  } as any);
 }
 
 export async function createDatabaseEntry(

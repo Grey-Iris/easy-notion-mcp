@@ -5,6 +5,113 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.9.0] - 2026-05-09
+
+### Added
+
+- **Dry-run destructive operations.** MCP destructive tools accept `dry_run:
+  true`, and the CLI accepts `--dry-run` on destructive content, page,
+  database-entry, and block commands to preview validation and planned effects
+  without mutating Notion.
+- **Toggle archiving.** `archive_toggle` and `content archive-toggle` archive
+  one toggle or toggleable heading by title without deleting or rewriting its
+  children.
+- **Toggle restore by archived block ID.** `restore_toggle` and
+  `content restore-toggle` restore the archived block ID returned by
+  `archive_toggle`, because Notion does not expose archived child enumeration
+  for title search or `read_page include_archived`.
+- **Find-replace match counts.** `find_replace` and `content find-replace`
+  successful responses now include `match_count`, counted from a preflight
+  Notion markdown read before the atomic update.
+- **Heading-preserving section updates.** `update_section` now accepts
+  `preserve_heading`, and `content update-section` accepts
+  `--preserve-heading`, to keep the matched heading block while destructively
+  replacing only its body.
+- **Page-content search.** `search_in_page` and `content search-in-page`
+  perform read-only, case-insensitive raw block text search across a page or
+  one toggle scope, with snippets and toggle context for matches.
+
+### Security
+
+- **Refreshed `package-lock.json` to current patch versions of audit-flagged
+  transitive deps** (`hono`, `express-rate-limit`, `ip-address`, `fast-uri`,
+  `postcss`). End-user impact is nil: the npm tarball does not ship
+  `package-lock.json`. Refreshed for our own CI and audit posture, per the
+  "patch rather than whitelist" rule in CLAUDE.md.
+
+## [0.8.0] - 2026-05-08
+
+### Added
+
+- **Targeted read tools.** Agents can read individual sections, blocks, and
+  toggles without fetching an entire page.
+- **Saved view tools.** Agents can list, read, query, create, update, and
+  delete Notion database views using the SDK-supported Views API surface.
+- **Toggle body updates.** `update_toggle` replaces one toggle or toggleable
+  heading body by title while preserving the container block ID, giving long
+  script-toggle workflows a targeted alternative to page-wide `find_replace`.
+- **MCP documentation resources.** Tool descriptions can point to shared
+  markdown syntax, warnings, property pagination, and data-source examples
+  instead of repeating long reference text inline.
+
+### Fixed
+
+- **`meeting_notes` blocks are explicitly reported as omitted on reads.**
+  Notion's renamed transcription block type remains read-only in this
+  markdown dialect; read responses surface it through `omitted_block_types`
+  warnings instead of silently dropping it.
+- **Warning documentation resource matches runtime contracts.** The warnings
+  resource documents the emitted `truncated_properties`,
+  `bookmark_lost_on_atomic_replace`, and `embed_lost_on_atomic_replace` shapes.
+- **CLI accepts option-like markdown and text values.** Values such as `---`,
+  `--new`, and `--profile` are treated as command values when provided in value
+  positions.
+- **Callout child writes are shaped safely.** Nested callout children are
+  normalized, deferred, and split consistently with other child containers.
+
+## [0.7.0] - 2026-05-07
+
+### Added
+
+- **Profile-aware `easy-notion` CLI.** The package now exposes an
+  `easy-notion` binary for low-context Notion access without registering
+  another MCP server. CLI profiles support separate token environment
+  variables, readonly/readwrite modes, optional root page defaults, and
+  commands for users, search, pages, content edits, blocks, comments, and
+  database entries.
+- **Lightweight `easy-notion-cli` skill.** The repository and npm package now
+  include `skills/easy-notion-cli/`, which teaches agents to use the CLI for
+  multi-profile Notion workflows instead of loading multiple MCP tool
+  surfaces.
+- **Expanded live E2E coverage.** The live MCP suite now covers
+  `append_content`, `find_replace`, `duplicate_page`,
+  `update_database_entry`, and `add_database_entries` against real Notion.
+
+### Fixed
+
+- **Large markdown writes are more reliable.** Page creation and append paths
+  chunk more than 100 top-level blocks, defer nested block children that Notion
+  cannot accept inline, and split outgoing rich-text segments at Notion's
+  2,000-character request limit.
+- **`update_section` preserves first-section ordering.** Replacing a section
+  at the start of a page now updates the existing heading in place as the
+  insertion anchor instead of appending replacement content at the end.
+- **README HTTP startup examples now use the installable package name.**
+  Fresh `npx` users should run
+  `npx -p easy-notion-mcp easy-notion-mcp-http`; the HTTP binary is a
+  secondary bin inside `easy-notion-mcp`, not a standalone package.
+- **Vitest ignores agent worktrees.** Test discovery now excludes
+  `.mcp-agents/` worktrees so stale copied tests do not inflate local runs.
+
+### Security
+
+- **`file://` uploads are contained to `NOTION_MCP_WORKSPACE_ROOT`.** Stdio
+  file uploads now resolve real paths, reject symlink/prefix escapes, reject
+  non-files and over-20MB files before Notion side effects, and default the
+  allowed root to the current working directory.
+
 ## [0.6.0] - 2026-05-01
 
 ### Breaking changes
@@ -74,6 +181,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Retroactive entry — the v0.5.1 release commit (`e8a9e21`) bumped package
   versions but did not update CHANGELOG. Added during v0.6.0 release prep.
+
+### Breaking changes
+
+- **`replace_content` now uses Notion's atomic `pages.updateMarkdown` endpoint
+  (`type: "replace_content"`) instead of the previous delete-children +
+  append-children loop.** Block IDs, deep-link anchors, and inline-comment
+  threads on matched blocks are now preserved across `replace_content`. Side
+  effect of the previous delete-then-append: callers that relied on
+  `replace_content` to wipe a page clean of block types the parser doesn't
+  represent (`synced_block`, `child_page`, `child_database`, `link_to_page`)
+  no longer get the *atomic* wipe of those types — they are simply not
+  present in the new content. Use the Notion UI for those types or
+  duplicate_page to preserve them.
+- **Response shape on `replace_content` changed.** Previously
+  `{ deleted: number, appended: number }`; now
+  `{ success: true, truncated?: true, warnings?: Array<{code, ...}> }`. The
+  warnings array surfaces `unmatched_blocks` (when Notion's
+  `unknown_block_ids` is non-empty) and `bookmark_lost_on_atomic_replace` /
+  `embed_lost_on_atomic_replace` (Enhanced Markdown has no input form for
+  bookmarks/embeds; we emit bare URLs and warn).
+- **`replace_content` description softened.** Previously labeled
+  DESTRUCTIVE with no rollback; now describes block-ID preservation honestly
+  and names the block types that don't survive (child_page, synced_block,
+  child_database, link_to_page).
+
+### Added
+
+- **New tool `update_block`.** Surgical single-block edits via markdown,
+  preserving the block's identity (deep-link anchors and inline-comment
+  threads survive). Updatable block types: paragraph, heading_1/2/3,
+  bulleted_list_item, numbered_list_item, toggle, quote, callout, to_do,
+  code, equation. Pre-fetches `blocks.retrieve` to validate the existing
+  block type and return a friendly error on type mismatch instead of
+  forwarding the raw Notion API error. Supports `archived: true` to delete
+  any block.
+- **GFM-with-extensions → Notion Enhanced Markdown translator**
+  (`src/markdown-to-enhanced.ts`). Translates this server's input dialect
+  (`+++` toggles, `::: columns`, `> [!NOTE]` callouts, `[toc]`,
+  `$$equation$$`, bare-URL bookmarks) to the Enhanced Markdown XML form
+  Notion's atomic endpoints actually parse. Ground truth from the published
+  spec at `developers.notion.com/guides/data-apis/enhanced-markdown` plus
+  the live probes documented in
+  `.meta/research/pr3-live-probe-findings-2026-04-28.md`.
+- **`find_replace` now surfaces `unknown_block_ids`** from the API response
+  as a `warnings: [{ code: "unmatched_blocks", block_ids: [...] }]` entry
+  instead of discarding the field. Aligns with the parallel surfacing on
+  `replace_content`.
 
 ## [0.5.0] - 2026-04-23
 
@@ -228,7 +382,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking changes
 
 - **Static-token HTTP mode now requires `NOTION_MCP_BEARER`.** Starting
-  `npx easy-notion-mcp-http` (or `node dist/http.js`) with only
+  `npx -p easy-notion-mcp easy-notion-mcp-http` (or `node dist/http.js`) with only
   `NOTION_TOKEN` set refuses to boot. Set a shared-secret bearer and
   configure every MCP client to send it on the `Authorization` header:
 

@@ -87,6 +87,28 @@ describe("update_block handler", () => {
     }
   });
 
+  it("splits long paragraph rich_text in block update payloads", async () => {
+    const notion = makeNotion({ type: "paragraph" });
+    const { client, close } = await connect(notion);
+    try {
+      const markdown = "x".repeat(2001);
+
+      await client.callTool({
+        name: "update_block",
+        arguments: {
+          block_id: "block-1",
+          markdown,
+        },
+      });
+
+      const call = notion.blocks.update.mock.calls[0][0] as any;
+      expect(call.paragraph.rich_text.map((item: any) => item.text.content.length)).toEqual([2000, 1]);
+      expect(call.paragraph.rich_text.map((item: any) => item.text.content).join("")).toBe(markdown);
+    } finally {
+      await close();
+    }
+  });
+
   describe("forwards markdown for each editable type with the correct top-level key", () => {
     const cases: Array<{ existingType: string; markdown: string; key: string; assertContent?: (payload: any) => void }> = [
       {
@@ -258,6 +280,56 @@ describe("update_block handler", () => {
       expect(payload.archived).toBeUndefined();
       const response = JSON.parse(parseToolText(result));
       expect(response).toEqual({ id: "d1", type: "divider", archived: true });
+    } finally {
+      await close();
+    }
+  });
+
+  it("dry-run validates markdown update without calling blocks.update", async () => {
+    const notion = makeNotion({ type: "paragraph" });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_block",
+        arguments: {
+          block_id: "block-1",
+          markdown: "Updated paragraph text.",
+          dry_run: true,
+        },
+      });
+
+      expect(notion.blocks.retrieve).toHaveBeenCalledWith({ block_id: "block-1" });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(JSON.parse(parseToolText(result))).toEqual({
+        id: "block-1",
+        type: "paragraph",
+        dry_run: true,
+        operation: "update_block",
+        would_update: true,
+      });
+    } finally {
+      await close();
+    }
+  });
+
+  it("dry-run validates archive without calling blocks.update", async () => {
+    const notion = makeNotion({ type: "divider" });
+    const { client, close } = await connect(notion);
+    try {
+      const result = await client.callTool({
+        name: "update_block",
+        arguments: { block_id: "d1", archived: true, dry_run: true },
+      });
+
+      expect(notion.blocks.retrieve).toHaveBeenCalledWith({ block_id: "d1" });
+      expect(notion.blocks.update).not.toHaveBeenCalled();
+      expect(JSON.parse(parseToolText(result))).toEqual({
+        id: "d1",
+        type: "divider",
+        dry_run: true,
+        operation: "update_block",
+        would_archive: true,
+      });
     } finally {
       await close();
     }

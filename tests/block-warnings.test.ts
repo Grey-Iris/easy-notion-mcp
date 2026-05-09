@@ -84,6 +84,9 @@ function bulleted(id: string): Raw {
 function syncedBlock(id: string): Raw {
   return { id, type: "synced_block", synced_block: { synced_from: null }, has_children: false };
 }
+function meetingNotes(id: string): Raw {
+  return { id, type: "meeting_notes", meeting_notes: {}, has_children: false };
+}
 function linkToPage(id: string): Raw {
   return { id, type: "link_to_page", link_to_page: { type: "page_id", page_id: "some-page" }, has_children: false };
 }
@@ -133,6 +136,22 @@ describe("Block-warnings on read_page and duplicate_page (G-3b)", () => {
       const response = extractResponse(parseToolText(result));
       expect(response.warnings).toEqual([
         { code: "omitted_block_types", blocks: [{ id: "sync-1", type: "synced_block" }] },
+      ]);
+    } finally {
+      await close();
+    }
+  });
+
+  it("read_page with a meeting_notes block reports it as omitted", async () => {
+    const tree: Record<string, Raw[]> = {
+      "page-meeting-notes": [para("b1"), meetingNotes("meeting-1")],
+    };
+    const { client, close } = await connect(makeNotion(tree));
+    try {
+      const result = await client.callTool({ name: "read_page", arguments: { page_id: "page-meeting-notes" } });
+      const response = extractResponse(parseToolText(result));
+      expect(response.warnings).toEqual([
+        { code: "omitted_block_types", blocks: [{ id: "meeting-1", type: "meeting_notes" }] },
       ]);
     } finally {
       await close();

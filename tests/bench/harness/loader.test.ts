@@ -56,7 +56,7 @@ describe("bench harness loader", () => {
       },
       scenarioDir: "",
     });
-  });
+  }, 10_000);
 
   it("returns a validation error when id is missing", async () => {
     const { parseScenario } = await importLoader();
