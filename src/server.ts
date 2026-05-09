@@ -434,6 +434,21 @@ function richTextPlainText(richText: any[]): string {
   return richText.map((text: any) => text.plain_text ?? text.text?.content ?? "").join("");
 }
 
+function normalizeRichText(items: any[] | undefined): RichText[] {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    const content = item?.plain_text ?? item?.text?.content ?? "";
+    const link = item?.text?.link?.url ?? item?.href ?? null;
+    const annotations = item?.annotations;
+    const out: RichText = {
+      type: "text",
+      text: { content, link: link ? { url: link } : null },
+    };
+    if (annotations) out.annotations = annotations;
+    return out;
+  });
+}
+
 function normalizedHeadingText(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
@@ -518,7 +533,19 @@ export function updateSectionPreserveHeadingBody(
 }
 
 export type OmittedBlock = { id: string; type: string };
-export type FetchContext = { omitted: OmittedBlock[] };
+export const READ_ONLY_BLOCK_RENDERED_MESSAGE =
+  "Rendered read-only Notion AI meeting notes as ordinary markdown. Round-tripping this markdown replaces the native meeting-notes block with ordinary blocks. Blocks marked transcript_omitted had transcript content available but not included.";
+export type ReadOnlyRenderedBlock = {
+  id: string;
+  type: "transcription" | "meeting_notes";
+  transcript_omitted?: boolean;
+  sections_unreadable?: Array<{ key: string; block_id: string; code?: string }>;
+};
+export type FetchContext = {
+  omitted: OmittedBlock[];
+  renderedReadOnly?: ReadOnlyRenderedBlock[];
+  includeTranscript?: boolean;
+};
 
 /**
  * Block types that `normalizeBlock` can map to a `NotionBlock`. Must stay in
@@ -531,7 +558,7 @@ export const SUPPORTED_BLOCK_TYPES = new Set<string>([
   "bulleted_list_item", "numbered_list_item", "quote", "callout",
   "equation", "table", "table_row", "column_list", "column", "code",
   "divider", "to_do", "table_of_contents", "bookmark", "embed",
-  "image", "file", "audio", "video",
+  "image", "file", "audio", "video", "transcription", "meeting_notes",
 ]);
 
 /**
@@ -674,50 +701,50 @@ export function normalizeBlock(block: any): NotionBlock | null {
     case "heading_1":
       return {
         type: "heading_1",
-        heading_1: { rich_text: block.heading_1.rich_text as any, is_toggleable: block.heading_1.is_toggleable ?? false },
+        heading_1: { rich_text: normalizeRichText(block.heading_1.rich_text), is_toggleable: block.heading_1.is_toggleable ?? false },
       };
     case "heading_2":
       return {
         type: "heading_2",
-        heading_2: { rich_text: block.heading_2.rich_text as any, is_toggleable: block.heading_2.is_toggleable ?? false },
+        heading_2: { rich_text: normalizeRichText(block.heading_2.rich_text), is_toggleable: block.heading_2.is_toggleable ?? false },
       };
     case "heading_3":
       return {
         type: "heading_3",
-        heading_3: { rich_text: block.heading_3.rich_text as any, is_toggleable: block.heading_3.is_toggleable ?? false },
+        heading_3: { rich_text: normalizeRichText(block.heading_3.rich_text), is_toggleable: block.heading_3.is_toggleable ?? false },
       };
     case "paragraph":
       return {
         type: "paragraph",
-        paragraph: { rich_text: block.paragraph.rich_text as any },
+        paragraph: { rich_text: normalizeRichText(block.paragraph.rich_text) },
       };
     case "toggle":
       return {
         type: "toggle",
         toggle: {
-          rich_text: block.toggle.rich_text as any,
+          rich_text: normalizeRichText(block.toggle.rich_text),
         },
       };
     case "bulleted_list_item":
       return {
         type: "bulleted_list_item",
-        bulleted_list_item: { rich_text: block.bulleted_list_item.rich_text as any },
+        bulleted_list_item: { rich_text: normalizeRichText(block.bulleted_list_item.rich_text) },
       };
     case "numbered_list_item":
       return {
         type: "numbered_list_item",
-        numbered_list_item: { rich_text: block.numbered_list_item.rich_text as any },
+        numbered_list_item: { rich_text: normalizeRichText(block.numbered_list_item.rich_text) },
       };
     case "quote":
       return {
         type: "quote",
-        quote: { rich_text: block.quote.rich_text as any },
+        quote: { rich_text: normalizeRichText(block.quote.rich_text) },
       };
     case "callout":
       return {
         type: "callout",
         callout: {
-          rich_text: block.callout.rich_text as any,
+          rich_text: normalizeRichText(block.callout.rich_text),
           icon: block.callout.icon ?? { type: "emoji", emoji: "\u{1F4A1}" },
         },
       };
@@ -747,7 +774,7 @@ export function normalizeBlock(block: any): NotionBlock | null {
       return {
         type: "table_row",
         table_row: {
-          cells: (block.table_row.cells ?? []).map((cell: any) => cell as RichText[]),
+          cells: (block.table_row.cells ?? []).map((cell: any) => normalizeRichText(cell)),
         },
       };
     case "column_list":
@@ -764,7 +791,7 @@ export function normalizeBlock(block: any): NotionBlock | null {
       return {
         type: "code",
         code: {
-          rich_text: block.code.rich_text as any,
+          rich_text: normalizeRichText(block.code.rich_text),
           language: block.code.language,
         },
       };
@@ -777,7 +804,7 @@ export function normalizeBlock(block: any): NotionBlock | null {
       return {
         type: "to_do",
         to_do: {
-          rich_text: block.to_do.rich_text as any,
+          rich_text: normalizeRichText(block.to_do.rich_text),
           checked: block.to_do.checked,
         },
       };
@@ -827,6 +854,16 @@ export function normalizeBlock(block: any): NotionBlock | null {
       const url = block.video?.type === "external" ? block.video.external.url
         : block.video?.type === "file" ? block.video.file?.url : "";
       return { type: "video", video: { type: "external", external: { url: url ?? "" } } };
+    }
+    case "transcription":
+    case "meeting_notes": {
+      const payload = block[block.type] ?? {};
+      const titlePlain = richTextPlainText(Array.isArray(payload.title) ? payload.title : []);
+      const titleText = titlePlain.length > 0 ? `AI Meeting Notes: ${titlePlain}` : "AI Meeting Notes";
+      return {
+        type: "toggle",
+        toggle: { rich_text: [{ type: "text", text: { content: titleText, link: null } }] },
+      };
     }
     default:
       return null;
