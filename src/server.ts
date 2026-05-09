@@ -1334,10 +1334,19 @@ function replacementToggleBodyBlocks(parsed: NotionBlock[], targetTitle: string)
   return getParsedBlockChildren(parsed[0]);
 }
 
-function omittedBlockWarnings(ctx: FetchContext): unknown[] {
-  return ctx.omitted.length > 0
-    ? [{ code: "omitted_block_types", blocks: ctx.omitted }]
-    : [];
+function readWarnings(ctx: FetchContext): unknown[] {
+  const out: unknown[] = [];
+  if (ctx.omitted.length > 0) {
+    out.push({ code: "omitted_block_types", blocks: ctx.omitted });
+  }
+  if ((ctx.renderedReadOnly ?? []).length > 0) {
+    out.push({
+      code: "read_only_block_rendered",
+      blocks: ctx.renderedReadOnly,
+      message: READ_ONLY_BLOCK_RENDERED_MESSAGE,
+    });
+  }
+  return out;
 }
 
 function targetedBlocksToMarkdown(blocks: NotionBlock[]): string {
@@ -1718,6 +1727,10 @@ Long titles are paginated with max_property_items. For markdown conventions, war
           type: "number",
           description:
             "Max rich_text segments returned when a page title exceeds 25 segments (uncommon in practice). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint.",
+        },
+        include_transcript: {
+          type: "boolean",
+          description: "Include Notion AI meeting-notes transcript sections. Default false. Summary and Notes sections are always included when present.",
         },
       },
       required: ["page_id"],
@@ -2552,13 +2565,13 @@ export function createServer(
             });
           }
 
-          const ctx: FetchContext = { omitted: [] };
+          const ctx: FetchContext = { omitted: [], renderedReadOnly: [] };
           const blocks = await fetchRawBlocksRecursive(
             notion,
             allBlocks.slice(range.headingIndex, range.sectionEnd),
             ctx,
           );
-          const warnings = omittedBlockWarnings(ctx);
+          const warnings = readWarnings(ctx);
           return textResponse({
             page_id,
             heading: getBlockHeadingText(range.headingBlock) ?? heading,
@@ -2571,7 +2584,7 @@ export function createServer(
         case "read_block": {
           const notion = notionClientFactory();
           const { block_id } = args as { block_id: string };
-          const ctx: FetchContext = { omitted: [] };
+          const ctx: FetchContext = { omitted: [], renderedReadOnly: [] };
           const { raw, block } = await fetchBlockRecursive(notion, block_id, ctx);
           if (!block) {
             return textResponse({
@@ -2581,7 +2594,7 @@ export function createServer(
             });
           }
 
-          const warnings = omittedBlockWarnings(ctx);
+          const warnings = readWarnings(ctx);
           return textResponse({
             id: raw.id ?? block_id,
             type: raw.type ?? block.type,
@@ -2600,9 +2613,9 @@ export function createServer(
             });
           }
 
-          const ctx: FetchContext = { omitted: [] };
+          const ctx: FetchContext = { omitted: [], renderedReadOnly: [] };
           const blocks = await fetchRawBlocksRecursive(notion, [result.block], ctx);
-          const warnings = omittedBlockWarnings(ctx);
+          const warnings = readWarnings(ctx);
           return textResponse({
             page_id,
             title: getToggleTitle(result.block) ?? title,
@@ -2865,11 +2878,12 @@ export function createServer(
         }
         case "read_page": {
           const notion = notionClientFactory();
-          const { page_id, include_metadata, max_blocks, max_property_items } = args as {
+          const { page_id, include_metadata, max_blocks, max_property_items, include_transcript } = args as {
             page_id: string;
             include_metadata?: boolean;
             max_blocks?: number;
             max_property_items?: unknown;
+            include_transcript?: boolean;
           };
           const cap = max_property_items === undefined ? 75 : max_property_items;
           if (
@@ -2891,7 +2905,11 @@ export function createServer(
 
           let blocks: NotionBlock[];
           let hasMore = false;
-          const ctx: FetchContext = { omitted: [] };
+          const ctx: FetchContext = {
+            omitted: [],
+            renderedReadOnly: [],
+            includeTranscript: include_transcript === true,
+          };
 
           if (max_blocks !== undefined && max_blocks > 0) {
             const result = await fetchBlocksWithLimit(notion, page_id, max_blocks, ctx);
@@ -2912,10 +2930,7 @@ export function createServer(
             response.has_more = true;
           }
 
-          const warnings: unknown[] = [];
-          if (ctx.omitted.length > 0) {
-            warnings.push({ code: "omitted_block_types", blocks: ctx.omitted });
-          }
+          const warnings: unknown[] = [...readWarnings(ctx)];
           if (propertyWarnings.length > 0) {
             warnings.push({
               code: "truncated_properties",
@@ -2950,7 +2965,7 @@ export function createServer(
           const explicitParent = parent_page_id ?? sourcePage.parent?.page_id;
           const parent = await resolveParent(notion, explicitParent);
 
-          const ctx: FetchContext = { omitted: [] };
+          const ctx: FetchContext = { omitted: [], renderedReadOnly: [], includeTranscript: false };
           const sourceBlocks = await fetchBlocksRecursive(notion, page_id, ctx);
           const sourceIcon =
             sourcePage.icon?.type === "emoji" ? sourcePage.icon.emoji : undefined;
@@ -2965,8 +2980,9 @@ export function createServer(
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
           }
-          if (ctx.omitted.length > 0) {
-            response.warnings = [{ code: "omitted_block_types", blocks: ctx.omitted }];
+          const warnings = readWarnings(ctx);
+          if (warnings.length > 0) {
+            response.warnings = warnings;
           }
           return textResponse(response);
         }
