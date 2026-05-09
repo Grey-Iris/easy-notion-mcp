@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-05-09
+
+### Added
+
+- **Notion AI meeting-notes read support.** `read_page`, `read_section`,
+  `read_block`, `read_toggle`, and `duplicate_page` render Notion's
+  read-only AI meeting-notes (and deprecated `transcription`) blocks
+  as a synthetic toggle containing the title, an optional recording
+  timestamp callout, and `## Summary` / `## Notes` heading sections.
+  `read_page` accepts `include_transcript: true` to include transcript
+  sections; the CLI exposes `--include-transcript` on `page read`.
+  A new `read_only_block_rendered` warning is emitted alongside the
+  rendered markdown, with `transcript_omitted` and `sections_unreadable`
+  subfields documenting what was suppressed or failed to fetch.
+  Round-tripping the markdown through `replace_content` replaces these
+  blocks with ordinary blocks; the warning lets agents detect that
+  before writing back.
+
 ## [0.9.0] - 2026-05-09
 
 ### Added

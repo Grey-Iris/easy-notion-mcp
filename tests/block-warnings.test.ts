@@ -84,8 +84,30 @@ function bulleted(id: string): Raw {
 function syncedBlock(id: string): Raw {
   return { id, type: "synced_block", synced_block: { synced_from: null }, has_children: false };
 }
-function meetingNotes(id: string): Raw {
-  return { id, type: "meeting_notes", meeting_notes: {}, has_children: false };
+function meetingNotes(
+  id: string,
+  options: {
+    title?: any[];
+    status?: string;
+    children?: Record<string, string>;
+    recording?: Record<string, any> | null;
+    has_children?: boolean;
+  } = {},
+): Raw {
+  return {
+    id,
+    type: "meeting_notes",
+    meeting_notes: {
+      title: options.title ?? [],
+      status: options.status ?? "notes_ready",
+      children: options.children ?? {},
+      recording: "recording" in options ? options.recording : null,
+    },
+    has_children: options.has_children ?? false,
+  };
+}
+function transcription(id: string): Raw {
+  return { id, type: "transcription", transcription: { title: [], status: "notes_ready", children: {}, recording: null }, has_children: false };
 }
 function linkToPage(id: string): Raw {
   return { id, type: "link_to_page", link_to_page: { type: "page_id", page_id: "some-page" }, has_children: false };
@@ -142,7 +164,7 @@ describe("Block-warnings on read_page and duplicate_page (G-3b)", () => {
     }
   });
 
-  it("read_page with a meeting_notes block reports it as omitted", async () => {
+  it("read_page with a meeting_notes block reports it as a rendered read-only block", async () => {
     const tree: Record<string, Raw[]> = {
       "page-meeting-notes": [para("b1"), meetingNotes("meeting-1")],
     };
@@ -151,7 +173,11 @@ describe("Block-warnings on read_page and duplicate_page (G-3b)", () => {
       const result = await client.callTool({ name: "read_page", arguments: { page_id: "page-meeting-notes" } });
       const response = extractResponse(parseToolText(result));
       expect(response.warnings).toEqual([
-        { code: "omitted_block_types", blocks: [{ id: "meeting-1", type: "meeting_notes" }] },
+        {
+          code: "read_only_block_rendered",
+          blocks: [{ id: "meeting-1", type: "meeting_notes" }],
+          message: expect.stringContaining("read-only Notion AI meeting notes"),
+        },
       ]);
     } finally {
       await close();
@@ -327,11 +353,14 @@ describe("Block-warnings on read_page and duplicate_page (G-3b)", () => {
       file: (id) => ({ id, type: "file", file: { type: "external", external: { url: "https://example.com/f.pdf" }, name: "f.pdf" }, has_children: false }),
       audio: (id) => ({ id, type: "audio", audio: { type: "external", external: { url: "https://example.com/a.mp3" } }, has_children: false }),
       video: (id) => ({ id, type: "video", video: { type: "external", external: { url: "https://example.com/v.mp4" } }, has_children: false }),
+      meeting_notes: meetingNotes,
+      transcription,
     };
     for (const type of SUPPORTED_BLOCK_TYPES) {
       expect(builders[type], `builder missing for supported type '${type}' — add one to this test`).toBeDefined();
     }
     for (const type of SUPPORTED_BLOCK_TYPES) {
+      if (type === "meeting_notes" || type === "transcription") continue; // covered by G3b-12 and tests/meeting-notes-read.test.ts
       const tree = { "page-invariant": [builders[type](`${type}-block`)] };
       const { client, close } = await connect(makeNotion(tree));
       try {
@@ -345,5 +374,10 @@ describe("Block-warnings on read_page and duplicate_page (G-3b)", () => {
         await close();
       }
     }
+  });
+
+  it("G3b-12: SUPPORTED_BLOCK_TYPES includes Notion AI meeting notes variants", () => {
+    expect(SUPPORTED_BLOCK_TYPES.has("meeting_notes")).toBe(true);
+    expect(SUPPORTED_BLOCK_TYPES.has("transcription")).toBe(true);
   });
 });

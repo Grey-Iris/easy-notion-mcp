@@ -494,7 +494,9 @@ Yes. Round-trip fidelity is a core design guarantee of easy-notion-mcp, not a si
 
 What you write is what you read back. `read_page` returns the exact same markdown syntax that `create_page` accepts — headings, lists, tables, callouts, toggles, columns, equations, all of it.
 
-When a page contains Notion block types this server does not yet represent, such as `synced_block`, `child_database`, `child_page`, `link_to_page`, or `meeting_notes`, `read_page` includes a `warnings` field with the omitted block IDs and types. Round-tripping that markdown through `replace_content` would delete those blocks, so the warning lets agents avoid unsafe rewrites.
+When a page contains Notion block types this server does not yet represent, such as `synced_block`, `child_database`, `child_page`, or `link_to_page`, `read_page` includes a `warnings` field with code `omitted_block_types` listing the omitted block IDs and types. Round-tripping that markdown through `replace_content` would delete those blocks, so the warning lets agents avoid unsafe rewrites.
+
+Notion AI meeting-notes (and deprecated `transcription`) blocks are rendered as a synthetic toggle containing the title, an optional recording timestamp, and `## Summary` / `## Notes` sections; transcripts are included only with `read_page include_transcript: true`. These render reads emit a `read_only_block_rendered` warning to flag that round-tripping replaces the native meeting block with ordinary blocks.
 
 easy-notion-mcp enables agents to read a page, modify the markdown string, and write it back without losing formatting, structure, or content. No format translation. No block reconstruction. Agents edit Notion pages the same way they edit code — as text.
 
