@@ -1495,6 +1495,72 @@ describe.skipIf(!env.shouldRun)(
       expect(toggle.markdown).not.toContain(oldSentinel);
     }, 90_000);
 
+    it("G2b-smoke: create_page with one of each optional-container kind carrying inline depth-2 children completes in one create call", async () => {
+      const sentinels = {
+        toggle: "G2b smoke toggle child sentinel",
+        callout: "G2b smoke callout body sentinel",
+        bullet: "G2b smoke bullet child sentinel",
+        numbered: "G2b smoke numbered child sentinel",
+        h1: "G2b smoke h1 child sentinel",
+        h2: "G2b smoke h2 child sentinel",
+        h3: "G2b smoke h3 child sentinel",
+      };
+      const markdown = [
+        "+++ G2b smoke toggle parent",
+        sentinels.toggle,
+        "+++",
+        "",
+        // The markdown parser emits callouts with body rich_text, not child blocks.
+        // This still keeps the live smoke adjacent to the other optional-container shapes.
+        "> [!NOTE]",
+        `> ${sentinels.callout}`,
+        "",
+        "- G2b smoke bullet parent",
+        `  ${sentinels.bullet}`,
+        "",
+        "1. G2b smoke numbered parent",
+        `   ${sentinels.numbered}`,
+        "",
+        "+++ # G2b smoke H1 parent",
+        sentinels.h1,
+        "+++",
+        "",
+        "+++ ## G2b smoke H2 parent",
+        sentinels.h2,
+        "+++",
+        "",
+        "+++ ### G2b smoke H3 parent",
+        sentinels.h3,
+        "+++",
+      ].join("\n");
+
+      const created = await callTool<CreatePageResponse>(client, "create_page", {
+        parent_page_id: ctx.sandboxId!,
+        title: "G2b smoke optional containers",
+        markdown,
+      }, { timeoutMs: 30_000 });
+      expect(created.error).toBeUndefined();
+      ctx.createdPageIds.push(created.id);
+
+      const page = await callTool<ReadPageResponse>(client, "read_page", {
+        page_id: created.id,
+      }, { timeoutMs: 30_000 });
+      expect(page.error).toBeUndefined();
+      assertNoWarnings(page);
+
+      const body = stripContentNotice(page.markdown);
+      expect(body).toContain("+++ G2b smoke toggle parent");
+      expect(body).toContain("> [!NOTE]");
+      expect(body).toContain("- G2b smoke bullet parent");
+      expect(body).toContain("1. G2b smoke numbered parent");
+      expect(body).toContain("+++ # G2b smoke H1 parent");
+      expect(body).toContain("+++ ## G2b smoke H2 parent");
+      expect(body).toContain("+++ ### G2b smoke H3 parent");
+      for (const sentinel of Object.values(sentinels)) {
+        expect(body).toContain(sentinel);
+      }
+    }, 60_000);
+
     it("G2c: archive_toggle and restore_toggle round-trip a toggle by archived block id", async () => {
       const targetTitle = "G2c Restore Target";
       const sentinel = "G2c restore_toggle sentinel";

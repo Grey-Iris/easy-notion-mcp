@@ -133,6 +133,16 @@ function isOptionalChildrenContainer(block: NotionBlock): boolean {
   }
 }
 
+function canInlineChildrenInOneWrite(block: NotionBlock): boolean {
+  if (!isOptionalChildrenContainer(block)) {
+    return false;
+  }
+  const children = getBlockChildren(block);
+  return children.length > 0 &&
+    children.length <= NOTION_BLOCK_CHILDREN_LIMIT &&
+    children.every((child) => getBlockChildren(child).length === 0);
+}
+
 function canUseAsColumnSeed(block: NotionBlock): boolean {
   return block.type !== "table" && block.type !== "column_list";
 }
@@ -145,10 +155,15 @@ function usesPlaceholderColumnSeed(block: NotionBlock): boolean {
   return firstChild !== undefined && !canUseAsColumnSeed(firstChild);
 }
 
-function prepareBlockForWrite(block: NotionBlock): any {
+function prepareBlockForWrite(block: NotionBlock, atTopLevel = true): any {
   block = normalizeBlockRichTextForWrite(block);
 
   if (isOptionalChildrenContainer(block)) {
+    if (atTopLevel && canInlineChildrenInOneWrite(block)) {
+      const body = { ...((block as any)[block.type] ?? {}) };
+      body.children = getBlockChildren(block).map((child) => prepareBlockForWrite(child, false));
+      return { ...block, [block.type]: body };
+    }
     return withoutBlockChildren(block);
   }
 
@@ -157,7 +172,7 @@ function prepareBlockForWrite(block: NotionBlock): any {
     const table = { ...block.table };
     delete (table as any).children;
     if (rows.length > 0) {
-      table.children = [prepareBlockForWrite(rows[0])];
+      table.children = [prepareBlockForWrite(rows[0], false)];
     }
     return { ...block, table };
   }
@@ -167,7 +182,7 @@ function prepareBlockForWrite(block: NotionBlock): any {
       ...block,
       column_list: {
         ...block.column_list,
-        children: getBlockChildren(block).map((child) => prepareBlockForWrite(child)),
+        children: getBlockChildren(block).map((child) => prepareBlockForWrite(child, false)),
       },
     };
   }
@@ -179,18 +194,24 @@ function prepareBlockForWrite(block: NotionBlock): any {
     const seed = children[0] && canUseAsColumnSeed(children[0])
       ? children[0]
       : emptyParagraphBlock();
-    column.children = [prepareBlockForWrite(seed)];
+    column.children = [prepareBlockForWrite(seed, false)];
     return { ...block, column };
   }
 
   return block;
 }
 
-function needsDeferredChildWrites(block: NotionBlock): boolean {
+function needsDeferredChildWrites(block: NotionBlock, atTopLevel = true): boolean {
   const children = getBlockChildren(block);
 
   if (isOptionalChildrenContainer(block)) {
-    return children.length > 0;
+    if (children.length === 0) {
+      return false;
+    }
+    if (atTopLevel && canInlineChildrenInOneWrite(block)) {
+      return false;
+    }
+    return true;
   }
 
   if (block.type === "table") {
@@ -200,11 +221,11 @@ function needsDeferredChildWrites(block: NotionBlock): boolean {
   if (block.type === "column") {
     return usesPlaceholderColumnSeed(block) ||
       children.length > 1 ||
-      (children[0] ? needsDeferredChildWrites(children[0]) : false);
+      (children[0] ? needsDeferredChildWrites(children[0], false) : false);
   }
 
   if (block.type === "column_list") {
-    return children.some((child) => needsDeferredChildWrites(child));
+    return children.some((child) => needsDeferredChildWrites(child, false));
   }
 
   return false;
@@ -251,7 +272,7 @@ async function appendDeferredChildren(client: Client, blockId: string, sourceBlo
       return;
     }
 
-    if (needsDeferredChildWrites(children[0])) {
+    if (needsDeferredChildWrites(children[0], false)) {
       const firstChildId = await requireCreatedChildId(client, blockId, 0, "column child block");
       await appendDeferredChildren(client, firstChildId, children[0]);
     }
@@ -264,13 +285,13 @@ async function appendDeferredChildren(client: Client, blockId: string, sourceBlo
 
   if (sourceBlock.type === "column_list") {
     const columns = children.filter((child): child is Extract<NotionBlock, { type: "column" }> => child.type === "column");
-    if (columns.length === 0 || !columns.some((column) => needsDeferredChildWrites(column))) {
+    if (columns.length === 0 || !columns.some((column) => needsDeferredChildWrites(column, false))) {
       return;
     }
 
     const createdColumns = await listChildren(client, blockId);
     for (let index = 0; index < columns.length; index += 1) {
-      if (!needsDeferredChildWrites(columns[index])) {
+      if (!needsDeferredChildWrites(columns[index], false)) {
         continue;
       }
       const columnId = (createdColumns[index] as any)?.id;
