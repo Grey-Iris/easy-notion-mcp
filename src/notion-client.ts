@@ -528,12 +528,35 @@ async function paginatePropertyValue(
  * Resolve a database_id to its primary data_source_id.
  * Caches the mapping with the same TTL as schema cache.
  */
+function isObjectNotFoundError(error: unknown): boolean {
+  const code = (error as any)?.body?.code ?? (error as any)?.code;
+  return code === "object_not_found";
+}
+
 async function getDataSourceId(client: Client, dbId: string): Promise<string> {
   const cached = dataSourceIdCache.get(dbId);
   if (cached && cached.expires > Date.now()) {
     return cached.dsId;
   }
-  const db = await client.databases.retrieve({ database_id: dbId }) as any;
+  let db: any;
+  try {
+    db = await client.databases.retrieve({ database_id: dbId }) as any;
+  } catch (error) {
+    if (!isObjectNotFoundError(error)) {
+      throw error;
+    }
+    const originalError = error;
+    let probe: any;
+    try {
+      probe = await client.dataSources.retrieve({ data_source_id: dbId });
+    } catch {
+      throw originalError;
+    }
+    const parentId = (probe as any).parent?.database_id;
+    throw new Error(
+      `ID ${dbId} is a data_source ID, not a database container ID. Pass the parent database ID${parentId ? ` (${parentId})` : ""}; use list_databases to find database container IDs.`,
+    );
+  }
   const dsId = db.data_sources?.[0]?.id;
   if (!dsId) {
     throw new Error(`Database ${dbId} has no data sources`);
