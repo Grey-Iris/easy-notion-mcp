@@ -46,6 +46,16 @@ function bullet(content: string, children?: NotionBlock[]): NotionBlock {
   };
 }
 
+function numberedListItem(content: string, children?: NotionBlock[]): NotionBlock {
+  return {
+    type: "numbered_list_item",
+    numbered_list_item: {
+      rich_text: text(content),
+      ...(children ? { children } : {}),
+    },
+  };
+}
+
 function toggle(content: string, children?: NotionBlock[]): NotionBlock {
   return {
     type: "toggle",
@@ -62,6 +72,18 @@ function callout(content: string, children?: NotionBlock[]): NotionBlock {
     callout: {
       rich_text: text(content),
       icon: { type: "emoji", emoji: "\u{1F4A1}" },
+      ...(children ? { children } : {}),
+    },
+  } as NotionBlock;
+}
+
+function toggleableHeading(level: 1 | 2 | 3, content: string, children?: NotionBlock[]): NotionBlock {
+  const type = `heading_${level}` as const;
+  return {
+    type,
+    [type]: {
+      rich_text: text(content),
+      is_toggleable: true,
       ...(children ? { children } : {}),
     },
   } as NotionBlock;
@@ -256,8 +278,8 @@ describe("notion-client block append chunking", () => {
 
     await appendBlocks(notion, "page-id", [toggle("Toggle", [codeBlock(content)])]);
 
-    expect(notion.blocks.children.append).toHaveBeenCalledTimes(2);
-    const sentCode = notion.blocks.children.append.mock.calls[1][0].children[0].code;
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+    const sentCode = notion.blocks.children.append.mock.calls[0][0].children[0].toggle.children[0].code;
     expect(sentCode.rich_text.map((item: RichText) => item.text.content.length)).toEqual([2000, 2000, 5]);
     expect(sentCode.rich_text.map((item: RichText) => item.text.content).join("")).toBe(content);
     expect(sentCode.language).toBe("typescript");
@@ -273,14 +295,260 @@ describe("notion-client block append chunking", () => {
     }])]);
 
     expect(notion.pages.create).toHaveBeenCalledTimes(1);
-    expect((notion.pages.create.mock.calls[0][0].children[0] as any).callout.children).toBeUndefined();
-    expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
-    expect(notion.blocks.children.append.mock.calls[0][0].block_id).toBe("Callout");
+    expect(notion.blocks.children.append).not.toHaveBeenCalled();
 
-    const sentParagraph = notion.blocks.children.append.mock.calls[0][0].children[0].paragraph;
+    const sentParagraph = notion.pages.create.mock.calls[0][0].children[0].callout.children[0].paragraph;
     expect(sentParagraph.rich_text.map((item: RichText) => item.text.content.length)).toEqual([2000, 1]);
     expect(sentParagraph.rich_text.map((item: RichText) => item.text.content).join("")).toBe(content);
     expect(sentParagraph.rich_text.every((item: RichText) => item.annotations?.underline === true)).toBe(true);
+  });
+
+  it("inlines a toggle's depth-2 paragraph children in the initial pages.create payload", async () => {
+    const notion = makeNotionClient();
+    const content = "a".repeat(4501);
+    const longParagraph: NotionBlock = {
+      type: "paragraph",
+      paragraph: {
+        rich_text: [richText(content)],
+      },
+    };
+    const blocks = [toggle("T", [longParagraph, paragraph(2)])];
+
+    await createPage(notion, "parent-page-id", "Inline toggle", blocks);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    const sentChildren = notion.pages.create.mock.calls[0][0].children[0].toggle.children;
+    expect(sentChildren).toEqual([
+      {
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            { type: "text", text: { content: "a".repeat(2000) } },
+            { type: "text", text: { content: "a".repeat(2000) } },
+            { type: "text", text: { content: "a".repeat(501) } },
+          ],
+        },
+      },
+      paragraph(2),
+    ]);
+    const sentRichText = sentChildren[0].paragraph.rich_text;
+    expect(sentRichText.map((item: RichText) => item.text.content.length)).toEqual([2000, 2000, 501]);
+    expect(sentRichText.map((item: RichText) => item.text.content).join("")).toBe(content);
+    expect(notion.blocks.children.list).not.toHaveBeenCalled();
+    expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    expect(notion.pages.update).not.toHaveBeenCalled();
+  });
+
+  it("G2b-shape — 40 toggles each with depth-2 children resolve in one pages.create call (perf regression guard)", async () => {
+    const notion = makeNotionClient();
+    const blocks = Array.from({ length: 40 }, (_, index) => toggle(`T${index}`, [paragraph(index)]));
+
+    await createPage(notion, "parent-page-id", "G2b shape", blocks);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    const sentBlocks = notion.pages.create.mock.calls[0][0].children;
+    expect(sentBlocks).toHaveLength(40);
+    expect(sentBlocks).toEqual(blocks);
+    expect(notion.blocks.children.list).not.toHaveBeenCalled();
+    expect(notion.blocks.children.append).not.toHaveBeenCalled();
+  });
+
+  it("inlines callout, bulleted_list_item, numbered_list_item, and toggleable-heading depth-2 children consistently", async () => {
+    const notion = makeNotionClient();
+    const blocks = [
+      callout("C", [paragraph(1)]),
+      bullet("B", [paragraph(1)]),
+      numberedListItem("N", [paragraph(1)]),
+      toggleableHeading(1, "H1", [paragraph(1)]),
+      toggleableHeading(2, "H2", [paragraph(1)]),
+      toggleableHeading(3, "H3", [paragraph(1)]),
+    ];
+
+    await createPage(notion, "parent-page-id", "Optional containers", blocks);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    const sentBlocks = notion.pages.create.mock.calls[0][0].children;
+    expect(sentBlocks[0].callout.children).toEqual([paragraph(1)]);
+    expect(sentBlocks[1].bulleted_list_item.children).toEqual([paragraph(1)]);
+    expect(sentBlocks[2].numbered_list_item.children).toEqual([paragraph(1)]);
+    expect(sentBlocks[3].heading_1.children).toEqual([paragraph(1)]);
+    expect(sentBlocks[4].heading_2.children).toEqual([paragraph(1)]);
+    expect(sentBlocks[5].heading_3.children).toEqual([paragraph(1)]);
+    expect(notion.blocks.children.list).not.toHaveBeenCalled();
+    expect(notion.blocks.children.append).not.toHaveBeenCalled();
+  });
+
+  it("still defers a toggle that contains a nested toggle (depth-3 grandchildren), but inlines the inner toggle's leaf paragraph in the deferred append", async () => {
+    const notion = makeNotionClient();
+    const innerToggle = toggle("Inner", [paragraph(2)]);
+
+    await createPage(notion, "parent-page-id", "Nested toggle", [
+      toggle("Outer", [paragraph(1), innerToggle]),
+    ]);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    expect((notion.pages.create.mock.calls[0][0].children[0] as any).toggle.children).toBeUndefined();
+    expect(notion.blocks.children.list).toHaveBeenCalledWith({
+      block_id: "created-page-id",
+      start_cursor: undefined,
+      page_size: 100,
+    });
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+    expect(notion.blocks.children.append).toHaveBeenCalledWith({
+      block_id: "Outer",
+      children: [paragraph(1), innerToggle],
+    });
+  });
+
+  it("still defers a toggle whose body is a markdown nested list (toggle containing bulleted_list_item with its own children)", async () => {
+    const notion = makeNotionClient();
+    const bulletParent = bullet("parent", [bullet("child")]);
+
+    await createPage(notion, "parent-page-id", "Nested list toggle", [
+      toggle("T", [bulletParent]),
+    ]);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    expect((notion.pages.create.mock.calls[0][0].children[0] as any).toggle.children).toBeUndefined();
+    expect(notion.blocks.children.list).toHaveBeenCalledWith({
+      block_id: "created-page-id",
+      start_cursor: undefined,
+      page_size: 100,
+    });
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+    expect(notion.blocks.children.append).toHaveBeenCalledWith({
+      block_id: "T",
+      children: [bulletParent],
+    });
+  });
+
+  it("still defers a toggle whose child is a paragraph with its own children (paragraph-with-children = depth-3 risk)", async () => {
+    const notion = makeNotionClient();
+    const paragraphWithChildren = {
+      type: "paragraph",
+      paragraph: {
+        rich_text: text("Parent paragraph"),
+        children: [paragraph(1)],
+      },
+    } as unknown as NotionBlock;
+
+    await createPage(notion, "parent-page-id", "Paragraph child subtree", [
+      toggle("T", [paragraphWithChildren]),
+    ]);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    expect((notion.pages.create.mock.calls[0][0].children[0] as any).toggle.children).toBeUndefined();
+    expect(notion.blocks.children.list).toHaveBeenCalledWith({
+      block_id: "created-page-id",
+      start_cursor: undefined,
+      page_size: 100,
+    });
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+    expect(notion.blocks.children.append.mock.calls[0][0]).toEqual({
+      block_id: "T",
+      children: [paragraphWithChildren],
+    });
+  });
+
+  it("chunks a toggle with 101 direct depth-2 children via the deferred path (>100 child guard)", async () => {
+    const notion = makeNotionClient();
+    const children = makeBlocks(101);
+
+    await createPage(notion, "parent-page-id", "Large toggle", [
+      toggle("T", children),
+    ]);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    expect((notion.pages.create.mock.calls[0][0].children[0] as any).toggle.children).toBeUndefined();
+    expect(notion.blocks.children.list).toHaveBeenCalledWith({
+      block_id: "created-page-id",
+      start_cursor: undefined,
+      page_size: 100,
+    });
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(2);
+    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.block_id)).toEqual(["T", "T"]);
+    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.children.length)).toEqual([100, 1]);
+    expect(notion.blocks.children.append.mock.calls.flatMap(([args]: any[]) => args.children).map(blockText)).toEqual(
+      children.map(blockText),
+    );
+  });
+
+  it("does not inline an optional container's children when it appears as a column seed (depth context guard)", async () => {
+    const notion = makeNotionClient();
+    const blocks = [
+      columnList([
+        column([bullet("Left parent", [bullet("Left child")])]),
+        column([paragraph(2)]),
+      ]),
+    ];
+
+    await createPage(notion, "parent-page-id", "Column seed", blocks);
+
+    const columnListRequest = notion.pages.create.mock.calls[0][0].children[0] as any;
+    expect(columnListRequest.column_list.children[0].column.children[0].bulleted_list_item.children).toBeUndefined();
+    expect(JSON.stringify(columnListRequest)).not.toContain("Left child");
+    expect(notion.blocks.children.append.mock.calls.some(([args]: any[]) => args.block_id === "Left parent")).toBe(true);
+  });
+
+  it("inlines top-level optional-container children when the same page also contains a nested-toggle that defers (mixed payload)", async () => {
+    const notion = makeNotionClient();
+
+    await createPage(notion, "parent-page-id", "Mixed inline and deferred", [
+      toggle("A", [paragraph(1)]),
+      toggle("B", [paragraph(2)]),
+      toggle("Nested", [toggle("Inner", [paragraph(3)])]),
+    ]);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    const sentBlocks = notion.pages.create.mock.calls[0][0].children;
+    expect(sentBlocks[0].toggle.children).toEqual([paragraph(1)]);
+    expect(sentBlocks[1].toggle.children).toEqual([paragraph(2)]);
+    expect(sentBlocks[2].toggle.children).toBeUndefined();
+    expect(notion.blocks.children.list).toHaveBeenCalledTimes(1);
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+    expect(notion.blocks.children.append.mock.calls[0][0].block_id).toBe("Nested");
+    expect(notion.blocks.children.append.mock.calls[0][0].children).toEqual([
+      toggle("Inner", [paragraph(3)]),
+    ]);
+  });
+
+  it("does not call rollback when pages.create succeeds with inlined children and no deferred work remains", async () => {
+    const notion = makeNotionClient();
+
+    await createPage(notion, "parent-page-id", "Inline no rollback", [
+      toggle("T", [paragraph(1)]),
+    ]);
+
+    expect(notion.pages.create).toHaveBeenCalledTimes(1);
+    expect(notion.blocks.children.list).not.toHaveBeenCalled();
+    expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    expect(notion.pages.update).not.toHaveBeenCalled();
+  });
+
+  it("rethrows pages.create failure without rollback when inline payload is rejected by Notion", async () => {
+    const notion = makeNotionClient();
+    const createError = new Error("create failed");
+    notion.pages.create.mockRejectedValueOnce(createError);
+
+    await expect(
+      createPage(notion, "parent-page-id", "Inline create failure", [toggle("T", [paragraph(1)])]),
+    ).rejects.toBe(createError);
+
+    expect(notion.pages.update).not.toHaveBeenCalled();
+    expect(notion.blocks.children.list).not.toHaveBeenCalled();
+    expect(notion.blocks.children.append).not.toHaveBeenCalled();
+  });
+
+  it("appendBlocks chunks 200 top-level toggles at 100 per request and inlines each toggle's leaf children inside the chunk", async () => {
+    const notion = makeNotionClient();
+    const blocks = Array.from({ length: 200 }, (_, index) => toggle(`T${index}`, [paragraph(index)]));
+
+    await appendBlocks(notion, "page-id", blocks);
+
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(2);
+    expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.children.length)).toEqual([100, 100]);
+    expect(notion.blocks.children.append.mock.calls.flatMap(([args]: any[]) => args.children)).toEqual(blocks);
+    expect(notion.blocks.children.list).not.toHaveBeenCalled();
   });
 
   it("creates a page with at most 100 children and appends the remaining top-level blocks", async () => {
@@ -382,22 +650,22 @@ describe("notion-client block append chunking", () => {
     const results = await appendBlocks(notion, "page-id", blocks);
 
     expect(results.map((result: any) => result.id)).toEqual(["Level 1"]);
-    expect(notion.blocks.children.append).toHaveBeenCalledTimes(4);
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(3);
     expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.block_id)).toEqual([
       "page-id",
       "Level 1",
       "Level 2",
-      "Level 3",
     ]);
     expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.children.map(blockLabel))).toEqual([
       ["Level 1"],
       ["Level 2"],
       ["Level 3"],
-      ["Level 4"],
     ]);
     expect((notion.blocks.children.append.mock.calls[0][0].children[0] as any).bulleted_list_item.children).toBeUndefined();
     expect((notion.blocks.children.append.mock.calls[1][0].children[0] as any).bulleted_list_item.children).toBeUndefined();
-    expect((notion.blocks.children.append.mock.calls[2][0].children[0] as any).bulleted_list_item.children).toBeUndefined();
+    expect((notion.blocks.children.append.mock.calls[2][0].children[0] as any).bulleted_list_item.children).toEqual([
+      bullet("Level 4"),
+    ]);
   });
 
   it("chunks deferred direct children at 100 while preserving order", async () => {
@@ -421,19 +689,19 @@ describe("notion-client block append chunking", () => {
 
     await appendBlocks(notion, "page-id", [callout("Callout", [bullet("Parent", [paragraph(1)])])]);
 
-    expect(notion.blocks.children.append).toHaveBeenCalledTimes(3);
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(2);
     expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.block_id)).toEqual([
       "page-id",
       "Callout",
-      "Parent",
     ]);
     expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.children.map(blockLabel))).toEqual([
       ["Callout"],
       ["Parent"],
-      ["Block 1"],
     ]);
     expect((notion.blocks.children.append.mock.calls[0][0].children[0] as any).callout.children).toBeUndefined();
-    expect((notion.blocks.children.append.mock.calls[1][0].children[0] as any).bulleted_list_item.children).toBeUndefined();
+    expect((notion.blocks.children.append.mock.calls[1][0].children[0] as any).bulleted_list_item.children).toEqual([
+      paragraph(1),
+    ]);
   });
 
   it("creates column lists with required column seed children and defers deeper column content", async () => {
@@ -503,7 +771,7 @@ describe("notion-client block append chunking", () => {
     notion.blocks.children.append.mockRejectedValueOnce(appendError);
 
     await expect(
-      createPage(notion, "parent-page-id", "Nested page", [bullet("Parent", [bullet("Child")])]),
+      createPage(notion, "parent-page-id", "Nested page", [bullet("Parent", [bullet("Child", [bullet("Grandchild")])])]),
     ).rejects.toBe(appendError);
 
     expect(notion.pages.create).toHaveBeenCalledTimes(1);
@@ -535,7 +803,7 @@ describe("notion-client block append chunking", () => {
     expect(results.map((result: any) => result.id)).toEqual(blocks.map(blockText));
   });
 
-  it("appendBlocksAfter preserves the top-level append position when nested children are deferred", async () => {
+  it("appendBlocksAfter preserves the top-level append position when optional children are inlined", async () => {
     const notion = makeNotionClient();
     const blocks = [
       bullet("Parent", [paragraph(999)]),
@@ -545,15 +813,13 @@ describe("notion-client block append chunking", () => {
     const results = await appendBlocksAfter(notion, "page-id", blocks, "after-block-id");
 
     expect(results.map((result: any) => result.id)).toEqual(["Parent", ...makeBlocks(100).map(blockText)]);
-    expect(notion.blocks.children.append).toHaveBeenCalledTimes(3);
+    expect(notion.blocks.children.append).toHaveBeenCalledTimes(2);
     expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.block_id)).toEqual([
       "page-id",
-      "Parent",
       "page-id",
     ]);
     expect(notion.blocks.children.append.mock.calls.map(([args]: any[]) => args.position)).toEqual([
       afterBlockPosition("after-block-id"),
-      undefined,
       afterBlockPosition("Block 98"),
     ]);
   });
