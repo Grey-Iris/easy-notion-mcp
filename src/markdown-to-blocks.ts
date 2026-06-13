@@ -157,6 +157,7 @@ function listTokenToBlocks(token: any): NotionBlock[] {
         to_do: {
           rich_text: listItemToRichText(item),
           checked: Boolean(item.checked),
+          ...(children.length > 0 ? { children } : {}),
         },
       });
       continue;

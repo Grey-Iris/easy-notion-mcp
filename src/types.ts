@@ -66,7 +66,7 @@ export type NotionBlock =
     }
   | { type: "code"; code: { rich_text: RichText[]; language: string } }
   | { type: "divider"; divider: Record<string, never> }
-  | { type: "to_do"; to_do: { rich_text: RichText[]; checked: boolean } }
+  | { type: "to_do"; to_do: { rich_text: RichText[]; checked: boolean; children?: NotionBlock[] } }
   | { type: "table_of_contents"; table_of_contents: Record<string, never> }
   | {
       type: "bookmark";

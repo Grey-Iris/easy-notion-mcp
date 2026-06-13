@@ -119,6 +119,7 @@ function isOptionalChildrenContainer(block: NotionBlock): boolean {
   switch (block.type) {
     case "bulleted_list_item":
     case "numbered_list_item":
+    case "to_do":
     case "toggle":
     case "callout":
       return true;
@@ -1297,6 +1298,8 @@ export async function updateDataSource(
     in_trash?: boolean;
   },
 ) {
+  const warnings: Array<{ code: string; property: string; removed: string[] }> = [];
+
   if (
     updates.title === undefined &&
     updates.properties === undefined &&
@@ -1323,12 +1326,46 @@ export async function updateDataSource(
           schemaToProperties(schemaEntries),
         )
       : updates.properties;
+
+    const currentSchema = await getCachedSchema(client, databaseId) as any;
+    const resolvedProperties = body.properties as Record<string, unknown>;
+    for (const [name, value] of Object.entries(resolvedProperties)) {
+      if (value === null || typeof value !== "object") {
+        continue;
+      }
+
+      for (const optionType of ["select", "multi_select", "status"] as const) {
+        const optionPayload = (value as any)[optionType];
+        if (!Array.isArray(optionPayload?.options)) {
+          continue;
+        }
+
+        const newIdentifiers = new Set<string>();
+        for (const option of optionPayload.options) {
+          if (typeof option?.name === "string") newIdentifiers.add(option.name);
+          if (typeof option?.id === "string") newIdentifiers.add(option.id);
+        }
+
+        const currentOptions = currentSchema.properties?.[name]?.[optionType]?.options ?? [];
+        const removed = currentOptions
+          .filter((option: any) => (
+            typeof option?.name === "string" &&
+            !newIdentifiers.has(option.name) &&
+            (typeof option?.id !== "string" || !newIdentifiers.has(option.id))
+          ))
+          .map((option: any) => option.name);
+
+        if (removed.length > 0) {
+          warnings.push({ code: "data_source_options_removed", property: name, removed });
+        }
+      }
+    }
   }
   if (updates.in_trash !== undefined) body.in_trash = updates.in_trash;
 
   const result = await client.dataSources.update(body as any);
   schemaCache.delete(databaseId);
-  return result;
+  return { result, warnings };
 }
 
 export async function queryDatabase(

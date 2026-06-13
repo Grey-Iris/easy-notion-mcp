@@ -196,7 +196,7 @@ function renderBlock(block: NotionBlock, indent: number): string {
     case "to_do":
       return `${prefix}- [${block.to_do.checked ? "x" : " "}] ${richTextToMarkdown(
         block.to_do.rich_text,
-      )}`;
+      )}${renderListChildren(block.to_do.children, indent)}`;
     case "table_of_contents":
       return `${prefix}[toc]`;
     case "bookmark":
