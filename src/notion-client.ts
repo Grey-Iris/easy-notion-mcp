@@ -119,6 +119,7 @@ function isOptionalChildrenContainer(block: NotionBlock): boolean {
   switch (block.type) {
     case "bulleted_list_item":
     case "numbered_list_item":
+    case "to_do":
     case "toggle":
     case "callout":
       return true;
