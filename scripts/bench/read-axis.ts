@@ -26,6 +26,11 @@ interface CorpusManifest {
   pageClasses: Record<string, { label: string; count: number; files: string[] }>;
 }
 
+interface FixtureSelection {
+  classes?: Set<string>;
+  limit?: number;
+}
+
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const corpusDir = path.join(repoRoot, ".meta/bench/corpus");
 const readAxisDir = path.join(repoRoot, ".meta/bench/read-axis");
@@ -42,7 +47,9 @@ export async function runReadAxis(serverDefs: ServerDef[] = SERVERS): Promise<Ru
   await mkdir(rawDir, { recursive: true });
 
   try {
-    const fixtures = await loadPageFixtures();
+    const selection = readFixtureSelection();
+    const fixtures = selectFixtures(await loadPageFixtures(), selection);
+    console.error(`[read-axis] selection: ${selectionLabel(selection)} -> ${fixtures.length} fixtures`);
     const anthropicCount = createAnthropicCounter(env.anthropicApiKey);
 
     for (const fixture of fixtures) {
@@ -207,6 +214,49 @@ async function loadPageFixtures(): Promise<PageFixture[]> {
     fixtures.push(JSON.parse(await readFile(path.join(corpusDir, file), "utf8")) as PageFixture);
   }
   return fixtures;
+}
+
+function readFixtureSelection(): FixtureSelection {
+  const classesArg = process.argv.find((arg) => arg.startsWith("--classes="));
+  const limitArg = process.argv.find((arg) => arg.startsWith("--limit="));
+  const classes = classesArg
+    ?.slice("--classes=".length)
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const limitValue = limitArg ? Number(limitArg.slice("--limit=".length)) : undefined;
+
+  return {
+    ...(classes?.length ? { classes: new Set(classes) } : {}),
+    ...(typeof limitValue === "number" && Number.isInteger(limitValue) && limitValue > 0
+      ? { limit: limitValue }
+      : {}),
+  };
+}
+
+function selectFixtures(fixtures: PageFixture[], selection: FixtureSelection): PageFixture[] {
+  const selected: PageFixture[] = [];
+  const perClassCounts = new Map<string, number>();
+
+  for (const fixture of fixtures) {
+    if (selection.classes && !selection.classes.has(fixture.classId)) {
+      continue;
+    }
+    const classCount = perClassCounts.get(fixture.classId) ?? 0;
+    if (selection.limit !== undefined && classCount >= selection.limit) {
+      continue;
+    }
+    perClassCounts.set(fixture.classId, classCount + 1);
+    selected.push(fixture);
+  }
+
+  return selected;
+}
+
+function selectionLabel(selection: FixtureSelection): string {
+  const classes = selection.classes ? [...selection.classes].join(",") : "all";
+  const limit = selection.limit ?? "all";
+  return `classes=${classes} limit=${limit}`;
 }
 
 async function writeResults(
