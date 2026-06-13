@@ -97,6 +97,10 @@ describe("MCP documentation resources", () => {
         "embed_lost_on_atomic_replace",
         '{ "code": "embed_lost_on_atomic_replace", "url": "https://example.com/embed-target" }',
       ],
+      [
+        "data_source_options_removed",
+        '"removed": ["Doing", "Done"]',
+      ],
     ] as const;
 
     for (const [code, shape] of expectedShapes) {
@@ -104,7 +108,6 @@ describe("MCP documentation resources", () => {
       expect(text).toContain(`"code": "${code}"`);
       expect(text).toContain(shape);
     }
-    expect(text).not.toContain('"property":');
     expect(text).not.toContain('"returned":');
     expect(text).not.toContain('"has_more":');
   });

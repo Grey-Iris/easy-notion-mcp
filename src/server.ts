@@ -343,6 +343,15 @@ Returned by replace_content when embed markdown must fall back to a plain URL fo
 Shape:
 \`\`\`json
 { "code": "embed_lost_on_atomic_replace", "url": "https://example.com/embed-target" }
+\`\`\`
+
+## data_source_options_removed
+
+Returned by update_data_source when a select / multi_select / status property update omits options that exist in the current schema, so Notion drops them and unassigns rows that used them (full-list replace semantics).
+
+Shape:
+\`\`\`json
+{ "code": "data_source_options_removed", "property": "Stage", "removed": ["Doing", "Done"] }
 \`\`\``,
   },
   {
@@ -3133,7 +3142,7 @@ export function createServer(
           if (typeof database_id !== "string") {
             throw new Error("update_data_source: `database_id` must be a string");
           }
-          const result = await updateDataSource(notion, database_id, {
+          const { result, warnings } = await updateDataSource(notion, database_id, {
             title,
             properties,
             in_trash,
@@ -3143,6 +3152,7 @@ export function createServer(
             title: title ?? result.title?.[0]?.plain_text ?? "",
             url: result.url,
             properties: Object.keys(result.properties ?? {}),
+            ...(warnings && warnings.length > 0 ? { warnings } : {}),
           });
         }
         case "get_database": {

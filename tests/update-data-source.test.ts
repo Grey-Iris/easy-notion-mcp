@@ -225,6 +225,118 @@ describe("updateDataSource", () => {
     expect(client.dataSources.update.mock.calls[0]?.[0]?.properties).toEqual({ Legacy: null });
   });
 
+  it("emits a warning naming dropped select options on a destructive update", async () => {
+    const client = makeMockClient({
+      dataSources: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: "ds-x",
+          properties: {
+            Stage: {
+              type: "select",
+              select: {
+                options: [
+                  { id: "o1", name: "Todo" },
+                  { id: "o2", name: "Doing" },
+                  { id: "o3", name: "Done" },
+                ],
+              },
+            },
+          },
+        }),
+        update: vi.fn().mockResolvedValue({ id: "ds-updated" }),
+      } as Partial<MockClient["dataSources"]>,
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-x", data_sources: [{ id: "ds-x" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+
+    const result = await getUpdateDataSource()(client as any, "db-x", {
+      properties: {
+        Stage: { select: { options: [{ name: "Todo" }] } },
+      },
+    });
+
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "data_source_options_removed",
+          property: "Stage",
+          removed: expect.arrayContaining(["Doing", "Done"]),
+        }),
+      ]),
+    );
+    const warning = result.warnings.find((entry: any) => entry.property === "Stage");
+    expect(warning.removed).not.toContain("Todo");
+  });
+
+  it("does not warn on non-destructive updates", async () => {
+    const preservedOptionsClient = makeMockClient({
+      dataSources: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: "ds-x",
+          properties: {
+            Stage: {
+              type: "select",
+              select: {
+                options: [
+                  { id: "o1", name: "Todo" },
+                  { id: "o2", name: "Doing" },
+                  { id: "o3", name: "Done" },
+                ],
+              },
+            },
+          },
+        }),
+        update: vi.fn().mockResolvedValue({ id: "ds-updated" }),
+      } as Partial<MockClient["dataSources"]>,
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-x", data_sources: [{ id: "ds-x" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+
+    const preservedOptionsResult = await getUpdateDataSource()(preservedOptionsClient as any, "db-x", {
+      properties: {
+        Stage: {
+          select: {
+            options: [{ name: "Todo" }, { name: "Doing" }, { name: "Done" }],
+          },
+        },
+      },
+    });
+
+    expect.soft(preservedOptionsResult.warnings).toHaveLength(0);
+
+    const titleOnlyClient = makeMockClient({
+      dataSources: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: "ds-x",
+          properties: {
+            Stage: {
+              type: "select",
+              select: {
+                options: [
+                  { id: "o1", name: "Todo" },
+                  { id: "o2", name: "Doing" },
+                  { id: "o3", name: "Done" },
+                ],
+              },
+            },
+          },
+        }),
+        update: vi.fn().mockResolvedValue({ id: "ds-updated" }),
+      } as Partial<MockClient["dataSources"]>,
+      databases: {
+        retrieve: vi.fn().mockResolvedValue({ id: "db-x", data_sources: [{ id: "ds-x" }] }),
+      } as Partial<MockClient["databases"]>,
+    });
+
+    const titleOnlyResult = await getUpdateDataSource()(titleOnlyClient as any, "db-x", {
+      title: "Renamed",
+    });
+
+    expect.soft(titleOnlyResult.warnings).toHaveLength(0);
+  });
+
   it("passes property rename payloads through untouched", async () => {
     const client = makeMockClient({
       databases: {
