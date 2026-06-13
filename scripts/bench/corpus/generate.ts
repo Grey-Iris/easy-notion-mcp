@@ -7,7 +7,7 @@ export interface CorpusManifest {
   databaseClasses: Record<string, { label: string; files: string[] }>;
 }
 
-interface PageFixture {
+export interface PageFixture {
   id: string;
   classId: string;
   label: string;
@@ -15,7 +15,7 @@ interface PageFixture {
   blocks: BlockFixture[];
 }
 
-interface DatabaseFixture {
+export interface DatabaseFixture {
   id: string;
   classId: "D1" | "D2";
   label: string;
@@ -24,7 +24,7 @@ interface DatabaseFixture {
   rows: RowFixture[];
 }
 
-interface PropertyFixture {
+export interface PropertyFixture {
   name: string;
   type:
     | "title"
@@ -37,17 +37,18 @@ interface PropertyFixture {
     | "checkbox"
     | "url"
     | "email"
-    | "phone";
+    | "phone"
+    | "people";
   options?: string[];
 }
 
-interface RowFixture {
+export interface RowFixture {
   title: string;
   properties: Record<string, string | number | boolean | string[]>;
   body: BlockFixture[];
 }
 
-type BlockFixture =
+export type BlockFixture =
   | { type: "heading_1" | "heading_2" | "heading_3"; text: string }
   | { type: "paragraph"; text: string; annotations?: Array<{ start: number; end: number; color?: string; bold?: boolean; italic?: boolean }> }
   | { type: "bulleted_list_item" | "numbered_list_item" | "toggle"; text: string; children?: BlockFixture[] }

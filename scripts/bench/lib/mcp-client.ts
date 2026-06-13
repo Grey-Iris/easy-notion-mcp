@@ -13,6 +13,13 @@ export interface ToolsListResult {
   raw: unknown;
 }
 
+export interface ToolCallResult {
+  contentTexts: string[];
+  rawResult: unknown;
+  isError: boolean;
+  stderr: string;
+}
+
 type JsonRpcMessage = {
   jsonrpc?: string;
   id?: number | string;
@@ -58,7 +65,7 @@ export async function listTools(
   spec: McpLaunchSpec,
   opts: { timeoutMs?: number } = {},
 ): Promise<ToolsListResult> {
-  const response = await talkJsonRpc(spec, opts.timeoutMs ?? 30_000);
+  const response = await rpcExchange(spec, toolsListRequest, "tools/list", opts.timeoutMs ?? 30_000);
   const result = readObject(response.raw);
   const responseResult = readObject(result?.result);
   const tools = responseResult?.tools;
@@ -77,8 +84,45 @@ export async function listTools(
   };
 }
 
-function talkJsonRpc(
+export async function callTool(
   spec: McpLaunchSpec,
+  toolName: string,
+  args: Record<string, unknown>,
+  opts: { timeoutMs?: number } = {},
+): Promise<ToolCallResult> {
+  const response = await rpcExchange(
+    spec,
+    {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: toolName,
+        arguments: args,
+      },
+    },
+    `tools/call ${toolName}`,
+    opts.timeoutMs ?? 30_000,
+  );
+  const message = readObject(response.raw);
+  const result = readObject(message?.result);
+  const content = Array.isArray(result?.content) ? result.content : [];
+
+  return {
+    contentTexts: content.flatMap((item) => {
+      const contentItem = readObject(item);
+      return contentItem?.type === "text" && typeof contentItem.text === "string" ? [contentItem.text] : [];
+    }),
+    rawResult: message?.result,
+    isError: result?.isError === true,
+    stderr: response.stderr,
+  };
+}
+
+function rpcExchange(
+  spec: McpLaunchSpec,
+  request: JsonRpcMessage,
+  label: string,
   timeoutMs: number,
 ): Promise<{ raw: JsonRpcMessage; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
@@ -101,7 +145,7 @@ function talkJsonRpc(
     const timeout = setTimeout(() => {
       finish(
         new Error(
-          `${labelFor(spec)} did not emit a tools/list response within ${timeoutMs}ms.\n` +
+          `${labelFor(spec)} did not emit a ${label} response within ${timeoutMs}ms.\n` +
             `Command: ${spec.command} ${spec.args.join(" ")}\n` +
             `stdout:\n${stdout}\n\nstderr:\n${stderr}`,
         ),
@@ -147,7 +191,7 @@ function talkJsonRpc(
       if (!settled) {
         finish(
           new Error(
-            `${labelFor(spec)} exited before tools/list response (code=${code}, signal=${signal}).\n` +
+            `${labelFor(spec)} exited before ${label} response (code=${code}, signal=${signal}).\n` +
               `stdout:\n${stdout}\n\nstderr:\n${stderr}`,
           ),
         );
@@ -189,15 +233,15 @@ function talkJsonRpc(
           }
           initialized = true;
           send(initializedNotification);
-          send(toolsListRequest);
+          send(request);
           continue;
         }
 
-        if (message.id === 2) {
+        if (message.id === request.id) {
           if (message.error) {
             finish(
               new Error(
-                `${labelFor(spec)} tools/list failed: ${JSON.stringify(message.error)}\n` +
+                `${labelFor(spec)} ${label} failed: ${JSON.stringify(message.error)}\n` +
                   `stdout:\n${stdout}\n\nstderr:\n${stderr}`,
               ),
             );
