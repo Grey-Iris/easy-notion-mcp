@@ -24,6 +24,7 @@ type JsonRpcMessage = {
   jsonrpc?: string;
   id?: number | string;
   method?: string;
+  params?: unknown;
   result?: unknown;
   error?: unknown;
 };
