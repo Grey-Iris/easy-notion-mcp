@@ -1475,7 +1475,7 @@ export async function fetchBlocksWithLimit(
   return { blocks: results, hasMore };
 }
 
-function enhanceError(error: unknown, toolName: string, args: Record<string, unknown>): string {
+export function enhanceError(error: unknown, toolName: string, args: Record<string, unknown>): string {
   const message = error instanceof Error ? error.message : String(error);
   const body = (error as any)?.body;
   const code = body?.code ?? (error as any)?.code;
@@ -1492,7 +1492,7 @@ function enhanceError(error: unknown, toolName: string, args: Record<string, unk
     return "This page hasn't been shared with the integration. In Notion, open the page \u2192 \u00b7\u00b7\u00b7 menu \u2192 Connections \u2192 add your integration.";
   }
 
-  if (code === "validation_error") {
+  if (code === "validation_error" && /propert/i.test(message)) {
     return `${message} Check property names and types with get_database.`;
   }
 
