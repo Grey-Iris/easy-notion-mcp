@@ -84,7 +84,7 @@ src/
   - **OAuth mode**: mounts `mcpAuthRouter` for `.well-known/*`, `/authorize`, `/token`, `/register`; protects `/mcp` with bearer auth; relays OAuth to Notion
 - `createApp` is imported directly by integration tests (no server startup needed)
 - `GET /` on the HTTP server returns a health check JSON (`{"status":"ok","server":"easy-notion-mcp","transport":"streamable-http","endpoint":"/mcp"}`)
-- `find_replace` is the one editing tool that uses Notion's native markdown API via `pages.updateMarkdown`, rather than the GFM-to-blocks pipeline used by the other page content tools
+- `find_replace` and `replace_content` use Notion's native markdown API via `pages.updateMarkdown`, rather than the GFM-to-blocks pipeline used by the other page content tools
 - All logging goes to `console.error` (stdout is reserved for MCP protocol in stdio mode)
 
 ## Environment
