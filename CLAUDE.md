@@ -34,7 +34,7 @@ node dist/http.js   # HTTP server (needs OAuth creds or NOTION_TOKEN)
 npm run start:http  # same as above
 ```
 
-CI runs on every PR and push to `main`/`dev` (GitHub Actions: build, typecheck, test on Node 18 + 20).
+CI runs on every PR and push to `main`/`dev` (GitHub Actions: build, typecheck, test on Node 20 + 22). The package requires Node >=20 (`engines`).
 
 ## Releasing
 
