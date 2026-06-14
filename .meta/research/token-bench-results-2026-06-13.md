@@ -16,16 +16,39 @@ from. The honesty bar: it must survive a skeptical competitor reading the repo.
 ## 0. Headline (Axis B — page read, ours vs the official makenotion server)
 
 Across a controlled corpus of 8 page-shape classes (favorable → adversarial), reading a page's full
-content costs, **ours vs makenotion (the official Notion MCP server, which returns raw block JSON)**:
+content costs fewer response tokens **ours vs makenotion (the official Notion MCP server, which returns
+raw block JSON)**. The size of the win depends on how much of the page's content our markdown preserves,
+so the headline is **stratified by content-completeness** rather than collapsed into one factor over a
+hand-picked class list. The exclusion is a **visible completeness threshold**, not a chosen set:
 
-> **Median ~0.105 of the tokens (≈ 9.5× fewer), Anthropic-primary, full corpus excluding R5.**
-> Range across classes: **2.8×** (code-dominant) → **26×** (deep-nesting outline). n = 5 pages/class.
+| Completeness tier | Classes | Geomean (lead) | Median | Range |
+|---|---|---|---|---|
+| **Lossless** (content-completeness = 1.0) | R2, R3, R4, R6 (k=4) | **5.04×** | 5.33× | 2.8×–9.5× |
+| **High-completeness** (≥ 0.94) | + R1 (k=5) | **6.24×** | 7.36× | 2.8×–14.7× |
+
+Anthropic-primary. Aggregates are over **classes** (k); the per-class factor is the median of the 5
+per-fixture ratios, and the within-class fixture spread is kept as a stability footnote (§3), not as the
+unit of the headline. We **lead with the geometric mean** (the right average for ratios); the median is
+the robustness check. Classes below the ≥0.94 threshold — R5 (completeness 0.054), R8 (0.25), R7 (0.716)
+— are reported separately in §4, because on those shapes part of the token gap is content our markdown
+drops, not serialization. The full per-class numbers (all 8 classes, all three token bases) are in §3;
+`scripts/bench/lib/recompute-tiers.ts` regenerates this table from `results.json`.
+
+**At equal information the two formats cost about the same.** Normalize both outputs to the same
+intermediate representation before counting (the **common-IR** factor) and the win nearly vanishes on the
+clean classes: **R6 1.01×, R4 1.03×, R3 1.06×, R1 0.95×** (R2 1.32× is the one mild outlier). So the
+page-read saving is **not** encoding efficiency — it is the per-block metadata raw Notion JSON carries
+(block UUIDs, timestamps, author objects, annotation wrappers) that a content read does not need. Strip
+that metadata and the formats converge.
+
+**Call count is a clean second metric, with no completeness caveat.** Reading a page is **1 tool call for
+ours** vs makenotion's page-retrieve + recursive `get-block-children`: **2 calls on a typical page**, and
+**98 calls on the deep-nesting R7 page** (1 retrieve + 97 block-children) against our 1. Fewer
+round-trips regardless of how tokens are counted.
 
 This win is **vs raw-JSON**. It does **not** hold against other markdown converters (awkoy/better-notion;
-§3). And on two adversarial classes (R5 annotation-pathological, R8 media-heavy) part of the "win" is
-information our markdown drops, not pure serialization — quantified by the completeness scores (§4) and
-called out below. The defensible public claim is a **range scoped to the response axis vs the official
-server**, never a bare "Nx".
+§3), where we are roughly at parity. The defensible public claim is a **range scoped to the response axis
+vs the official server, at a stated completeness threshold**, never a bare "Nx".
 
 ---
 
@@ -95,13 +118,42 @@ awkoy: `notion_execute get_page_markdown`; better-notion: `pages` action=get). n
 | R7 | deep-nesting | **0.038 (26.2×)** | 0.623 (1.6×) | 0.679 (1.5×) |
 | R8 | media-heavy ⚠ | **0.097 (10.3×)** | 1.035 (1.0×) | 0.586 (1.7×) |
 
-**Pooled headline (excl R5), vs makenotion:** median 0.105 (9.5×), range 0.038–0.358 (2.8×–26.2×), n=35.
+**Per-class aggregate (vs makenotion), stratified by completeness — see §0 for the tier table.**
+Lossless tier (R2/R3/R4/R6): geomean **5.04×**, median 5.33×, range 2.8×–9.5×. High-completeness tier
+(+R1, ≥0.94): geomean **6.24×**, median 7.36×, range 2.8×–14.7×. Aggregates are over k classes (the
+per-class factor is the median of 5 per-fixture ratios). The single pooled-fixture median over n=35 used
+in earlier drafts (~9.5×, excl-R5) is superseded: it mixed completeness tiers into one number and was
+inconsistent with R7's 0.716 completeness sitting inside the "94–100%" band it implied.
 
 ### cl100k cross-check (ours/competitor ratios)
 Agrees with Anthropic within ~10% on every cell. cl100k **slightly overstates** the makenotion win
 (e.g. R1 0.064 vs 0.068; R2 0.096 vs 0.105) and slightly understates awkoy (R2 1.371 vs 1.312). The
 tokenizer choice moves the ratio materially enough that the headline must use the Anthropic number.
 Full per-class cl100k values are in `results.json`.
+
+### Ours vs makenotion — per-class, all token bases + structural metrics
+
+Per-class factor = median of the 5 per-fixture ratios (makenotion ÷ ours). `common-IR` = both outputs
+normalized to the same intermediate representation before counting; `calls` = tool calls to read the page
+(ours always 1). Regenerated by `scripts/bench/lib/recompute-tiers.ts`.
+
+| Class | Shape | content-completeness | as-consumed× (anth) | cl100k× | common-IR× | calls (ours→makenotion) |
+|---|---|---|---|---|---|---|
+| R1 | favorable-rich | 0.941 | 14.69× | 15.74× | 0.95× | 1 → 4 |
+| R2 | typical-prose | 1.000 | 9.49× | 10.40× | 1.32× | 1 → 2 |
+| R3 | content-light stub | 1.000 | 7.36× | 8.45× | 1.06× | 1 → 2 |
+| R4 | plain-text-heavy | 1.000 | 3.30× | 3.54× | 1.03× | 1 → 2 |
+| R5 | annotation-pathological ⚠ | 0.054 | 17.77× | 17.27× | 3.17× | 1 → 2 |
+| R6 | code-dominant | 1.000 | 2.79× | 2.82× | 1.01× | 1 → 2 |
+| R7 | deep-nesting | 0.717 | 26.22× | 24.74× | 2.05× | 1 → 98 |
+| R8 | media-heavy ⚠ | 0.250 | 10.28× | 11.36× | 1.48× | 1 → 2 |
+
+The **common-IR column is the honesty control**: on the clean classes it sits at ~1.0× (R6 1.01, R4 1.03,
+R3 1.06, R1 0.95), so the as-consumed win is metadata omission, not denser encoding. The common-IR factor
+climbs only where our markdown drops content (R5 3.17×, R8 1.48×) or flattens deep structure (R7 2.05×) —
+the same shapes the completeness scores flag. The **call-count column** is a structural metric independent
+of tokenization: deep nesting (R7) forces makenotion into ~one `get-block-children` call per parent block
+(98 total) where our `read_page` is a single call.
 
 ### Reading of Axis B
 - **The large win is vs raw-JSON (makenotion), and it is real and consistent** (2.8×–26×). R7 deep-nesting

@@ -25,6 +25,9 @@ The headline win versus the official raw-JSON server (makenotion) is **real, lar
 - WITH R5: **0.1022 → 9.79×**, n=40 (i.e. R5 makes the win *bigger* — excluding it is conservative)
 - WITHOUT R5 **and** R8: **0.1183 → 8.45×**, n=30 (the more defensible "content" headline)
 - content-completeness = 1.0 classes only (R2/R3/R4/R6): **0.2197 → 4.55×**, n=20 (the bulletproof floor)
+  — **[corrected]** this 4.55× is the *pooled n=20 fixture* median; the per-class lossless floor is
+  **5.33×** (median of class factors {2.79, 3.30, 7.36, 9.49}, geomean 5.04×). See the superseded-wording
+  note below and the tier table in `token-bench-results-2026-06-13.md` §0.
 
 ---
 
@@ -85,6 +88,18 @@ n=5/class is **not** 5 independent samples — the 5 instances are near-identica
 Lead with the **range scoped to the official server and to content-completeness**, not a bare factor. Recommended wording:
 
 > **Reading a page's content costs roughly 3×–26× fewer response tokens than the official Notion MCP server** (makenotion, which returns raw block JSON) — median **~8.5×** across six controlled page-shape classes, at 94–100% content-completeness. Measured with Claude's tokenizer (the conservative choice); range is 2.8× on code-dominant pages to 26× on deep-nested outlines. This is a comparison **against the raw-JSON official server only** — not against other markdown converters, where we are roughly at parity. Two adversarial classes where our markdown drops color (R5) or asset metadata (R8) are reported separately, not in this number. Controlled benchmark corpus (8 shape templates), not a representative sample of real Notion pages.
+
+> **[SUPERSEDED — Tier 0 correction, 2026-06-13]** The recommended wording above is superseded by the
+> completeness-stratified tier table in `token-bench-results-2026-06-13.md` (§0). Two defects fixed:
+> (a) the "**94–100% content-completeness**" qualifier was inconsistent with R7's **0.716** completeness,
+> which the pooled "~8.5×" number silently included; the corrected form uses a **visible ≥0.94 threshold**
+> (high-completeness tier: geomean 6.24×, median 7.36×) and a stricter **lossless** floor (completeness=1.0:
+> geomean 5.04×, median 5.33×). (b) The lossless-floor median below (**4.55×**, line 27) is corrected to
+> **5.33×**: 4.55× was `1/0.2197`, the **pooled n=20 fixture median** of ours/comp, accidentally paired with
+> per-class geomean/range in the same row; the per-class median of the four lossless class factors
+> {2.79, 3.30, 7.36, 9.49} is **(3.30+7.36)/2 = 5.33×** — an even-count median slip. Geomean (5.04×) and range
+> (2.8×–9.5×) were already correct. Public README wording remains James's call; this note corrects the
+> internal record only.
 
 If James prefers to keep the **9.5× / excl-R5-only** number, it is defensible **only** if (a) the headline word is "content-read," not "full content," and (b) R8's 0.25 completeness is stated in the same breath as the number, not in a downstream footnote. The cleaner choice is the ~8.5× (excl R5+R8) figure with the range.
 
