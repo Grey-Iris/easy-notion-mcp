@@ -19,6 +19,7 @@ internal/
 # Bench transcripts (raw, not committed)
 .meta/bench/transcripts/
 .meta/bench/.runner-pids/
+.meta/bench/.servers-cache/
 
 # Private handoffs (failed public-default screen but locally useful)
 .meta/handoffs-private/

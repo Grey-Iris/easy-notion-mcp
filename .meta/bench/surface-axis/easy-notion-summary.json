@@ -1,0 +1,246 @@
+{
+  "id": "easy-notion",
+  "label": "easy-notion-mcp (ours)",
+  "status": "ok",
+  "toolCount": 42,
+  "totalTokens": 6612,
+  "totalBytes": 31489,
+  "avgTokensPerTool": 157.43,
+  "perTool": [
+    {
+      "name": "create_page",
+      "tokens": 196,
+      "bytes": 917
+    },
+    {
+      "name": "create_page_from_file",
+      "tokens": 301,
+      "bytes": 1314
+    },
+    {
+      "name": "append_content",
+      "tokens": 81,
+      "bytes": 393
+    },
+    {
+      "name": "replace_content",
+      "tokens": 291,
+      "bytes": 1372
+    },
+    {
+      "name": "update_section",
+      "tokens": 365,
+      "bytes": 1852
+    },
+    {
+      "name": "find_replace",
+      "tokens": 147,
+      "bytes": 713
+    },
+    {
+      "name": "read_section",
+      "tokens": 184,
+      "bytes": 918
+    },
+    {
+      "name": "read_block",
+      "tokens": 108,
+      "bytes": 554
+    },
+    {
+      "name": "read_toggle",
+      "tokens": 140,
+      "bytes": 677
+    },
+    {
+      "name": "search_in_page",
+      "tokens": 115,
+      "bytes": 556
+    },
+    {
+      "name": "update_toggle",
+      "tokens": 259,
+      "bytes": 1291
+    },
+    {
+      "name": "archive_toggle",
+      "tokens": 137,
+      "bytes": 683
+    },
+    {
+      "name": "restore_toggle",
+      "tokens": 109,
+      "bytes": 557
+    },
+    {
+      "name": "update_block",
+      "tokens": 408,
+      "bytes": 1765
+    },
+    {
+      "name": "read_page",
+      "tokens": 440,
+      "bytes": 2194
+    },
+    {
+      "name": "duplicate_page",
+      "tokens": 241,
+      "bytes": 1164
+    },
+    {
+      "name": "update_page",
+      "tokens": 123,
+      "bytes": 563
+    },
+    {
+      "name": "archive_page",
+      "tokens": 65,
+      "bytes": 299
+    },
+    {
+      "name": "search",
+      "tokens": 79,
+      "bytes": 374
+    },
+    {
+      "name": "list_pages",
+      "tokens": 47,
+      "bytes": 218
+    },
+    {
+      "name": "share_page",
+      "tokens": 48,
+      "bytes": 211
+    },
+    {
+      "name": "create_database",
+      "tokens": 334,
+      "bytes": 1414
+    },
+    {
+      "name": "update_data_source",
+      "tokens": 347,
+      "bytes": 1694
+    },
+    {
+      "name": "get_database",
+      "tokens": 71,
+      "bytes": 356
+    },
+    {
+      "name": "list_databases",
+      "tokens": 45,
+      "bytes": 221
+    },
+    {
+      "name": "query_database",
+      "tokens": 275,
+      "bytes": 1305
+    },
+    {
+      "name": "list_views",
+      "tokens": 102,
+      "bytes": 505
+    },
+    {
+      "name": "get_view",
+      "tokens": 53,
+      "bytes": 236
+    },
+    {
+      "name": "query_view",
+      "tokens": 95,
+      "bytes": 464
+    },
+    {
+      "name": "create_view",
+      "tokens": 200,
+      "bytes": 991
+    },
+    {
+      "name": "update_view",
+      "tokens": 192,
+      "bytes": 881
+    },
+    {
+      "name": "delete_view",
+      "tokens": 97,
+      "bytes": 453
+    },
+    {
+      "name": "add_database_entry",
+      "tokens": 270,
+      "bytes": 1168
+    },
+    {
+      "name": "add_database_entries",
+      "tokens": 102,
+      "bytes": 514
+    },
+    {
+      "name": "update_database_entry",
+      "tokens": 251,
+      "bytes": 1157
+    },
+    {
+      "name": "list_comments",
+      "tokens": 42,
+      "bytes": 187
+    },
+    {
+      "name": "add_comment",
+      "tokens": 62,
+      "bytes": 284
+    },
+    {
+      "name": "move_page",
+      "tokens": 66,
+      "bytes": 285
+    },
+    {
+      "name": "restore_page",
+      "tokens": 41,
+      "bytes": 187
+    },
+    {
+      "name": "delete_database_entry",
+      "tokens": 71,
+      "bytes": 345
+    },
+    {
+      "name": "list_users",
+      "tokens": 23,
+      "bytes": 107
+    },
+    {
+      "name": "get_me",
+      "tokens": 25,
+      "bytes": 107
+    }
+  ],
+  "resolvedSha": "5581dd24f0b120ef5629fdbc78f5d80daab3c0fe",
+  "pkgVersion": "0.9.3",
+  "notionVersion": "2026-03-11",
+  "expectedPkgVersion": "0.9.3",
+  "expectedTools": 42,
+  "anthropic": {
+    "available": false,
+    "reason": "no ANTHROPIC_API_KEY"
+  },
+  "scriptsBlock": {
+    "prepare": "tsc",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "E2E_ENFORCE=1 vitest run tests/e2e/",
+    "test:e2e:sweep": "tsx scripts/e2e/sweep-stale.ts",
+    "test:e2e:sweep:apply": "tsx scripts/e2e/sweep-stale.ts --apply",
+    "release:smoke": "tsx scripts/release/postpublish-smoke.ts",
+    "test:watch": "vitest",
+    "start:http": "node dist/http.js"
+  },
+  "binEntry": "dist/index.js",
+  "cacheDir": "/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/bench-exec-harness-2026-06-13"
+}

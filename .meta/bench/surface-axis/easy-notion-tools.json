@@ -1,0 +1,1041 @@
+[
+  {
+    "name": "create_page",
+    "description": "Create a Notion page from markdown. Supports GFM plus Notion extensions for callouts, toggles, columns, bookmarks, embeds, equations, table of contents, and stdio-only file:// uploads. For the full syntax guide, read resource easy-notion://docs/markdown.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Page title"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Markdown content for the page body"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID. Resolution order when omitted: NOTION_ROOT_PAGE_ID env var → last used parent in this session → workspace-level private page (OAuth mode). In stdio mode without NOTION_ROOT_PAGE_ID, this is required on first use."
+        },
+        "icon": {
+          "type": "string",
+          "description": "Optional emoji icon"
+        },
+        "cover": {
+          "type": "string",
+          "description": "Optional cover image URL"
+        }
+      },
+      "required": [
+        "title",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "create_page_from_file",
+    "description": "Create a Notion page from a local markdown file. The server reads and validates the file, then creates the same result as create_page without sending file contents through the agent context.\n\nSTDIO MODE ONLY. This tool is not available when the server runs over HTTP, because in HTTP mode the server's filesystem belongs to the server host, not the caller.\n\nRestrictions:\n- file_path must be an ABSOLUTE path (no relative paths, no ~ expansion)\n- File must be inside the configured workspace root (defaults to the server's process.cwd(); override via the NOTION_MCP_WORKSPACE_ROOT env var)\n- File extension must be .md or .markdown\n- File size must be ≤ 1 MB (1,048,576 bytes)\n- File must be valid UTF-8\n- Symlinks are resolved and the resolved path must still be inside the workspace root\n\nFor supported markdown syntax, read resource easy-notion://docs/markdown.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Page title"
+        },
+        "file_path": {
+          "type": "string",
+          "description": "Absolute path to a local .md or .markdown file (≤ 1 MB, UTF-8, inside the configured workspace root)"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID. Same resolution rules as create_page."
+        }
+      },
+      "required": [
+        "title",
+        "file_path"
+      ]
+    }
+  },
+  {
+    "name": "append_content",
+    "description": "Append markdown content to an existing page. Supports the same syntax as create_page; read resource easy-notion://docs/markdown for the full syntax guide.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Markdown to append"
+        }
+      },
+      "required": [
+        "page_id",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "replace_content",
+    "description": "Replaces all page content with the provided markdown atomically (one Notion API call). On matched blocks Notion preserves the original block IDs, so deep-link anchors (`#block-id`) and inline-comment threads attached to those blocks survive the edit. Unmatched blocks (returned in `warnings` with code `unmatched_blocks`) are replaced with new IDs.\n\nNOT preserved across replace_content: `child_page` subpages, `synced_block` instances, `child_database` views, and `link_to_page` references on the source page — Enhanced Markdown has no input form for these, so they are dropped from the new page content. If the source contains them, use duplicate_page first or edit those types via the Notion UI.\n\nBookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a `bookmark_lost_on_atomic_replace` warning so callers know the rich-bookmark UI is lost. For supported markdown syntax and warning details, read resources easy-notion://docs/markdown and easy-notion://docs/warnings.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Replacement markdown content"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview validation and planned effect without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "page_id",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "update_section",
+    "description": "DESTRUCTIVE — no rollback: this tool deletes blocks in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied; for most sections the heading anchor is deleted, so a retry can fail with \"heading not found.\" For irreplaceable sections, duplicate_page the target first so you have a restore point.\n\nUpdate a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. If the section starts at the first block, the replacement markdown must start with the same heading type so following sections stay in place. With preserve_heading:true, the existing heading block ID, text, type, comments, and toggleable state are preserved, but the section body blocks and existing toggleable-heading children are still destructively replaced; replacement markdown is treated as body-only, and a leading matching heading is stripped for compatibility. More efficient than replace_content for editing one section of a large page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "heading": {
+          "type": "string",
+          "description": "Heading text to find (case-insensitive)"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Replacement markdown including the heading"
+        },
+        "preserve_heading": {
+          "type": "boolean",
+          "description": "Preserve the existing heading block and replace only the section body. Default false."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview validation and planned effect without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "page_id",
+        "heading",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "find_replace",
+    "description": "Find and replace text on a page. Preserves uploaded files and blocks that aren't touched. More efficient than replace_content for targeted text changes like fixing typos, updating URLs, or renaming terms.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "find": {
+          "type": "string",
+          "description": "Text to find (exact match)"
+        },
+        "replace": {
+          "type": "string",
+          "description": "Replacement text"
+        },
+        "replace_all": {
+          "type": "boolean",
+          "description": "Replace all occurrences. Default: first only."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview match counts without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "page_id",
+        "find",
+        "replace"
+      ]
+    }
+  },
+  {
+    "name": "read_section",
+    "description": "Read a single page section by heading name. Uses the same heading matching and boundary rules as update_section: headings are matched case-insensitively, H1 sections end at the next heading of any level, and H2/H3 sections end at the next heading of the same or higher level. Includes the heading block itself and recursively renders nested children only for blocks inside the selected section. If unsupported nested block types are omitted, the response includes warnings. Notion AI meeting-notes blocks encountered in the result are rendered as a synthetic toggle and produce a `read_only_block_rendered` warning. Transcripts are not included from these tools.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "heading": {
+          "type": "string",
+          "description": "Heading text to find (case-insensitive)"
+        }
+      },
+      "required": [
+        "page_id",
+        "heading"
+      ]
+    }
+  },
+  {
+    "name": "read_block",
+    "description": "Read one block by ID as markdown. Container blocks are fetched recursively with children. Unsupported root block types return a clear error; unsupported nested blocks are omitted and listed in warnings. Notion AI meeting-notes blocks encountered in the result are rendered as a synthetic toggle and produce a `read_only_block_rendered` warning. Transcripts are not included from these tools.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "description": "Block ID"
+        }
+      },
+      "required": [
+        "block_id"
+      ]
+    }
+  },
+  {
+    "name": "read_toggle",
+    "description": "Read one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. Missing titles return the available toggle titles. Notion AI meeting-notes blocks encountered in the result are rendered as a synthetic toggle and produce a `read_only_block_rendered` warning. Transcripts are not included from these tools.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Toggle title to find (case-insensitive)"
+        }
+      },
+      "required": [
+        "page_id",
+        "title"
+      ]
+    }
+  },
+  {
+    "name": "search_in_page",
+    "description": "Search raw Notion block plain text inside a page, optionally scoped to one toggle or toggleable heading by title. Matching is case-insensitive plain substring search.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "query": {
+          "type": "string",
+          "description": "Plain substring to search for (case-insensitive, non-empty)"
+        },
+        "within_toggle": {
+          "type": "string",
+          "description": "Optional toggle title to restrict search scope (case-insensitive)"
+        }
+      },
+      "required": [
+        "page_id",
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "update_toggle",
+    "description": "DESTRUCTIVE — no rollback: this tool preserves the matched toggle container block ID, then deletes its body children and appends replacement body blocks. Child block IDs inside the body change, and if the write fails mid-call the toggle can be left partially or fully emptied. For irreplaceable content, duplicate_page the target first so you have a restore point.\n\nUpdate the body of one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. The markdown is replacement body content, not a wrapper that renames the toggle. If the markdown parses as one matching top-level toggle or toggleable heading wrapper, that wrapper is ignored and only its children are used as the replacement body.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Toggle title to find (case-insensitive)"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "Replacement markdown for the toggle body"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview validation and planned effect without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "page_id",
+        "title",
+        "markdown"
+      ]
+    }
+  },
+  {
+    "name": "archive_toggle",
+    "description": "Archive one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. Archives the matched container block; children are not deleted individually. Missing titles return the available toggle titles.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Toggle title to find (case-insensitive)"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview the archive target without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "page_id",
+        "title"
+      ]
+    }
+  },
+  {
+    "name": "restore_toggle",
+    "description": "Restore an archived toggle or toggleable heading by archived block ID. Use the block ID returned by archive_toggle; Notion does not expose archived child enumeration for title search or read_page include_archived.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "description": "Archived toggle or toggleable heading block ID returned by archive_toggle"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview the restore target without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "block_id"
+      ]
+    }
+  },
+  {
+    "name": "update_block",
+    "description": "Update a single block in place by ID. Preserves the block's identity (deep-link anchors and inline-comment threads attached to the block survive the edit). Use this for surgical edits: fixing a heading, toggling a checkbox, rewriting one paragraph. For multi-block edits, use append_content, replace_content, or update_section.\n\nType lock-in: the markdown must parse to the same block type as the existing block. update_block cannot change a block's type — Notion's API forbids it. To change a block's type, use replace_content or delete + append.\n\nUpdatable types: paragraph, heading_1, heading_2, heading_3, toggle, bulleted_list_item, numbered_list_item, quote, callout, to_do, code, equation. Container blocks (toggle, callout) update first-level content only — children stay untouched. Non-updatable types (divider, table, image, bookmark, etc.) accept only `archived: true` to delete the block.\n\nTo delete a block, pass `archived: true` instead of `markdown`. Exactly one of `markdown` or `archived` is required.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "block_id": {
+          "type": "string",
+          "description": "Block ID to update"
+        },
+        "markdown": {
+          "type": "string",
+          "description": "New content for the block. Must parse to a single block of the same type as the existing block. For to_do blocks, `- [x]` / `- [ ]` syntax sets the checked state."
+        },
+        "checked": {
+          "type": "boolean",
+          "description": "to_do only: explicit check-state override (otherwise inferred from `- [x]` / `- [ ]`)."
+        },
+        "archived": {
+          "type": "boolean",
+          "description": "Set true to delete the block (sends in_trash: true)."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview validation and planned effect without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "block_id"
+      ]
+    }
+  },
+  {
+    "name": "read_page",
+    "description": "Read a page and return metadata plus markdown. Recursively fetches nested blocks and uses the same markdown conventions accepted by create_page. If unsupported block types are omitted from the markdown, they are listed in warnings. Do NOT round-trip markdown through replace_content when omitted_block_types warnings are present; omitted blocks would be deleted.\n\nNotion AI meeting notes are rendered as a synthetic toggle containing the title, an optional recording timestamp callout, and `## Summary` / `## Notes` heading sections. Transcript sections are included only with `include_transcript: true`. A `read_only_block_rendered` warning is emitted whenever such a block is rendered, indicating that round-tripping the markdown through `replace_content` will replace the native meeting-notes block with ordinary blocks.\n\nNote on `max_blocks`: the cap counts top-level page blocks only; section descendants of meeting-notes blocks are fetched in full regardless of the cap, consistent with how nested children of normal blocks are fetched.\n\nLong titles are paginated with max_property_items. For markdown conventions, warning shapes, and pagination details, read resources easy-notion://docs/markdown, easy-notion://docs/warnings, and easy-notion://docs/property-pagination.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "include_metadata": {
+          "type": "boolean",
+          "description": "Include created_time, last_edited_time, created_by, last_edited_by in response. Default false."
+        },
+        "max_blocks": {
+          "type": "number",
+          "description": "Maximum top-level blocks to return. Omit to return all."
+        },
+        "max_property_items": {
+          "type": "number",
+          "description": "Max rich_text segments returned when a page title exceeds 25 segments (uncommon in practice). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint."
+        },
+        "include_transcript": {
+          "type": "boolean",
+          "description": "Include Notion AI meeting-notes transcript sections. Default false. Summary and Notes sections are always included when present."
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "duplicate_page",
+    "description": "Duplicate a page. Reads all blocks from the source and creates a new page with the same content that this server can represent. If the source contains block types this server does not yet support (e.g. child_page subpages, synced_block, child_database, link_to_page), those are omitted from the duplicate AND listed in a `warnings` field with code `omitted_block_types`. Notion AI meeting notes are duplicated as ordinary toggle/heading/paragraph blocks (summary and notes only — transcripts are not duplicated); a `read_only_block_rendered` warning is emitted to identify meeting-notes blocks whose native identity was not preserved across the duplicate. Deep-duplication of subpages is not yet supported.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Source page ID to duplicate"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title for the new page. Defaults to source title + ' (Copy)'"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID for the new page. Falls back to source page's parent, then follows the same resolution as create_page."
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "update_page",
+    "description": "Update page title, icon, or cover. Cover accepts an image URL, or a file:// path (stdio transport only) which will be uploaded to Notion. In HTTP transport, the file:// form is rejected — use an HTTPS URL instead.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Updated page title"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Updated emoji icon"
+        },
+        "cover": {
+          "type": "string",
+          "description": "Updated cover image URL"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "archive_page",
+    "description": "Archive a page in Notion.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview the archive target without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "search",
+    "description": "Search Notion pages or databases. Use filter: 'databases' to find databases by name, then get_database for schema details.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "filter": {
+          "type": "string",
+          "enum": [
+            "pages",
+            "databases"
+          ],
+          "description": "Optional object filter"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "list_pages",
+    "description": "List child pages under a parent page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID"
+        }
+      },
+      "required": [
+        "parent_page_id"
+      ]
+    }
+  },
+  {
+    "name": "share_page",
+    "description": "Return the page URL that can be shared from Notion.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "create_database",
+    "description": "Create a database under a parent page.\n\nSupported property types and extras:\n- title\n- rich_text (alias: text)\n- number (optional: format, for example \"dollar\", \"percent\", \"number_with_commas\")\n- select, multi_select, status (optional: options array of strings or {name, color, description})\n- date, checkbox, url, email, phone\n- formula (required: expression, for example \"prop(\\\"Count\\\") * 2\")\n- rollup (required: function, relation_property, rollup_property)\n- relation (required: data_source_id; optional: relation_type \"single_property\" or \"dual_property\", synced_property_name)\n- unique_id (optional: prefix, for example \"ENG\")\n- people, files\n- created_time, last_edited_time, created_by, last_edited_by\n- verification, place, location, button\n\nUnknown property types fail with an explicit error. No silent drops.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Database title"
+        },
+        "parent_page_id": {
+          "type": "string",
+          "description": "Parent page ID"
+        },
+        "schema": {
+          "type": "array",
+          "description": "Array of {name, type} property definitions",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ]
+          }
+        },
+        "is_inline": {
+          "type": "boolean",
+          "description": "Create the database inline within the parent page"
+        }
+      },
+      "required": [
+        "title",
+        "parent_page_id",
+        "schema"
+      ]
+    }
+  },
+  {
+    "name": "update_data_source",
+    "description": "CRITICAL: full-list semantics. When you update a select or status property's `options` array, you MUST send the full desired list. Any existing option you omit will be permanently removed from the database, along with any relationship to rows currently using it. Rows that currently reference a removed option are silently reassigned to the default group's first option (for example \"Not started\" for status properties). No signal is raised. If you want to preserve the meaning of existing rows when removing an option, reclassify those rows to another explicit option before removing the option from the schema. To add one option, first call get_database, then resend the full current list with your addition appended.\n\nCannot toggle `is_inline` on existing databases. `is_inline` is a database-level field, not a data-source field. A separate `update_database` tool may be added later.\n\nUpdates a database's schema: rename properties, add or update property definitions, remove properties, change the title, or move it to/from trash. Use after get_database. Supports raw Notion payloads and schema helper payloads; read resource easy-notion://docs/update-data-source for modes, examples, status notes, and limitations. At least one of `title`, `properties`, or `in_trash` must be provided.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "New database title"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Raw Notion property update map"
+        },
+        "in_trash": {
+          "type": "boolean",
+          "description": "True to trash, false to restore"
+        }
+      },
+      "required": [
+        "database_id"
+      ]
+    }
+  },
+  {
+    "name": "get_database",
+    "description": "Get a database's schema — property names, types, and select/status options. Call this before query_database or add_database_entry to know the exact property names and valid values.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        }
+      },
+      "required": [
+        "database_id"
+      ]
+    }
+  },
+  {
+    "name": "list_databases",
+    "description": "List all databases the integration can access. Returns database names and IDs — use get_database on any result to see its schema.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "query_database",
+    "description": "Query a database with optional filters, sorts, or text search. Use text for simple keyword search across title, rich_text, url, email, and phone fields. For advanced filters, pass Notion filter syntax and call get_database first to see property names and valid options.\n\nResponse shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-value properties are capped by max_property_items and can emit truncated_properties; read resources easy-notion://docs/property-pagination and easy-notion://docs/warnings for details.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "filter": {
+          "type": "object",
+          "description": "Optional Notion filter object"
+        },
+        "sorts": {
+          "type": "array",
+          "description": "Optional Notion sorts array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "text": {
+          "type": "string",
+          "description": "Search text — matches across all text fields (title, rich_text, url, email, phone)"
+        },
+        "max_property_items": {
+          "type": "number",
+          "description": "Max items returned per multi-value property (title, rich_text, relation, people). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint."
+        }
+      },
+      "required": [
+        "database_id"
+      ]
+    }
+  },
+  {
+    "name": "list_views",
+    "description": "List Notion database views. Pass exactly one of database_id or data_source_id. Returns the raw Notion views list response.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "data_source_id": {
+          "type": "string",
+          "description": "Data source ID"
+        },
+        "page_size": {
+          "type": "number",
+          "description": "Maximum number of views to return"
+        },
+        "start_cursor": {
+          "type": "string",
+          "description": "Pagination cursor from a previous response"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_view",
+    "description": "Retrieve one Notion database view by ID. Returns the raw Notion view response.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "view_id": {
+          "type": "string",
+          "description": "View ID"
+        }
+      },
+      "required": [
+        "view_id"
+      ]
+    }
+  },
+  {
+    "name": "query_view",
+    "description": "Query a Notion database view. Creates a temporary view query, fetches raw page results, then deletes the query.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "view_id": {
+          "type": "string",
+          "description": "View ID"
+        },
+        "page_size": {
+          "type": "number",
+          "description": "Maximum number of results to return"
+        },
+        "start_cursor": {
+          "type": "string",
+          "description": "Pagination cursor from a previous view query results response"
+        }
+      },
+      "required": [
+        "view_id"
+      ]
+    }
+  },
+  {
+    "name": "create_view",
+    "description": "Create a Notion database view. Pass database_id. Dashboard views and dashboard widget placement are not supported.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "View name"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "table",
+            "board",
+            "list",
+            "calendar",
+            "timeline",
+            "gallery",
+            "form",
+            "chart",
+            "map"
+          ],
+          "description": "View type. Dashboard is intentionally unsupported."
+        },
+        "filter": {
+          "type": "object",
+          "description": "Raw Notion view filter payload"
+        },
+        "sorts": {
+          "type": "array",
+          "description": "Raw Notion view sorts payload",
+          "items": {
+            "type": "object"
+          }
+        },
+        "quick_filters": {
+          "type": "object",
+          "description": "Raw Notion quick filters payload"
+        },
+        "configuration": {
+          "type": "object",
+          "description": "Raw Notion view configuration payload. Dashboard configuration is rejected."
+        },
+        "position": {
+          "type": "object",
+          "description": "Raw Notion view tab position payload"
+        }
+      },
+      "required": [
+        "database_id",
+        "name",
+        "type"
+      ]
+    }
+  },
+  {
+    "name": "update_view",
+    "description": "Update a Notion database view. Pass at least one update field. Null filter, sorts, or quick_filters values are forwarded to clear those fields.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "view_id": {
+          "type": "string",
+          "description": "View ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Updated view name"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Raw Notion view filter payload, or null to clear"
+        },
+        "sorts": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Raw Notion view sorts payload, or null to clear"
+        },
+        "quick_filters": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Raw Notion quick filters payload, or null to clear"
+        },
+        "configuration": {
+          "type": "object",
+          "description": "Raw Notion view configuration payload. Dashboard configuration is rejected."
+        }
+      },
+      "required": [
+        "view_id"
+      ]
+    }
+  },
+  {
+    "name": "delete_view",
+    "description": "Delete a Notion database view. Destructive: confirm must be exactly true.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "view_id": {
+          "type": "string",
+          "description": "View ID"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "Must be exactly true to delete the view unless dry_run is true"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview the delete target without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "view_id"
+      ]
+    }
+  },
+  {
+    "name": "add_database_entry",
+    "description": "Create one database entry using simple key-value property inputs. Call get_database first to see available property names and valid select/status options.\n\nWritable property values use simple inputs:\n- title, rich_text: string\n- number: number\n- select, status: option name string\n- multi_select: array of option name strings\n- date: ISO date string (start only)\n- checkbox: boolean\n- url, email, phone: string\n- relation: string or array of page IDs\n- people: string or array of user IDs\n\nNot writable from this tool:\n- formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion\n- files, verification, place, location, button: not supported for value writes here\n\nExample: { \"Name\": \"Buy groceries\", \"Status\": \"Todo\", \"Priority\": \"High\", \"Due\": \"2025-03-20\", \"Tags\": [\"Personal\"] }.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Key-value property map to convert using the database schema"
+        }
+      },
+      "required": [
+        "database_id",
+        "properties"
+      ]
+    }
+  },
+  {
+    "name": "add_database_entries",
+    "description": "Create multiple entries in a database in one call. Each entry uses the same simple key-value format as add_database_entry. Returns per-entry results — partial failures don't block the batch.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "database_id": {
+          "type": "string",
+          "description": "Database ID"
+        },
+        "entries": {
+          "type": "array",
+          "description": "Array of property objects, same format as add_database_entry",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "required": [
+        "database_id",
+        "entries"
+      ]
+    }
+  },
+  {
+    "name": "update_database_entry",
+    "description": "Update an existing database entry using simple key-value property inputs. Pass only properties to change; omitted properties are left unchanged. Call get_database first to see available property names and valid select/status options.\n\nWritable property values use the same simple inputs as add_database_entry:\n- title, rich_text: string\n- number: number\n- select, status: option name string\n- multi_select: array of option name strings\n- date: ISO date string (start only)\n- checkbox: boolean\n- url, email, phone: string\n- relation: string or array of page IDs\n- people: string or array of user IDs\n\nNot writable from this tool:\n- formula, rollup, unique_id, created_time, last_edited_time, created_by, last_edited_by: computed by Notion\n- files, verification, place, location, button: not supported for value writes here",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID for the database entry"
+        },
+        "properties": {
+          "type": "object",
+          "description": "Key-value property map to convert using the parent database schema"
+        }
+      },
+      "required": [
+        "page_id",
+        "properties"
+      ]
+    }
+  },
+  {
+    "name": "list_comments",
+    "description": "List comments on a page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "add_comment",
+    "description": "Add a comment to a page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        },
+        "text": {
+          "type": "string",
+          "description": "Comment text (supports markdown inline formatting)"
+        }
+      },
+      "required": [
+        "page_id",
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "move_page",
+    "description": "Move a page to a new parent page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID to move"
+        },
+        "new_parent_id": {
+          "type": "string",
+          "description": "New parent page ID"
+        }
+      },
+      "required": [
+        "page_id",
+        "new_parent_id"
+      ]
+    }
+  },
+  {
+    "name": "restore_page",
+    "description": "Restore an archived page.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Page ID"
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "delete_database_entry",
+    "description": "Delete (archive) a database entry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "description": "Database entry page ID"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "Preview the entry archive/delete target without mutating Notion. Default false."
+        }
+      },
+      "required": [
+        "page_id"
+      ]
+    }
+  },
+  {
+    "name": "list_users",
+    "description": "List workspace users.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_me",
+    "description": "Get the current bot user.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

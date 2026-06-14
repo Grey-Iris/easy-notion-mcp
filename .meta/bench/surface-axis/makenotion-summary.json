@@ -1,0 +1,139 @@
+{
+  "id": "makenotion",
+  "label": "makenotion/notion-mcp-server",
+  "status": "ok",
+  "toolCount": 22,
+  "totalTokens": 15469,
+  "totalBytes": 69281,
+  "avgTokensPerTool": 703.14,
+  "perTool": [
+    {
+      "name": "API-get-user",
+      "tokens": 605,
+      "bytes": 2684
+    },
+    {
+      "name": "API-get-users",
+      "tokens": 664,
+      "bytes": 2982
+    },
+    {
+      "name": "API-get-self",
+      "tokens": 595,
+      "bytes": 2654
+    },
+    {
+      "name": "API-post-search",
+      "tokens": 1096,
+      "bytes": 4902
+    },
+    {
+      "name": "API-get-block-children",
+      "tokens": 693,
+      "bytes": 3125
+    },
+    {
+      "name": "API-patch-block-children",
+      "tokens": 713,
+      "bytes": 3180
+    },
+    {
+      "name": "API-retrieve-a-block",
+      "tokens": 613,
+      "bytes": 2741
+    },
+    {
+      "name": "API-update-a-block",
+      "tokens": 725,
+      "bytes": 3205
+    },
+    {
+      "name": "API-delete-a-block",
+      "tokens": 613,
+      "bytes": 2738
+    },
+    {
+      "name": "API-retrieve-a-page",
+      "tokens": 680,
+      "bytes": 3058
+    },
+    {
+      "name": "API-patch-page",
+      "tokens": 884,
+      "bytes": 3989
+    },
+    {
+      "name": "API-post-page",
+      "tokens": 817,
+      "bytes": 3663
+    },
+    {
+      "name": "API-retrieve-a-page-property",
+      "tokens": 702,
+      "bytes": 3168
+    },
+    {
+      "name": "API-retrieve-a-comment",
+      "tokens": 687,
+      "bytes": 3107
+    },
+    {
+      "name": "API-create-a-comment",
+      "tokens": 697,
+      "bytes": 3166
+    },
+    {
+      "name": "API-query-data-source",
+      "tokens": 765,
+      "bytes": 3414
+    },
+    {
+      "name": "API-retrieve-a-data-source",
+      "tokens": 619,
+      "bytes": 2777
+    },
+    {
+      "name": "API-update-a-data-source",
+      "tokens": 719,
+      "bytes": 3197
+    },
+    {
+      "name": "API-create-a-data-source",
+      "tokens": 687,
+      "bytes": 3050
+    },
+    {
+      "name": "API-list-data-source-templates",
+      "tokens": 639,
+      "bytes": 2872
+    },
+    {
+      "name": "API-retrieve-a-database",
+      "tokens": 614,
+      "bytes": 2759
+    },
+    {
+      "name": "API-move-page",
+      "tokens": 640,
+      "bytes": 2827
+    }
+  ],
+  "resolvedSha": "e79f35fd64cc5db726fbba1beebaa84c80760c17",
+  "pkgVersion": "2.3.1",
+  "notionVersion": "2025-09-03",
+  "expectedPkgVersion": "2.3.1",
+  "expectedTools": 22,
+  "anthropic": {
+    "available": false,
+    "reason": "no ANTHROPIC_API_KEY"
+  },
+  "scriptsBlock": {
+    "build": "tsc -build && node scripts/build-cli.js",
+    "dev": "tsx watch scripts/start-server.ts",
+    "test": "NODE_ENV=test vitest run",
+    "test:watch": "NODE_ENV=test vitest",
+    "test:coverage": "NODE_ENV=test vitest run --coverage"
+  },
+  "binEntry": "bin/cli.mjs",
+  "cacheDir": "/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/bench-exec-harness-2026-06-13/.meta/bench/.servers-cache/makenotion"
+}
