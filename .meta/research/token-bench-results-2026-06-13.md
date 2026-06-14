@@ -1,42 +1,81 @@
 # Token-cost benchmark — results (Phase 2: live read + DB axes)
 
-**Date:** 2026-06-13 · **Status:** executed. Headline numbers use the **Anthropic token-counting API**
-(`claude-opus-4-8`) as primary; cl100k_base (`js-tiktoken` gpt-4) committed as the keyless cross-check.
-**Method/pre-registration:** `.meta/plans/token-benchmark-methodology-2026-06-13.md` +
-`.meta/bench/preregistration-2026-06-13.md` (committed before measurement; git history shows method
-preceded results). **Reproducibility artifacts:** `.meta/bench/read-axis/` and `.meta/bench/db-axis/`
-(verbatim per-server outputs + `results.json`); re-running `--reuse-raw` over them reproduces every
-number exactly.
+> **Reading a page's content costs ~6–7× fewer response tokens than the official Notion MCP server**
+> — because Notion's raw block JSON carries per-block metadata (block IDs, timestamps, author objects)
+> that an agent reading for content never needs. Typically **~5–7×**, ranging **~3×** (code-heavy) to
+> **~15×** (rich pages), with **≥94% of the page's real content preserved**. Measured against the
+> official raw-JSON server; roughly on par with other markdown-based servers.
+>
+> *(Proposed framing — public wording is James's call, pending sign-off.)*
 
-This is **not** a public README artifact. It is the measured evidence the masthead claim must be built
-from. The honesty bar: it must survive a skeptical competitor reading the repo.
+*Internal evidence, not public copy: the measured basis the masthead claim must be built from, held to
+the bar that it survive a skeptical competitor reading the repo. The "~6–7×" is the geometric mean of
+the high-completeness tier (table below); the full per-class numbers, all token bases, and every caveat
+are preserved in the sections that follow — nothing here is hidden, only reordered. Tokenizer, method,
+pre-registration, and reproducibility details are in "Methodology notes & caveats" below.*
 
 ---
 
-## 0. Headline (Axis B — page read, ours vs the official makenotion server)
+## 0. Headline — token cost by content-completeness tier (Axis B: page read vs the official makenotion server)
 
-Across a controlled corpus of 8 page-shape classes (favorable → adversarial), reading a page's full
-content costs fewer response tokens **ours vs makenotion (the official Notion MCP server, which returns
-raw block JSON)**. The size of the win depends on how much of the page's content our markdown preserves,
-so the headline is **stratified by content-completeness** rather than collapsed into one factor over a
-hand-picked class list. The exclusion is a **visible completeness threshold**, not a chosen set:
+Reading a page costs fewer **as-consumed** tokens *(tokens actually returned to the agent)*, and the win
+is larger the more of the page's content our markdown drops — so we report it **stratified by
+content-completeness** *(fraction of the page's real content preserved vs raw Notion JSON; 1.0 = nothing
+dropped)*, not as one number over a hand-picked class list. The cut between tiers is a **visible
+completeness threshold**, not a chosen set. Factors are the **geometric mean** across page-shape classes
+(the right average for multiplicative ratios; the median is shown alongside as a robustness check):
 
 | Completeness tier | Classes | Geomean (lead) | Median | Range |
 |---|---|---|---|---|
 | **Lossless** (content-completeness = 1.0) | R2, R3, R4, R6 (k=4) | **5.04×** | 5.33× | 2.8×–9.5× |
 | **High-completeness** (≥ 0.94) | + R1 (k=5) | **6.24×** | 7.36× | 2.8×–14.7× |
 
-Anthropic-primary. Aggregates are over **classes** (k); the per-class factor is the median of the 5
-per-fixture ratios, and the within-class fixture spread is kept as a stability footnote (§3), not as the
-unit of the headline. We **lead with the geometric mean** (the right average for ratios); the median is
-the robustness check. Classes below the ≥0.94 threshold — R5 (completeness 0.054), R8 (0.25), R7 (0.716)
-— are reported separately in §4, because on those shapes part of the token gap is content our markdown
-drops, not serialization. The full per-class numbers (all 8 classes, all three token bases) are in §3;
-`scripts/bench/lib/recompute-tiers.ts` regenerates this table from `results.json`.
+*Class legend (8 page shapes, favorable → adversarial): **R1** favorable-rich · **R2** typical-prose ·
+**R3** content-light stub · **R4** plain-text-heavy · **R5** annotation-heavy · **R6** code-dominant ·
+**R7** deep-nested · **R8** media-heavy.* Aggregates are over **classes** (k); the per-class factor is the
+median of its 5 per-fixture ratios, and the within-class fixture spread is kept as a stability footnote
+(§3), not as the unit of the headline. Full per-class numbers (all 8 classes, all three token bases) are
+in §3; `scripts/bench/lib/recompute-tiers.ts` regenerates this table from `results.json`.
 
-**At rough parity at equal information.** Normalize both outputs to the same intermediate representation
-before counting (the **common-IR** factor) and the large as-consumed gap collapses: it is **~1.0–1.06× on
-the strictly-lossless classes** (R3 1.06×, R4 1.03×, R6 1.01×). It is not *universally* equal, though —
+### What this does NOT claim
+- **Only vs the official raw-JSON server (makenotion).** Against other markdown converters
+  (awkoy/better-notion) we are **roughly at parity**, not consistently leaner (§3).
+- **The win is metadata-omission, not encoding efficiency.** At equal information the two formats cost
+  about the same (common-IR ~1.0–1.06× on the lossless classes); the saving is the per-block metadata raw
+  JSON carries, not a denser encoding (see "Methodology notes & caveats").
+- **Call count ("1 vs 98") is modeled, not measured**, and was computed on a lossy class — it is *not* a
+  second headline (see "Methodology notes & caveats").
+- **Lossy classes are excluded from the headline by the ≥0.94 threshold:** R5 (completeness 0.054), R7
+  (0.716), R8 (0.25). On those, part of the token gap is content our markdown drops, not serialization —
+  reported in full in §4. (The R5 case — a **17.8× "win" that is ~95% dropped color** — is the sharpest
+  honesty check; see §4, "The R5 finding.")
+- **Controlled benchmark corpus** (8 shape templates), **not** a representative sample of real Notion
+  pages.
+
+So the defensible claim is a **range scoped to the response axis, vs the official server, at a stated
+completeness threshold** — never a bare "N×".
+
+---
+
+## Methodology notes & caveats
+
+*(The detail behind the headline and its caveats. Present and complete — moved here so the result lands
+first, not because it is secondary.)*
+
+**Date 2026-06-13 · status: executed. Tokenizer & reproducibility.** Headline numbers use the **Anthropic
+token-counting API** (`claude-opus-4-8`) as primary; cl100k_base (`js-tiktoken` gpt-4) is committed as the
+keyless cross-check. Method/pre-registration: `.meta/plans/token-benchmark-methodology-2026-06-13.md` +
+`.meta/bench/preregistration-2026-06-13.md` (committed before measurement; git history shows method
+preceded results). Reproducibility artifacts: `.meta/bench/read-axis/` and `.meta/bench/db-axis/`
+(verbatim per-server outputs + `results.json`); re-running `--reuse-raw` over them reproduces every number
+exactly. This is **not** a public README artifact — it is the measured evidence the masthead claim must be
+built from, held to the bar that it survive a skeptical competitor reading the repo.
+
+**At rough parity at equal information (common-IR).** Normalize both outputs to the same intermediate
+representation before counting — the **common-IR** factor *(both outputs rewritten to the same
+representation, to separate metadata overhead from real content; a ratio near 1.0× means the formats are
+equivalent at equal information)* — and the large as-consumed gap collapses: it is **~1.0–1.06× on the
+strictly-lossless classes** (R3 1.06×, R4 1.03×, R6 1.01×). It is not *universally* equal, though —
 **R2 is 1.32× even at 100% completeness**, so on some clean prose our markdown is modestly cheaper but not
 free. The honest read: markdown is at **rough parity** with raw JSON at equal information, modestly cheaper
 on a few clean classes. So the big as-consumed win is **not** encoding efficiency — it is the per-block
@@ -51,10 +90,6 @@ content-complete** (our markdown drops real `text`) — so it pits our *incomple
 *complete* one and is **not an equal-completeness comparison**. It is not a second headline. A real,
 measured call-count comparison at equal completeness is filed as future work (tasuku
 `bench-measure-call-counts`).
-
-This win is **vs raw-JSON**. It does **not** hold against other markdown converters (awkoy/better-notion;
-§3), where we are roughly at parity. The defensible public claim is a **range scoped to the response axis
-vs the official server, at a stated completeness threshold**, never a bare "Nx".
 
 ---
 
@@ -143,7 +178,7 @@ Per-class factor = median of the 5 per-fixture ratios (makenotion ÷ ours). `com
 normalized to the same intermediate representation before counting. The **`calls` column is MODELED, not
 measured** — raw `callCount` was 0 for all rows in this capture; ours is *assumed* 1 and makenotion is
 *derived* as `ceil(blocks/100)` recursed over the captured block tree. Treat it as an order-of-magnitude
-estimate only (see the §0 caveat and `recompute-tiers.ts`). Token/IR/completeness columns are measured and
+estimate only (see "Methodology notes & caveats" and `recompute-tiers.ts`). Token/IR/completeness columns are measured and
 regenerated by `scripts/bench/lib/recompute-tiers.ts`.
 
 | Class | Shape | content-completeness | as-consumed× (anth) | cl100k× | common-IR× | modeled calls (ours→mk)† |
