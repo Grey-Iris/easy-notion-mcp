@@ -123,8 +123,9 @@ export async function provisionDatabase(
   fixture: DatabaseFixture,
   parentPageId: string,
   deps: NotionProvisionDeps,
-): Promise<{ databaseId: string }> {
+): Promise<{ databaseId: string; dataSourceId?: string }> {
   const context = requestContext(deps);
+  const properties = databaseSchema(fixture.properties);
   const response = await notionRequest<JsonObject>(
     context,
     "POST",
@@ -132,17 +133,22 @@ export async function provisionDatabase(
     {
       parent: { type: "page_id", page_id: parentPageId },
       title: [textRT(fixture.title)],
-      properties: databaseSchema(fixture.properties),
+      properties,
+      initial_data_source: { properties },
     },
   );
   const databaseId = readId(response, "database create");
+  const dataSourceId = readDataSourceId(response);
   const titleProperty = fixture.properties.find((property) => property.type === "title")?.name ?? "Name";
 
   for (const row of fixture.rows) {
-    await createDatabaseRow(context, databaseId, titleProperty, fixture.properties, row);
+    await createDatabaseRow(context, databaseId, dataSourceId, titleProperty, fixture.properties, row);
   }
 
-  return { databaseId };
+  return {
+    databaseId,
+    ...(dataSourceId ? { dataSourceId } : {}),
+  };
 }
 
 export async function archiveBlock(id: string, deps: NotionProvisionDeps): Promise<void> {
@@ -166,6 +172,7 @@ export async function archiveBlock(id: string, deps: NotionProvisionDeps): Promi
 async function createDatabaseRow(
   context: RequestContext,
   databaseId: string,
+  dataSourceId: string | undefined,
   titleProperty: string,
   properties: PropertyFixture[],
   row: RowFixture,
@@ -175,7 +182,9 @@ async function createDatabaseRow(
     "POST",
     "/v1/pages",
     {
-      parent: { type: "database_id", database_id: databaseId },
+      parent: dataSourceId
+        ? { type: "data_source_id", data_source_id: dataSourceId }
+        : { type: "database_id", database_id: databaseId },
       properties: rowProperties(titleProperty, properties, row),
       children: row.body.slice(0, maxChildrenPerRequest).map((block) => blockToNotion(block)),
     },
@@ -520,6 +529,12 @@ function readResults(value: JsonObject, label: string): JsonObject[] {
     return value.results;
   }
   throw new Error(`Notion ${label} response did not contain a results array`);
+}
+
+function readDataSourceId(value: JsonObject): string | undefined {
+  const dataSources = Array.isArray(value.data_sources) ? value.data_sources : [];
+  const first = dataSources.find(isJsonObject);
+  return typeof first?.id === "string" ? first.id : undefined;
 }
 
 function isJsonObject(value: unknown): value is JsonObject {

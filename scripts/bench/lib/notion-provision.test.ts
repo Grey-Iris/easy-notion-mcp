@@ -150,12 +150,13 @@ describe("notion provision", () => {
       ],
     };
 
-    await provisionDatabase(fixture, "parent-page", { token: "secret", fetchImpl });
+    const result = await provisionDatabase(fixture, "parent-page", { token: "secret", fetchImpl });
 
     const databaseCreate = requests.find((request) => request.method === "POST" && request.url.endsWith("/v1/databases"));
     const rowCreates = requests.filter((request) => request.method === "POST" && request.url.endsWith("/v1/pages"));
 
-    expect(databaseCreate?.body.properties).toMatchObject({
+    expect(result).toEqual({ databaseId: "database-1", dataSourceId: "ds-1" });
+    const expectedProperties = {
       Name: { title: {} },
       Summary: { rich_text: {} },
       Estimate: { number: {} },
@@ -167,9 +168,12 @@ describe("notion provision", () => {
       Link: { url: {} },
       Contact: { email: {} },
       Phone: { phone_number: {} },
-    });
+    };
+    expect(databaseCreate?.body.initial_data_source.properties).toMatchObject(expectedProperties);
+    expect(databaseCreate?.body.properties).toMatchObject(expectedProperties);
     expect(rowCreates).toHaveLength(2);
-    expect(rowCreates[0]?.body.parent).toEqual({ type: "database_id", database_id: "database-1" });
+    expect(rowCreates[0]?.body.parent).toEqual({ type: "data_source_id", data_source_id: "ds-1" });
+    expect(rowCreates[1]?.body.parent).toEqual({ type: "data_source_id", data_source_id: "ds-1" });
     expect(rowCreates[0]?.body.properties).toEqual({
       Name: { title: [{ type: "text", text: { content: "Row 1" } }] },
       Summary: { rich_text: [{ type: "text", text: { content: "Summary 1" } }] },
@@ -204,7 +208,7 @@ function fakeFetch(requests: RecordedRequest[]): typeof fetch {
 
     if (method === "POST" && urlString.endsWith("/v1/databases")) {
       databaseCount += 1;
-      return jsonResponse({ id: `database-${databaseCount}` });
+      return jsonResponse({ id: `database-${databaseCount}`, data_sources: [{ id: "ds-1", name: "Default" }] });
     }
 
     if (method === "GET" && urlString.includes("/children")) {

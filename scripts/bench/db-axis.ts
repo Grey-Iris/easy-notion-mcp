@@ -63,6 +63,7 @@ export async function runDbAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunS
   const createdRowPageIds: string[] = [];
   const statuses: RunStatus[] = [];
   const sensitivity: SensitivityResult[] = [];
+  const provisionedDatabases: Array<{ fixtureId: string; databaseId: string; dataSourceId?: string }> = [];
   const provisionedServers = await provisionServers(serverDefs, env.notionToken);
 
   await mkdir(rawDir, { recursive: true });
@@ -81,6 +82,14 @@ export async function runDbAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunS
           { token: env.notionToken },
         ) as DatabaseProvisionResult;
         databaseId = created.databaseId;
+        provisionedDatabases.push({
+          fixtureId: fixture.id,
+          databaseId,
+          ...(created.dataSourceId ? { dataSourceId: created.dataSourceId } : {}),
+        });
+        if (created.dataSourceId) {
+          console.error(`[db-axis] provisioned ${fixture.id}: database=${databaseId} data_source=${created.dataSourceId}`);
+        }
         createdDatabaseIds.push(databaseId);
         createdRowPageIds.push(...(created.rowPageIds ?? []));
       } catch (error) {
@@ -170,10 +179,10 @@ export async function runDbAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunS
         ));
       }
 
-      await writeResults(statuses, sensitivity, provisionedServers, env.anthropicApiKey !== undefined);
+      await writeResults(statuses, sensitivity, provisionedDatabases, provisionedServers, env.anthropicApiKey !== undefined);
     }
 
-    await writeResults(statuses, sensitivity, provisionedServers, env.anthropicApiKey !== undefined);
+    await writeResults(statuses, sensitivity, provisionedDatabases, provisionedServers, env.anthropicApiKey !== undefined);
     console.log(renderDbAxisSummary(statuses));
     return statuses;
   } finally {
@@ -318,6 +327,7 @@ async function tokenSummary(text: string, anthropicCount: (text: string) => Prom
 async function writeResults(
   statuses: RunStatus[],
   sensitivity: SensitivityResult[],
+  provisionedDatabases: Array<{ fixtureId: string; databaseId: string; dataSourceId?: string }>,
   provisionedServers: ProvisionedServer[],
   anthropicAvailable: boolean,
 ): Promise<void> {
@@ -342,6 +352,7 @@ async function writeResults(
       cacheDir: provisioned.cacheDir,
       binEntry: provisioned.binEntry,
     })),
+    provisionedDatabases,
     failureCount: statuses.filter((status) => status.status === "failed").length,
     sensitivity,
     results: statuses,
