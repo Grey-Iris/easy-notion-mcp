@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { ServerId } from "./servers.js";
 
 export interface McpLaunchSpec {
   command: string;
@@ -37,6 +38,25 @@ export const DUMMY_TOKEN_ENV = {
     "Notion-Version": "2025-09-03",
   }),
 };
+
+export function authEnvForServer(
+  serverId: ServerId,
+  token: string,
+  notionVersion = "2025-09-03",
+): Record<string, string> {
+  if (serverId === "makenotion") {
+    return {
+      OPENAPI_MCP_HEADERS: JSON.stringify({
+        Authorization: `Bearer ${token}`,
+        "Notion-Version": notionVersion,
+      }),
+    };
+  }
+  return {
+    NOTION_TOKEN: token,
+    INTERNAL_INTEGRATION_TOKEN: token,
+  };
+}
 
 const initializeRequest = {
   jsonrpc: "2.0",
