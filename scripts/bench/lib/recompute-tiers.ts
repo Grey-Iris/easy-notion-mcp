@@ -3,6 +3,11 @@
  * Per-class factor is the median of five per-fixture baseline/ours ratios.
  * Tier aggregates are over per-class factors (k classes), superseding the
  * n=35 pooled-fixture median used in earlier drafts.
+ *
+ * MEASURED columns: completeness, as-consumed (anthropic/cl100k), common-IR.
+ * MODELED columns: ours_calls / mk_calls — raw callCount was 0 for all rows in
+ * this capture, so call count is synthetic (see callsForBlockChildren). Do not
+ * treat the call-count output as a measurement.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -54,8 +59,8 @@ type ClassSummary = {
   asConsumedAnthropic: number;
   asConsumedCl100k: number;
   commonIrAnthropic: number;
-  oursCalls: 1;
-  makenotionCalls: number;
+  oursCalls: 1; // MODELED assumption, not measured (raw callCount=0); see callsForBlockChildren
+  makenotionCalls: number; // MODELED estimate, not measured; see callsForBlockChildren
 };
 
 function readJson<T>(path: string): T {
@@ -86,6 +91,16 @@ function geomean(values: readonly number[]): number {
   return Math.exp(mean(values.map((value) => Math.log(value))));
 }
 
+// ---------------------------------------------------------------------------
+// MODELED call-count estimate — NOT a measurement.
+// Raw `callCount` is 0 for all 160 rows in results.json (never captured), so the
+// figures below are SYNTHETIC: ours is assumed to be 1 (see ClassSummary.oursCalls),
+// and makenotion is modeled as `ceil(blocks/100)` paginated + one recursive fetch per
+// parent-with-children, walked over the captured block tree. The block *structure* is
+// real; the call total derived from it is a model. Do not present these as measured.
+// A real measured comparison at equal completeness is future work (tasuku
+// `bench-measure-call-counts`). Token / common-IR / completeness numbers ARE measured.
+// ---------------------------------------------------------------------------
 function callsForBlockChildren(blocks: readonly RawBlock[]): number {
   let calls = Math.max(1, Math.ceil(blocks.length / 100));
 
@@ -204,6 +219,7 @@ const resultsPath = join(process.cwd(), ".meta", "bench", "read-axis", "results.
 const resultsFile = readJson<ResultsFile>(resultsPath);
 const summaries = CLASSES.map((classId) => summarizeClass(resultsFile.results, classId));
 
+console.log("NOTE: ours_calls / mk_calls are MODELED estimates (raw callCount=0 in capture), NOT measured.");
 console.log("PER-CLASS (factor = median of 5 per-fixture ratios; ours=easy-notion baseline=makenotion)");
 console.log("class  completeness  asConsumed_anth  cl100k  commonIR  ours_calls  mk_calls");
 
