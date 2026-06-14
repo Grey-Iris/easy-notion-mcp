@@ -1,0 +1,6641 @@
+{
+  "generatedAt": "2026-06-14T00:38:00.739Z",
+  "tokenizer": {
+    "cl100k": "js-tiktoken encodingForModel('gpt-4')",
+    "anthropic": {
+      "model": "claude-opus-4-8",
+      "version": "2023-06-01",
+      "available": true
+    }
+  },
+  "servers": [
+    {
+      "id": "easy-notion",
+      "label": "easy-notion-mcp (ours)",
+      "resolvedSha": "reuse-raw",
+      "pkgVersion": "",
+      "expectedPkgVersion": "0.9.3",
+      "notionVersion": "2026-03-11",
+      "cacheDir": "",
+      "binEntry": ""
+    },
+    {
+      "id": "makenotion",
+      "label": "makenotion/notion-mcp-server",
+      "resolvedSha": "reuse-raw",
+      "pkgVersion": "",
+      "expectedPkgVersion": "2.3.1",
+      "notionVersion": "2025-09-03",
+      "cacheDir": "",
+      "binEntry": ""
+    },
+    {
+      "id": "awkoy",
+      "label": "awkoy/notion-mcp-server",
+      "resolvedSha": "reuse-raw",
+      "pkgVersion": "",
+      "expectedPkgVersion": "2.5.1",
+      "notionVersion": "2025-09-03",
+      "cacheDir": "",
+      "binEntry": ""
+    },
+    {
+      "id": "better-notion",
+      "label": "better-notion-mcp (@n24q02m)",
+      "resolvedSha": "reuse-raw",
+      "pkgVersion": "",
+      "expectedPkgVersion": "2.33.0",
+      "notionVersion": "2025-09-03",
+      "cacheDir": "",
+      "binEntry": ""
+    }
+  ],
+  "failureCount": 0,
+  "results": [
+    {
+      "status": "ok",
+      "fixtureId": "R1-01",
+      "classId": "R1",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 222,
+          "anthropic": 324,
+          "bytes": 679
+        },
+        "commonIr": {
+          "cl100k": 473,
+          "anthropic": 819,
+          "bytes": 1816
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-01",
+      "classId": "R1",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 3455,
+          "anthropic": 4759,
+          "bytes": 10142
+        },
+        "commonIr": {
+          "cl100k": 487,
+          "anthropic": 782,
+          "bytes": 1943
+        },
+        "contentCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 83,
+          "total": 83,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-01",
+      "classId": "R1",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 219,
+          "anthropic": 333,
+          "bytes": 657
+        },
+        "commonIr": {
+          "cl100k": 325,
+          "anthropic": 539,
+          "bytes": 1175
+        },
+        "contentCompleteness": {
+          "preserved": 12,
+          "total": 17,
+          "score": 0.7058823529411765,
+          "missing": [
+            "block-kind",
+            "code-language",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 12,
+          "total": 83,
+          "score": 0.14457831325301204,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "code-language",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-01",
+      "classId": "R1",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 360,
+          "anthropic": 495,
+          "bytes": 1092
+        },
+        "commonIr": {
+          "cl100k": 431,
+          "anthropic": 732,
+          "bytes": 1619
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-02",
+      "classId": "R1",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 219,
+          "anthropic": 324,
+          "bytes": 677
+        },
+        "commonIr": {
+          "cl100k": 473,
+          "anthropic": 819,
+          "bytes": 1812
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-02",
+      "classId": "R1",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 3448,
+          "anthropic": 4760,
+          "bytes": 10138
+        },
+        "commonIr": {
+          "cl100k": 487,
+          "anthropic": 782,
+          "bytes": 1939
+        },
+        "contentCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 83,
+          "total": 83,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-02",
+      "classId": "R1",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 218,
+          "anthropic": 334,
+          "bytes": 655
+        },
+        "commonIr": {
+          "cl100k": 325,
+          "anthropic": 539,
+          "bytes": 1171
+        },
+        "contentCompleteness": {
+          "preserved": 12,
+          "total": 17,
+          "score": 0.7058823529411765,
+          "missing": [
+            "block-kind",
+            "code-language",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 12,
+          "total": 83,
+          "score": 0.14457831325301204,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "code-language",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-02",
+      "classId": "R1",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 357,
+          "anthropic": 495,
+          "bytes": 1090
+        },
+        "commonIr": {
+          "cl100k": 431,
+          "anthropic": 732,
+          "bytes": 1615
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-03",
+      "classId": "R1",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 218,
+          "anthropic": 321,
+          "bytes": 676
+        },
+        "commonIr": {
+          "cl100k": 473,
+          "anthropic": 821,
+          "bytes": 1810
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-03",
+      "classId": "R1",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 3433,
+          "anthropic": 4736,
+          "bytes": 10136
+        },
+        "commonIr": {
+          "cl100k": 487,
+          "anthropic": 784,
+          "bytes": 1937
+        },
+        "contentCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 83,
+          "total": 83,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-03",
+      "classId": "R1",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 217,
+          "anthropic": 333,
+          "bytes": 654
+        },
+        "commonIr": {
+          "cl100k": 325,
+          "anthropic": 541,
+          "bytes": 1169
+        },
+        "contentCompleteness": {
+          "preserved": 12,
+          "total": 17,
+          "score": 0.7058823529411765,
+          "missing": [
+            "block-kind",
+            "code-language",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 12,
+          "total": 83,
+          "score": 0.14457831325301204,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "code-language",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-03",
+      "classId": "R1",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 356,
+          "anthropic": 492,
+          "bytes": 1089
+        },
+        "commonIr": {
+          "cl100k": 431,
+          "anthropic": 734,
+          "bytes": 1613
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-04",
+      "classId": "R1",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 213,
+          "anthropic": 320,
+          "bytes": 673
+        },
+        "commonIr": {
+          "cl100k": 473,
+          "anthropic": 823,
+          "bytes": 1804
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-04",
+      "classId": "R1",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 3425,
+          "anthropic": 4740,
+          "bytes": 10130
+        },
+        "commonIr": {
+          "cl100k": 487,
+          "anthropic": 786,
+          "bytes": 1931
+        },
+        "contentCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 83,
+          "total": 83,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-04",
+      "classId": "R1",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 214,
+          "anthropic": 332,
+          "bytes": 651
+        },
+        "commonIr": {
+          "cl100k": 325,
+          "anthropic": 543,
+          "bytes": 1163
+        },
+        "contentCompleteness": {
+          "preserved": 12,
+          "total": 17,
+          "score": 0.7058823529411765,
+          "missing": [
+            "block-kind",
+            "code-language",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 12,
+          "total": 83,
+          "score": 0.14457831325301204,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "code-language",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-04",
+      "classId": "R1",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 351,
+          "anthropic": 491,
+          "bytes": 1086
+        },
+        "commonIr": {
+          "cl100k": 431,
+          "anthropic": 736,
+          "bytes": 1607
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-05",
+      "classId": "R1",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 222,
+          "anthropic": 333,
+          "bytes": 674
+        },
+        "commonIr": {
+          "cl100k": 473,
+          "anthropic": 825,
+          "bytes": 1806
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-05",
+      "classId": "R1",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 3461,
+          "anthropic": 4784,
+          "bytes": 10132
+        },
+        "commonIr": {
+          "cl100k": 487,
+          "anthropic": 788,
+          "bytes": 1933
+        },
+        "contentCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 83,
+          "total": 83,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-05",
+      "classId": "R1",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 219,
+          "anthropic": 340,
+          "bytes": 652
+        },
+        "commonIr": {
+          "cl100k": 325,
+          "anthropic": 545,
+          "bytes": 1165
+        },
+        "contentCompleteness": {
+          "preserved": 12,
+          "total": 17,
+          "score": 0.7058823529411765,
+          "missing": [
+            "block-kind",
+            "code-language",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 12,
+          "total": 83,
+          "score": 0.14457831325301204,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "code-language",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R1-05",
+      "classId": "R1",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 360,
+          "anthropic": 504,
+          "bytes": 1087
+        },
+        "commonIr": {
+          "cl100k": 431,
+          "anthropic": 738,
+          "bytes": 1609
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 17,
+          "score": 0.9411764705882353,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 83,
+          "score": 0.1927710843373494,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-01",
+      "classId": "R2",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 226,
+          "anthropic": 343,
+          "bytes": 1085
+        },
+        "commonIr": {
+          "cl100k": 409,
+          "anthropic": 700,
+          "bytes": 2266
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 14,
+          "total": 56,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-01",
+      "classId": "R2",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2350,
+          "anthropic": 3273,
+          "bytes": 7669
+        },
+        "commonIr": {
+          "cl100k": 570,
+          "anthropic": 926,
+          "bytes": 2882
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-01",
+      "classId": "R2",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 164,
+          "anthropic": 261,
+          "bytes": 915
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 579,
+          "bytes": 1979
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-01",
+      "classId": "R2",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 366,
+          "anthropic": 520,
+          "bytes": 1504
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 579,
+          "bytes": 1979
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-02",
+      "classId": "R2",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 229,
+          "anthropic": 349,
+          "bytes": 1086
+        },
+        "commonIr": {
+          "cl100k": 409,
+          "anthropic": 700,
+          "bytes": 2268
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 14,
+          "total": 56,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-02",
+      "classId": "R2",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2369,
+          "anthropic": 3299,
+          "bytes": 7671
+        },
+        "commonIr": {
+          "cl100k": 570,
+          "anthropic": 926,
+          "bytes": 2884
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-02",
+      "classId": "R2",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 167,
+          "anthropic": 266,
+          "bytes": 916
+        },
+        "commonIr": {
+          "cl100k": 345,
+          "anthropic": 583,
+          "bytes": 1981
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-02",
+      "classId": "R2",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 369,
+          "anthropic": 526,
+          "bytes": 1505
+        },
+        "commonIr": {
+          "cl100k": 345,
+          "anthropic": 583,
+          "bytes": 1981
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-03",
+      "classId": "R2",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 227,
+          "anthropic": 347,
+          "bytes": 1085
+        },
+        "commonIr": {
+          "cl100k": 409,
+          "anthropic": 702,
+          "bytes": 2266
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 14,
+          "total": 56,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-03",
+      "classId": "R2",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2358,
+          "anthropic": 3290,
+          "bytes": 7669
+        },
+        "commonIr": {
+          "cl100k": 570,
+          "anthropic": 928,
+          "bytes": 2882
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-03",
+      "classId": "R2",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 165,
+          "anthropic": 265,
+          "bytes": 915
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 583,
+          "bytes": 1979
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-03",
+      "classId": "R2",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 367,
+          "anthropic": 524,
+          "bytes": 1504
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 583,
+          "bytes": 1979
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-04",
+      "classId": "R2",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 224,
+          "anthropic": 348,
+          "bytes": 1085
+        },
+        "commonIr": {
+          "cl100k": 409,
+          "anthropic": 708,
+          "bytes": 2266
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 14,
+          "total": 56,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-04",
+      "classId": "R2",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2359,
+          "anthropic": 3304,
+          "bytes": 7669
+        },
+        "commonIr": {
+          "cl100k": 570,
+          "anthropic": 934,
+          "bytes": 2882
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-04",
+      "classId": "R2",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 164,
+          "anthropic": 265,
+          "bytes": 915
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 585,
+          "bytes": 1979
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-04",
+      "classId": "R2",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 364,
+          "anthropic": 525,
+          "bytes": 1504
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 585,
+          "bytes": 1979
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-05",
+      "classId": "R2",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 220,
+          "anthropic": 343,
+          "bytes": 1086
+        },
+        "commonIr": {
+          "cl100k": 409,
+          "anthropic": 708,
+          "bytes": 2268
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 14,
+          "total": 56,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-05",
+      "classId": "R2",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2329,
+          "anthropic": 3269,
+          "bytes": 7671
+        },
+        "commonIr": {
+          "cl100k": 570,
+          "anthropic": 934,
+          "bytes": 2884
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 14,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-05",
+      "classId": "R2",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 161,
+          "anthropic": 263,
+          "bytes": 916
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 583,
+          "bytes": 1981
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R2-05",
+      "classId": "R2",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 360,
+          "anthropic": 520,
+          "bytes": 1505
+        },
+        "commonIr": {
+          "cl100k": 343,
+          "anthropic": 583,
+          "bytes": 1981
+        },
+        "contentCompleteness": {
+          "preserved": 10,
+          "total": 14,
+          "score": 0.7142857142857143,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 10,
+          "total": 56,
+          "score": 0.17857142857142858,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-01",
+      "classId": "R3",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 104,
+          "anthropic": 165,
+          "bytes": 314
+        },
+        "commonIr": {
+          "cl100k": 103,
+          "anthropic": 196,
+          "bytes": 395
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-01",
+      "classId": "R3",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 900,
+          "anthropic": 1261,
+          "bytes": 2591
+        },
+        "commonIr": {
+          "cl100k": 119,
+          "anthropic": 207,
+          "bytes": 436
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-01",
+      "classId": "R3",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 17,
+          "anthropic": 37,
+          "bytes": 71
+        },
+        "commonIr": {
+          "cl100k": 21,
+          "anthropic": 47,
+          "bytes": 83
+        },
+        "contentCompleteness": {
+          "preserved": 0,
+          "total": 4,
+          "score": 0,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 0,
+          "total": 16,
+          "score": 0,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-01",
+      "classId": "R3",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 247,
+          "anthropic": 348,
+          "bytes": 739
+        },
+        "commonIr": {
+          "cl100k": 61,
+          "anthropic": 121,
+          "bytes": 206
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-02",
+      "classId": "R3",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 102,
+          "anthropic": 163,
+          "bytes": 307
+        },
+        "commonIr": {
+          "cl100k": 85,
+          "anthropic": 161,
+          "bytes": 336
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 3,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 3,
+          "total": 15,
+          "score": 0.2,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-02",
+      "classId": "R3",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 862,
+          "anthropic": 1198,
+          "bytes": 2393
+        },
+        "commonIr": {
+          "cl100k": 76,
+          "anthropic": 141,
+          "bytes": 283
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 3,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 15,
+          "total": 15,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-02",
+      "classId": "R3",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 44,
+          "anthropic": 74,
+          "bytes": 107
+        },
+        "commonIr": {
+          "cl100k": 54,
+          "anthropic": 109,
+          "bytes": 194
+        },
+        "contentCompleteness": {
+          "preserved": 2,
+          "total": 3,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 2,
+          "total": 15,
+          "score": 0.13333333333333333,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-02",
+      "classId": "R3",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 247,
+          "anthropic": 350,
+          "bytes": 736
+        },
+        "commonIr": {
+          "cl100k": 43,
+          "anthropic": 86,
+          "bytes": 147
+        },
+        "contentCompleteness": {
+          "preserved": 2,
+          "total": 3,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 2,
+          "total": 15,
+          "score": 0.13333333333333333,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-03",
+      "classId": "R3",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 105,
+          "anthropic": 167,
+          "bytes": 314
+        },
+        "commonIr": {
+          "cl100k": 103,
+          "anthropic": 196,
+          "bytes": 395
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-03",
+      "classId": "R3",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 898,
+          "anthropic": 1258,
+          "bytes": 2591
+        },
+        "commonIr": {
+          "cl100k": 119,
+          "anthropic": 207,
+          "bytes": 436
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-03",
+      "classId": "R3",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 42,
+          "anthropic": 68,
+          "bytes": 96
+        },
+        "commonIr": {
+          "cl100k": 61,
+          "anthropic": 121,
+          "bytes": 206
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-03",
+      "classId": "R3",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 248,
+          "anthropic": 350,
+          "bytes": 739
+        },
+        "commonIr": {
+          "cl100k": 61,
+          "anthropic": 121,
+          "bytes": 206
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-04",
+      "classId": "R3",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 103,
+          "anthropic": 162,
+          "bytes": 307
+        },
+        "commonIr": {
+          "cl100k": 85,
+          "anthropic": 161,
+          "bytes": 336
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 3,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 3,
+          "total": 15,
+          "score": 0.2,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-04",
+      "classId": "R3",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 849,
+          "anthropic": 1181,
+          "bytes": 2393
+        },
+        "commonIr": {
+          "cl100k": 76,
+          "anthropic": 141,
+          "bytes": 283
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 3,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 15,
+          "total": 15,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-04",
+      "classId": "R3",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 44,
+          "anthropic": 73,
+          "bytes": 107
+        },
+        "commonIr": {
+          "cl100k": 54,
+          "anthropic": 109,
+          "bytes": 194
+        },
+        "contentCompleteness": {
+          "preserved": 2,
+          "total": 3,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 2,
+          "total": 15,
+          "score": 0.13333333333333333,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-04",
+      "classId": "R3",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 248,
+          "anthropic": 349,
+          "bytes": 736
+        },
+        "commonIr": {
+          "cl100k": 43,
+          "anthropic": 86,
+          "bytes": 147
+        },
+        "contentCompleteness": {
+          "preserved": 2,
+          "total": 3,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 2,
+          "total": 15,
+          "score": 0.13333333333333333,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-05",
+      "classId": "R3",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 109,
+          "anthropic": 173,
+          "bytes": 314
+        },
+        "commonIr": {
+          "cl100k": 103,
+          "anthropic": 196,
+          "bytes": 395
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-05",
+      "classId": "R3",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 906,
+          "anthropic": 1273,
+          "bytes": 2591
+        },
+        "commonIr": {
+          "cl100k": 119,
+          "anthropic": 207,
+          "bytes": 436
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-05",
+      "classId": "R3",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 43,
+          "anthropic": 71,
+          "bytes": 96
+        },
+        "commonIr": {
+          "cl100k": 61,
+          "anthropic": 121,
+          "bytes": 206
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R3-05",
+      "classId": "R3",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 252,
+          "anthropic": 356,
+          "bytes": 739
+        },
+        "commonIr": {
+          "cl100k": 61,
+          "anthropic": 121,
+          "bytes": 206
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 4,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-01",
+      "classId": "R4",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 607,
+          "anthropic": 965,
+          "bytes": 3902
+        },
+        "commonIr": {
+          "cl100k": 1117,
+          "anthropic": 1822,
+          "bytes": 7652
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 6,
+          "total": 24,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-01",
+      "classId": "R4",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2147,
+          "anthropic": 3193,
+          "bytes": 10478
+        },
+        "commonIr": {
+          "cl100k": 1162,
+          "anthropic": 1876,
+          "bytes": 7808
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 24,
+          "total": 24,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-01",
+      "classId": "R4",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 543,
+          "anthropic": 871,
+          "bytes": 3706
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1724,
+          "bytes": 7414
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-01",
+      "classId": "R4",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 749,
+          "anthropic": 1146,
+          "bytes": 4325
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1724,
+          "bytes": 7414
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-02",
+      "classId": "R4",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 605,
+          "anthropic": 965,
+          "bytes": 3899
+        },
+        "commonIr": {
+          "cl100k": 1117,
+          "anthropic": 1824,
+          "bytes": 7646
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 6,
+          "total": 24,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-02",
+      "classId": "R4",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2141,
+          "anthropic": 3187,
+          "bytes": 10472
+        },
+        "commonIr": {
+          "cl100k": 1162,
+          "anthropic": 1878,
+          "bytes": 7802
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 24,
+          "total": 24,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-02",
+      "classId": "R4",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 542,
+          "anthropic": 872,
+          "bytes": 3703
+        },
+        "commonIr": {
+          "cl100k": 1065,
+          "anthropic": 1728,
+          "bytes": 7408
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-02",
+      "classId": "R4",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 747,
+          "anthropic": 1146,
+          "bytes": 4322
+        },
+        "commonIr": {
+          "cl100k": 1065,
+          "anthropic": 1728,
+          "bytes": 7408
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-03",
+      "classId": "R4",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 606,
+          "anthropic": 964,
+          "bytes": 3897
+        },
+        "commonIr": {
+          "cl100k": 1117,
+          "anthropic": 1824,
+          "bytes": 7642
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 6,
+          "total": 24,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-03",
+      "classId": "R4",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2134,
+          "anthropic": 3190,
+          "bytes": 10468
+        },
+        "commonIr": {
+          "cl100k": 1162,
+          "anthropic": 1878,
+          "bytes": 7798
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 24,
+          "total": 24,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-03",
+      "classId": "R4",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 542,
+          "anthropic": 871,
+          "bytes": 3701
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1724,
+          "bytes": 7404
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-03",
+      "classId": "R4",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 748,
+          "anthropic": 1145,
+          "bytes": 4320
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1724,
+          "bytes": 7404
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-04",
+      "classId": "R4",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 611,
+          "anthropic": 974,
+          "bytes": 3898
+        },
+        "commonIr": {
+          "cl100k": 1117,
+          "anthropic": 1824,
+          "bytes": 7644
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 6,
+          "total": 24,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-04",
+      "classId": "R4",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2152,
+          "anthropic": 3213,
+          "bytes": 10470
+        },
+        "commonIr": {
+          "cl100k": 1162,
+          "anthropic": 1878,
+          "bytes": 7800
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 24,
+          "total": 24,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-04",
+      "classId": "R4",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 544,
+          "anthropic": 876,
+          "bytes": 3702
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1728,
+          "bytes": 7406
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-04",
+      "classId": "R4",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 753,
+          "anthropic": 1155,
+          "bytes": 4321
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1728,
+          "bytes": 7406
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-05",
+      "classId": "R4",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 605,
+          "anthropic": 969,
+          "bytes": 3901
+        },
+        "commonIr": {
+          "cl100k": 1117,
+          "anthropic": 1826,
+          "bytes": 7650
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 6,
+          "total": 24,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-05",
+      "classId": "R4",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2143,
+          "anthropic": 3193,
+          "bytes": 10476
+        },
+        "commonIr": {
+          "cl100k": 1162,
+          "anthropic": 1880,
+          "bytes": 7806
+        },
+        "contentCompleteness": {
+          "preserved": 6,
+          "total": 6,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 24,
+          "total": 24,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-05",
+      "classId": "R4",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 542,
+          "anthropic": 875,
+          "bytes": 3705
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1730,
+          "bytes": 7412
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R4-05",
+      "classId": "R4",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 747,
+          "anthropic": 1150,
+          "bytes": 4324
+        },
+        "commonIr": {
+          "cl100k": 1063,
+          "anthropic": 1730,
+          "bytes": 7412
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 6,
+          "score": 0.6666666666666666,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 24,
+          "score": 0.16666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-01",
+      "classId": "R5",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 235,
+          "anthropic": 344,
+          "bytes": 831
+        },
+        "commonIr": {
+          "cl100k": 594,
+          "anthropic": 1095,
+          "bytes": 2688
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 56,
+          "score": 0.05357142857142857,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 3,
+          "total": 68,
+          "score": 0.04411764705882353,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-01",
+      "classId": "R5",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 4072,
+          "anthropic": 6094,
+          "bytes": 14772
+        },
+        "commonIr": {
+          "cl100k": 2183,
+          "anthropic": 3426,
+          "bytes": 8733
+        },
+        "contentCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 68,
+          "total": 68,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-01",
+      "classId": "R5",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 387,
+          "anthropic": 610,
+          "bytes": 1400
+        },
+        "commonIr": {
+          "cl100k": 1689,
+          "anthropic": 3051,
+          "bytes": 6673
+        },
+        "contentCompleteness": {
+          "preserved": 24,
+          "total": 56,
+          "score": 0.42857142857142855,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 24,
+          "total": 68,
+          "score": 0.35294117647058826,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-01",
+      "classId": "R5",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 378,
+          "anthropic": 527,
+          "bytes": 1256
+        },
+        "commonIr": {
+          "cl100k": 552,
+          "anthropic": 1020,
+          "bytes": 2499
+        },
+        "contentCompleteness": {
+          "preserved": 19,
+          "total": 56,
+          "score": 0.3392857142857143,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 19,
+          "total": 68,
+          "score": 0.27941176470588236,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-02",
+      "classId": "R5",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 236,
+          "anthropic": 337,
+          "bytes": 831
+        },
+        "commonIr": {
+          "cl100k": 550,
+          "anthropic": 1009,
+          "bytes": 2476
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 56,
+          "score": 0.05357142857142857,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 3,
+          "total": 68,
+          "score": 0.04411764705882353,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-02",
+      "classId": "R5",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 4076,
+          "anthropic": 6084,
+          "bytes": 14772
+        },
+        "commonIr": {
+          "cl100k": 2184,
+          "anthropic": 3430,
+          "bytes": 8733
+        },
+        "contentCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 68,
+          "total": 68,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-02",
+      "classId": "R5",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 383,
+          "anthropic": 607,
+          "bytes": 1400
+        },
+        "commonIr": {
+          "cl100k": 1657,
+          "anthropic": 2980,
+          "bytes": 6541
+        },
+        "contentCompleteness": {
+          "preserved": 25,
+          "total": 56,
+          "score": 0.44642857142857145,
+          "missing": [
+            "bold",
+            "color",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 25,
+          "total": 68,
+          "score": 0.36764705882352944,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-02",
+      "classId": "R5",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 379,
+          "anthropic": 520,
+          "bytes": 1256
+        },
+        "commonIr": {
+          "cl100k": 508,
+          "anthropic": 934,
+          "bytes": 2287
+        },
+        "contentCompleteness": {
+          "preserved": 17,
+          "total": 56,
+          "score": 0.30357142857142855,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 17,
+          "total": 68,
+          "score": 0.25,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-03",
+      "classId": "R5",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 236,
+          "anthropic": 340,
+          "bytes": 831
+        },
+        "commonIr": {
+          "cl100k": 587,
+          "anthropic": 1094,
+          "bytes": 2670
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 56,
+          "score": 0.05357142857142857,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 3,
+          "total": 68,
+          "score": 0.04411764705882353,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-03",
+      "classId": "R5",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 4075,
+          "anthropic": 6084,
+          "bytes": 14772
+        },
+        "commonIr": {
+          "cl100k": 2183,
+          "anthropic": 3433,
+          "bytes": 8733
+        },
+        "contentCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 68,
+          "total": 68,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-03",
+      "classId": "R5",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 383,
+          "anthropic": 618,
+          "bytes": 1400
+        },
+        "commonIr": {
+          "cl100k": 1729,
+          "anthropic": 3155,
+          "bytes": 6887
+        },
+        "contentCompleteness": {
+          "preserved": 24,
+          "total": 56,
+          "score": 0.42857142857142855,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 24,
+          "total": 68,
+          "score": 0.35294117647058826,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-03",
+      "classId": "R5",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 379,
+          "anthropic": 523,
+          "bytes": 1256
+        },
+        "commonIr": {
+          "cl100k": 545,
+          "anthropic": 1019,
+          "bytes": 2481
+        },
+        "contentCompleteness": {
+          "preserved": 12,
+          "total": 56,
+          "score": 0.21428571428571427,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 12,
+          "total": 68,
+          "score": 0.17647058823529413,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-04",
+      "classId": "R5",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 236,
+          "anthropic": 342,
+          "bytes": 831
+        },
+        "commonIr": {
+          "cl100k": 580,
+          "anthropic": 1073,
+          "bytes": 2624
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 56,
+          "score": 0.05357142857142857,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 3,
+          "total": 68,
+          "score": 0.04411764705882353,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-04",
+      "classId": "R5",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 4073,
+          "anthropic": 6079,
+          "bytes": 14772
+        },
+        "commonIr": {
+          "cl100k": 2179,
+          "anthropic": 3424,
+          "bytes": 8733
+        },
+        "contentCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 68,
+          "total": 68,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-04",
+      "classId": "R5",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 384,
+          "anthropic": 605,
+          "bytes": 1400
+        },
+        "commonIr": {
+          "cl100k": 1273,
+          "anthropic": 2302,
+          "bytes": 4961
+        },
+        "contentCompleteness": {
+          "preserved": 23,
+          "total": 56,
+          "score": 0.4107142857142857,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 23,
+          "total": 68,
+          "score": 0.3382352941176471,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-04",
+      "classId": "R5",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 379,
+          "anthropic": 525,
+          "bytes": 1256
+        },
+        "commonIr": {
+          "cl100k": 538,
+          "anthropic": 998,
+          "bytes": 2435
+        },
+        "contentCompleteness": {
+          "preserved": 14,
+          "total": 56,
+          "score": 0.25,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 14,
+          "total": 68,
+          "score": 0.20588235294117646,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-05",
+      "classId": "R5",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 240,
+          "anthropic": 343,
+          "bytes": 831
+        },
+        "commonIr": {
+          "cl100k": 591,
+          "anthropic": 1084,
+          "bytes": 2656
+        },
+        "contentCompleteness": {
+          "preserved": 3,
+          "total": 56,
+          "score": 0.05357142857142857,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 3,
+          "total": 68,
+          "score": 0.04411764705882353,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-05",
+      "classId": "R5",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 4078,
+          "anthropic": 6087,
+          "bytes": 14772
+        },
+        "commonIr": {
+          "cl100k": 2184,
+          "anthropic": 3433,
+          "bytes": 8733
+        },
+        "contentCompleteness": {
+          "preserved": 56,
+          "total": 56,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 68,
+          "total": 68,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-05",
+      "classId": "R5",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 384,
+          "anthropic": 618,
+          "bytes": 1400
+        },
+        "commonIr": {
+          "cl100k": 1554,
+          "anthropic": 2822,
+          "bytes": 6141
+        },
+        "contentCompleteness": {
+          "preserved": 22,
+          "total": 56,
+          "score": 0.39285714285714285,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 22,
+          "total": 68,
+          "score": 0.3235294117647059,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R5-05",
+      "classId": "R5",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 383,
+          "anthropic": 526,
+          "bytes": 1256
+        },
+        "commonIr": {
+          "cl100k": 549,
+          "anthropic": 1009,
+          "bytes": 2467
+        },
+        "contentCompleteness": {
+          "preserved": 13,
+          "total": 56,
+          "score": 0.23214285714285715,
+          "missing": [
+            "bold",
+            "color",
+            "italic",
+            "text"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 13,
+          "total": 68,
+          "score": 0.19117647058823528,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "bold",
+            "color",
+            "italic",
+            "text",
+            "timestamps"
+          ],
+          "lossy": [
+            "color"
+          ]
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-01",
+      "classId": "R6",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 827,
+          "anthropic": 1149,
+          "bytes": 2179
+        },
+        "commonIr": {
+          "cl100k": 1543,
+          "anthropic": 2166,
+          "bytes": 4149
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-01",
+      "classId": "R6",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2334,
+          "anthropic": 3211,
+          "bytes": 6293
+        },
+        "commonIr": {
+          "cl100k": 1559,
+          "anthropic": 2177,
+          "bytes": 4190
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-01",
+      "classId": "R6",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 764,
+          "anthropic": 1063,
+          "bytes": 1991
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3960
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-01",
+      "classId": "R6",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 970,
+          "anthropic": 1332,
+          "bytes": 2604
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3960
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-02",
+      "classId": "R6",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 827,
+          "anthropic": 1145,
+          "bytes": 2180
+        },
+        "commonIr": {
+          "cl100k": 1543,
+          "anthropic": 2166,
+          "bytes": 4151
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-02",
+      "classId": "R6",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2341,
+          "anthropic": 3206,
+          "bytes": 6295
+        },
+        "commonIr": {
+          "cl100k": 1559,
+          "anthropic": 2177,
+          "bytes": 4192
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-02",
+      "classId": "R6",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 764,
+          "anthropic": 1061,
+          "bytes": 1992
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3962
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-02",
+      "classId": "R6",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 970,
+          "anthropic": 1328,
+          "bytes": 2605
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3962
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-03",
+      "classId": "R6",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 824,
+          "anthropic": 1143,
+          "bytes": 2181
+        },
+        "commonIr": {
+          "cl100k": 1543,
+          "anthropic": 2166,
+          "bytes": 4153
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-03",
+      "classId": "R6",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2327,
+          "anthropic": 3192,
+          "bytes": 6297
+        },
+        "commonIr": {
+          "cl100k": 1559,
+          "anthropic": 2177,
+          "bytes": 4194
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-03",
+      "classId": "R6",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 763,
+          "anthropic": 1060,
+          "bytes": 1993
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3964
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-03",
+      "classId": "R6",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 967,
+          "anthropic": 1326,
+          "bytes": 2606
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3964
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-04",
+      "classId": "R6",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 823,
+          "anthropic": 1144,
+          "bytes": 2182
+        },
+        "commonIr": {
+          "cl100k": 1543,
+          "anthropic": 2166,
+          "bytes": 4155
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-04",
+      "classId": "R6",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2322,
+          "anthropic": 3201,
+          "bytes": 6299
+        },
+        "commonIr": {
+          "cl100k": 1559,
+          "anthropic": 2177,
+          "bytes": 4196
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-04",
+      "classId": "R6",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 762,
+          "anthropic": 1061,
+          "bytes": 1994
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3966
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-04",
+      "classId": "R6",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 966,
+          "anthropic": 1327,
+          "bytes": 2607
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3966
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-05",
+      "classId": "R6",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 826,
+          "anthropic": 1144,
+          "bytes": 2183
+        },
+        "commonIr": {
+          "cl100k": 1543,
+          "anthropic": 2166,
+          "bytes": 4157
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-05",
+      "classId": "R6",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 2327,
+          "anthropic": 3195,
+          "bytes": 6301
+        },
+        "commonIr": {
+          "cl100k": 1559,
+          "anthropic": 2177,
+          "bytes": 4198
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 17,
+          "total": 17,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-05",
+      "classId": "R6",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 764,
+          "anthropic": 1061,
+          "bytes": 1995
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3968
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R6-05",
+      "classId": "R6",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 969,
+          "anthropic": 1327,
+          "bytes": 2608
+        },
+        "commonIr": {
+          "cl100k": 1501,
+          "anthropic": 2091,
+          "bytes": 3968
+        },
+        "contentCompleteness": {
+          "preserved": 5,
+          "total": 5,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 5,
+          "total": 17,
+          "score": 0.29411764705882354,
+          "missing": [
+            "archived",
+            "authors",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-01",
+      "classId": "R7",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 1471,
+          "anthropic": 1910,
+          "bytes": 2815
+        },
+        "commonIr": {
+          "cl100k": 3616,
+          "anthropic": 5565,
+          "bytes": 9026
+        },
+        "contentCompleteness": {
+          "preserved": 242,
+          "total": 338,
+          "score": 0.7159763313609467,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 242,
+          "total": 1064,
+          "score": 0.2274436090225564,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-01",
+      "classId": "R7",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 36389,
+          "anthropic": 50077,
+          "bytes": 102732
+        },
+        "commonIr": {
+          "cl100k": 7419,
+          "anthropic": 11413,
+          "bytes": 24720
+        },
+        "contentCompleteness": {
+          "preserved": 338,
+          "total": 338,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 1064,
+          "total": 1064,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-01",
+      "classId": "R7",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 2176,
+          "anthropic": 3065,
+          "bytes": 4633
+        },
+        "commonIr": {
+          "cl100k": 790,
+          "anthropic": 1266,
+          "bytes": 2149
+        },
+        "contentCompleteness": {
+          "preserved": 27,
+          "total": 338,
+          "score": 0.07988165680473373,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 27,
+          "total": 1064,
+          "score": 0.02537593984962406,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-01",
+      "classId": "R7",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 2286,
+          "anthropic": 2813,
+          "bytes": 5209
+        },
+        "commonIr": {
+          "cl100k": 2422,
+          "anthropic": 3858,
+          "bytes": 6765
+        },
+        "contentCompleteness": {
+          "preserved": 218,
+          "total": 338,
+          "score": 0.6449704142011834,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 218,
+          "total": 1064,
+          "score": 0.20488721804511278,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-02",
+      "classId": "R7",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 1472,
+          "anthropic": 1912,
+          "bytes": 2815
+        },
+        "commonIr": {
+          "cl100k": 3616,
+          "anthropic": 5565,
+          "bytes": 9026
+        },
+        "contentCompleteness": {
+          "preserved": 242,
+          "total": 338,
+          "score": 0.7159763313609467,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 242,
+          "total": 1064,
+          "score": 0.2274436090225564,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-02",
+      "classId": "R7",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 36404,
+          "anthropic": 50099,
+          "bytes": 102732
+        },
+        "commonIr": {
+          "cl100k": 7419,
+          "anthropic": 11413,
+          "bytes": 24720
+        },
+        "contentCompleteness": {
+          "preserved": 338,
+          "total": 338,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 1064,
+          "total": 1064,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-02",
+      "classId": "R7",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 2176,
+          "anthropic": 3066,
+          "bytes": 4633
+        },
+        "commonIr": {
+          "cl100k": 790,
+          "anthropic": 1266,
+          "bytes": 2149
+        },
+        "contentCompleteness": {
+          "preserved": 27,
+          "total": 338,
+          "score": 0.07988165680473373,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 27,
+          "total": 1064,
+          "score": 0.02537593984962406,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-02",
+      "classId": "R7",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 2287,
+          "anthropic": 2815,
+          "bytes": 5209
+        },
+        "commonIr": {
+          "cl100k": 2422,
+          "anthropic": 3858,
+          "bytes": 6765
+        },
+        "contentCompleteness": {
+          "preserved": 218,
+          "total": 338,
+          "score": 0.6449704142011834,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 218,
+          "total": 1064,
+          "score": 0.20488721804511278,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-03",
+      "classId": "R7",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 1469,
+          "anthropic": 1910,
+          "bytes": 2815
+        },
+        "commonIr": {
+          "cl100k": 3616,
+          "anthropic": 5565,
+          "bytes": 9026
+        },
+        "contentCompleteness": {
+          "preserved": 242,
+          "total": 338,
+          "score": 0.7159763313609467,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 242,
+          "total": 1064,
+          "score": 0.2274436090225564,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-03",
+      "classId": "R7",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 36407,
+          "anthropic": 50111,
+          "bytes": 102732
+        },
+        "commonIr": {
+          "cl100k": 7419,
+          "anthropic": 11413,
+          "bytes": 24720
+        },
+        "contentCompleteness": {
+          "preserved": 338,
+          "total": 338,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 1064,
+          "total": 1064,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-03",
+      "classId": "R7",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 2175,
+          "anthropic": 3065,
+          "bytes": 4633
+        },
+        "commonIr": {
+          "cl100k": 790,
+          "anthropic": 1266,
+          "bytes": 2149
+        },
+        "contentCompleteness": {
+          "preserved": 27,
+          "total": 338,
+          "score": 0.07988165680473373,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 27,
+          "total": 1064,
+          "score": 0.02537593984962406,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-03",
+      "classId": "R7",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 2284,
+          "anthropic": 2813,
+          "bytes": 5209
+        },
+        "commonIr": {
+          "cl100k": 2422,
+          "anthropic": 3858,
+          "bytes": 6765
+        },
+        "contentCompleteness": {
+          "preserved": 218,
+          "total": 338,
+          "score": 0.6449704142011834,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 218,
+          "total": 1064,
+          "score": 0.20488721804511278,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-04",
+      "classId": "R7",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 1470,
+          "anthropic": 1908,
+          "bytes": 2815
+        },
+        "commonIr": {
+          "cl100k": 3616,
+          "anthropic": 5565,
+          "bytes": 9026
+        },
+        "contentCompleteness": {
+          "preserved": 242,
+          "total": 338,
+          "score": 0.7159763313609467,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 242,
+          "total": 1064,
+          "score": 0.2274436090225564,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-04",
+      "classId": "R7",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 36392,
+          "anthropic": 50037,
+          "bytes": 102732
+        },
+        "commonIr": {
+          "cl100k": 7419,
+          "anthropic": 11413,
+          "bytes": 24720
+        },
+        "contentCompleteness": {
+          "preserved": 338,
+          "total": 338,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 1064,
+          "total": 1064,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-04",
+      "classId": "R7",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 2175,
+          "anthropic": 3064,
+          "bytes": 4633
+        },
+        "commonIr": {
+          "cl100k": 790,
+          "anthropic": 1266,
+          "bytes": 2149
+        },
+        "contentCompleteness": {
+          "preserved": 27,
+          "total": 338,
+          "score": 0.07988165680473373,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 27,
+          "total": 1064,
+          "score": 0.02537593984962406,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-04",
+      "classId": "R7",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 2285,
+          "anthropic": 2811,
+          "bytes": 5209
+        },
+        "commonIr": {
+          "cl100k": 2422,
+          "anthropic": 3858,
+          "bytes": 6765
+        },
+        "contentCompleteness": {
+          "preserved": 218,
+          "total": 338,
+          "score": 0.6449704142011834,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 218,
+          "total": 1064,
+          "score": 0.20488721804511278,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-05",
+      "classId": "R7",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 1473,
+          "anthropic": 1917,
+          "bytes": 2815
+        },
+        "commonIr": {
+          "cl100k": 3616,
+          "anthropic": 5565,
+          "bytes": 9026
+        },
+        "contentCompleteness": {
+          "preserved": 207,
+          "total": 287,
+          "score": 0.7212543554006968,
+          "missing": [
+            "block-kind",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 207,
+          "total": 911,
+          "score": 0.22722283205268934,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-05",
+      "classId": "R7",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 31512,
+          "anthropic": 43480,
+          "bytes": 89224
+        },
+        "commonIr": {
+          "cl100k": 6372,
+          "anthropic": 9804,
+          "bytes": 21212
+        },
+        "contentCompleteness": {
+          "preserved": 287,
+          "total": 287,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 911,
+          "total": 911,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-05",
+      "classId": "R7",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 2176,
+          "anthropic": 3068,
+          "bytes": 4633
+        },
+        "commonIr": {
+          "cl100k": 790,
+          "anthropic": 1266,
+          "bytes": 2149
+        },
+        "contentCompleteness": {
+          "preserved": 27,
+          "total": 287,
+          "score": 0.09407665505226481,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 27,
+          "total": 911,
+          "score": 0.029637760702524697,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R7-05",
+      "classId": "R7",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 2288,
+          "anthropic": 2820,
+          "bytes": 5209
+        },
+        "commonIr": {
+          "cl100k": 2422,
+          "anthropic": 3858,
+          "bytes": 6765
+        },
+        "contentCompleteness": {
+          "preserved": 187,
+          "total": 287,
+          "score": 0.6515679442508711,
+          "missing": [
+            "block-kind",
+            "nesting",
+            "text"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 187,
+          "total": 911,
+          "score": 0.2052689352360044,
+          "missing": [
+            "archived",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "nesting",
+            "text",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-01",
+      "classId": "R8",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 171,
+          "anthropic": 262,
+          "bytes": 557
+        },
+        "commonIr": {
+          "cl100k": 239,
+          "anthropic": 429,
+          "bytes": 997
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-01",
+      "classId": "R8",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 1943,
+          "anthropic": 2694,
+          "bytes": 5720
+        },
+        "commonIr": {
+          "cl100k": 389,
+          "anthropic": 636,
+          "bytes": 1518
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 52,
+          "total": 52,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-01",
+      "classId": "R8",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 164,
+          "anthropic": 250,
+          "bytes": 503
+        },
+        "commonIr": {
+          "cl100k": 313,
+          "anthropic": 522,
+          "bytes": 1046
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-01",
+      "classId": "R8",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 317,
+          "anthropic": 448,
+          "bytes": 995
+        },
+        "commonIr": {
+          "cl100k": 167,
+          "anthropic": 306,
+          "bytes": 667
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-02",
+      "classId": "R8",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 171,
+          "anthropic": 263,
+          "bytes": 558
+        },
+        "commonIr": {
+          "cl100k": 239,
+          "anthropic": 431,
+          "bytes": 999
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-02",
+      "classId": "R8",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 1945,
+          "anthropic": 2705,
+          "bytes": 5722
+        },
+        "commonIr": {
+          "cl100k": 389,
+          "anthropic": 638,
+          "bytes": 1520
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 52,
+          "total": 52,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-02",
+      "classId": "R8",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 171,
+          "anthropic": 259,
+          "bytes": 504
+        },
+        "commonIr": {
+          "cl100k": 329,
+          "anthropic": 540,
+          "bytes": 1048
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-02",
+      "classId": "R8",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 317,
+          "anthropic": 449,
+          "bytes": 996
+        },
+        "commonIr": {
+          "cl100k": 167,
+          "anthropic": 310,
+          "bytes": 669
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-03",
+      "classId": "R8",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 181,
+          "anthropic": 271,
+          "bytes": 557
+        },
+        "commonIr": {
+          "cl100k": 239,
+          "anthropic": 431,
+          "bytes": 997
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-03",
+      "classId": "R8",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 1974,
+          "anthropic": 2722,
+          "bytes": 5720
+        },
+        "commonIr": {
+          "cl100k": 389,
+          "anthropic": 638,
+          "bytes": 1518
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 52,
+          "total": 52,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-03",
+      "classId": "R8",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 174,
+          "anthropic": 261,
+          "bytes": 503
+        },
+        "commonIr": {
+          "cl100k": 327,
+          "anthropic": 538,
+          "bytes": 1046
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-03",
+      "classId": "R8",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 326,
+          "anthropic": 457,
+          "bytes": 995
+        },
+        "commonIr": {
+          "cl100k": 168,
+          "anthropic": 312,
+          "bytes": 667
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-04",
+      "classId": "R8",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 171,
+          "anthropic": 263,
+          "bytes": 556
+        },
+        "commonIr": {
+          "cl100k": 239,
+          "anthropic": 431,
+          "bytes": 995
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-04",
+      "classId": "R8",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 1945,
+          "anthropic": 2703,
+          "bytes": 5718
+        },
+        "commonIr": {
+          "cl100k": 389,
+          "anthropic": 638,
+          "bytes": 1516
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 52,
+          "total": 52,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-04",
+      "classId": "R8",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 168,
+          "anthropic": 254,
+          "bytes": 502
+        },
+        "commonIr": {
+          "cl100k": 323,
+          "anthropic": 530,
+          "bytes": 1044
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-04",
+      "classId": "R8",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 317,
+          "anthropic": 449,
+          "bytes": 994
+        },
+        "commonIr": {
+          "cl100k": 167,
+          "anthropic": 308,
+          "bytes": 665
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-05",
+      "classId": "R8",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 174,
+          "anthropic": 271,
+          "bytes": 556
+        },
+        "commonIr": {
+          "cl100k": 239,
+          "anthropic": 433,
+          "bytes": 995
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-05",
+      "classId": "R8",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 1959,
+          "anthropic": 2725,
+          "bytes": 5718
+        },
+        "commonIr": {
+          "cl100k": 389,
+          "anthropic": 640,
+          "bytes": 1516
+        },
+        "contentCompleteness": {
+          "preserved": 16,
+          "total": 16,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 52,
+          "total": 52,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-05",
+      "classId": "R8",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 171,
+          "anthropic": 263,
+          "bytes": 502
+        },
+        "commonIr": {
+          "cl100k": 325,
+          "anthropic": 542,
+          "bytes": 1044
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "R8-05",
+      "classId": "R8",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 320,
+          "anthropic": 457,
+          "bytes": 994
+        },
+        "commonIr": {
+          "cl100k": 167,
+          "anthropic": 314,
+          "bytes": 665
+        },
+        "contentCompleteness": {
+          "preserved": 4,
+          "total": 16,
+          "score": 0.25,
+          "missing": [
+            "asset-metadata",
+            "block-kind"
+          ],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 4,
+          "total": 52,
+          "score": 0.07692307692307693,
+          "missing": [
+            "archived",
+            "asset-metadata",
+            "authors",
+            "block-kind",
+            "block-uuid",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 0
+      }
+    }
+  ]
+}

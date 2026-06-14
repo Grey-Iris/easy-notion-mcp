@@ -1,0 +1,146 @@
+{
+  "page": {
+    "object": "page",
+    "id": "37ebe876-242f-811e-942e-e1099241e789",
+    "created_time": "2026-06-13T23:37:00.000Z",
+    "last_edited_time": "2026-06-13T23:37:00.000Z",
+    "created_by": {
+      "object": "user",
+      "id": "37ebe876-242f-813b-a749-002702683e7d"
+    },
+    "last_edited_by": {
+      "object": "user",
+      "id": "37ebe876-242f-813b-a749-002702683e7d"
+    },
+    "cover": null,
+    "icon": null,
+    "parent": {
+      "type": "page_id",
+      "page_id": "37ebe876-242f-803a-aa12-d2c750435a8e"
+    },
+    "in_trash": false,
+    "is_archived": false,
+    "is_locked": false,
+    "properties": {
+      "title": {
+        "id": "title",
+        "type": "title",
+        "title": [
+          {
+            "type": "text",
+            "text": {
+              "content": "R6 adversarial-code-dominant 3",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "R6 adversarial-code-dominant 3",
+            "href": null
+          }
+        ]
+      }
+    },
+    "url": "https://app.notion.com/p/R6-adversarial-code-dominant-3-37ebe876242f811e942ee1099241e789",
+    "public_url": null,
+    "archived": false,
+    "request_id": "199bda33-d84f-463e-866d-946d31052b44"
+  },
+  "blocks": [
+    {
+      "object": "block",
+      "id": "37ebe876-242f-8131-af96-d76ade4cc8e3",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-811e-942e-e1099241e789"
+      },
+      "created_time": "2026-06-13T23:37:00.000Z",
+      "last_edited_time": "2026-06-13T23:37:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "heading_1",
+      "heading_1": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Code dominant 3",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Code dominant 3",
+            "href": null
+          }
+        ],
+        "is_toggleable": false,
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-81cf-acae-f540275ef6c4",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-811e-942e-e1099241e789"
+      },
+      "created_time": "2026-06-13T23:37:00.000Z",
+      "last_edited_time": "2026-06-13T23:37:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "code",
+      "code": {
+        "caption": [],
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "const value0 = 3;\nconst value1 = 4;\nconst value2 = 5;\nconst value3 = 6;\nconst value4 = 7;\nconst value5 = 8;\nconst value6 = 9;\nconst value7 = 10;\nconst value8 = 11;\nconst value9 = 12;\nconst value10 = 13;\nconst value11 = 14;\nconst value12 = 15;\nconst value13 = 16;\nconst value14 = 17;\nconst value15 = 18;\nconst value16 = 19;\nconst value17 = 20;\nconst value18 = 21;\nconst value19 = 22;\nconst value20 = 23;\nconst value21 = 24;\nconst value22 = 25;\nconst value23 = 26;\nconst value24 = 27;\nconst value25 = 28;\nconst value26 = 29;\nconst value27 = 30;\nconst value28 = 31;\nconst value29 = 32;\nconst value30 = 33;\nconst value31 = 34;\nconst value32 = 35;\nconst value33 = 36;\nconst value34 = 37;\nconst value35 = 38;\nconst value36 = 39;\nconst value37 = 40;\nconst value38 = 41;\nconst value39 = 42;\nconst value40 = 43;\nconst value41 = 44;\nconst value42 = 45;\nconst value43 = 46;\nconst value44 = 47;\nconst value45 = 48;\nconst value46 = 49;\nconst value47 = 50;\nconst value48 = 51;\nconst value49 = 52;\nconst value50 = 53;\nconst value51 = 54;\nconst value52 = 55;\nconst value53 = 56;\nconst value54 = 57;\nconst value55 = 58;\nconst value56 = 59;\nconst value57 = 60;\nconst value58 = 61;\nconst value59 = 62;\nconst value60 = 63;\nconst value61 = 64;\nconst value62 = 65;\nconst value63 = 66;\nconst value64 = 67;\nconst value65 = 68;\nconst value66 = 69;\nconst value67 = 70;\nconst value68 = 71;\nconst value69 = 72;\nconst value70 = 73;\nconst value71 = 74;\nconst value72 = 75;\nconst value73 = 76;\nconst value74 = 77;\nconst value75 = 78;\nconst value76 = 79;\nconst value77 = 80;\nconst value78 = 81;\nconst value79 = 82;\nconst value80 = 83;\nconst value81 = 84;\nconst value82 = 85;\nconst value83 = 86;\nconst value84 = 87;\nconst value85 = 88;\nconst value86 = 89;\nconst value87 = 90;\nconst value88 = 91;\nconst value89 = 92;",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "const value0 = 3;\nconst value1 = 4;\nconst value2 = 5;\nconst value3 = 6;\nconst value4 = 7;\nconst value5 = 8;\nconst value6 = 9;\nconst value7 = 10;\nconst value8 = 11;\nconst value9 = 12;\nconst value10 = 13;\nconst value11 = 14;\nconst value12 = 15;\nconst value13 = 16;\nconst value14 = 17;\nconst value15 = 18;\nconst value16 = 19;\nconst value17 = 20;\nconst value18 = 21;\nconst value19 = 22;\nconst value20 = 23;\nconst value21 = 24;\nconst value22 = 25;\nconst value23 = 26;\nconst value24 = 27;\nconst value25 = 28;\nconst value26 = 29;\nconst value27 = 30;\nconst value28 = 31;\nconst value29 = 32;\nconst value30 = 33;\nconst value31 = 34;\nconst value32 = 35;\nconst value33 = 36;\nconst value34 = 37;\nconst value35 = 38;\nconst value36 = 39;\nconst value37 = 40;\nconst value38 = 41;\nconst value39 = 42;\nconst value40 = 43;\nconst value41 = 44;\nconst value42 = 45;\nconst value43 = 46;\nconst value44 = 47;\nconst value45 = 48;\nconst value46 = 49;\nconst value47 = 50;\nconst value48 = 51;\nconst value49 = 52;\nconst value50 = 53;\nconst value51 = 54;\nconst value52 = 55;\nconst value53 = 56;\nconst value54 = 57;\nconst value55 = 58;\nconst value56 = 59;\nconst value57 = 60;\nconst value58 = 61;\nconst value59 = 62;\nconst value60 = 63;\nconst value61 = 64;\nconst value62 = 65;\nconst value63 = 66;\nconst value64 = 67;\nconst value65 = 68;\nconst value66 = 69;\nconst value67 = 70;\nconst value68 = 71;\nconst value69 = 72;\nconst value70 = 73;\nconst value71 = 74;\nconst value72 = 75;\nconst value73 = 76;\nconst value74 = 77;\nconst value75 = 78;\nconst value76 = 79;\nconst value77 = 80;\nconst value78 = 81;\nconst value79 = 82;\nconst value80 = 83;\nconst value81 = 84;\nconst value82 = 85;\nconst value83 = 86;\nconst value84 = 87;\nconst value85 = 88;\nconst value86 = 89;\nconst value87 = 90;\nconst value88 = 91;\nconst value89 = 92;",
+            "href": null
+          }
+        ],
+        "language": "typescript"
+      },
+      "archived": false
+    }
+  ]
+}
