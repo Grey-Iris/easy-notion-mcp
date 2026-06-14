@@ -1,0 +1,368 @@
+{
+  "page": {
+    "object": "page",
+    "id": "37ebe876-242f-81a9-b764-d87a5957f93e",
+    "created_time": "2026-06-13T23:28:00.000Z",
+    "last_edited_time": "2026-06-13T23:28:00.000Z",
+    "created_by": {
+      "object": "user",
+      "id": "37ebe876-242f-813b-a749-002702683e7d"
+    },
+    "last_edited_by": {
+      "object": "user",
+      "id": "37ebe876-242f-813b-a749-002702683e7d"
+    },
+    "cover": null,
+    "icon": null,
+    "parent": {
+      "type": "page_id",
+      "page_id": "37ebe876-242f-803a-aa12-d2c750435a8e"
+    },
+    "in_trash": false,
+    "is_archived": false,
+    "is_locked": false,
+    "properties": {
+      "title": {
+        "id": "title",
+        "type": "title",
+        "title": [
+          {
+            "type": "text",
+            "text": {
+              "content": "R2 typical-prose 3",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "R2 typical-prose 3",
+            "href": null
+          }
+        ]
+      }
+    },
+    "url": "https://app.notion.com/p/R2-typical-prose-3-37ebe876242f81a9b764d87a5957f93e",
+    "public_url": null,
+    "archived": false,
+    "request_id": "4f037673-9151-457f-a88e-57eaf6a1448d"
+  },
+  "blocks": [
+    {
+      "object": "block",
+      "id": "37ebe876-242f-8123-b72c-ed8e0a51bb9d",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-81a9-b764-d87a5957f93e"
+      },
+      "created_time": "2026-06-13T23:28:00.000Z",
+      "last_edited_time": "2026-06-13T23:28:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "heading_1",
+      "heading_1": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Typical prose 3",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Typical prose 3",
+            "href": null
+          }
+        ],
+        "is_toggleable": false,
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-8193-96a9-f265e53a0f21",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-81a9-b764-d87a5957f93e"
+      },
+      "created_time": "2026-06-13T23:28:00.000Z",
+      "last_edited_time": "2026-06-13T23:28:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "paragraph",
+      "paragraph": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property agent database",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property agent database",
+            "href": null
+          }
+        ],
+        "icon": null,
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-814b-9a1f-d8c3f41cfb59",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-81a9-b764-d87a5957f93e"
+      },
+      "created_time": "2026-06-13T23:28:00.000Z",
+      "last_edited_time": "2026-06-13T23:28:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "paragraph",
+      "paragraph": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema",
+            "href": null
+          }
+        ],
+        "icon": null,
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-8116-b12a-eca782bcc731",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-81a9-b764-d87a5957f93e"
+      },
+      "created_time": "2026-06-13T23:28:00.000Z",
+      "last_edited_time": "2026-06-13T23:28:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "paragraph",
+      "paragraph": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "property agent database surface context field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "property agent database surface context field markdown result schema reader token stable block fixture page property agent database surface context field markdown result schema reader token stable block fixture page property",
+            "href": null
+          }
+        ],
+        "icon": null,
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-814a-ad74-efce8a90d801",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-81a9-b764-d87a5957f93e"
+      },
+      "created_time": "2026-06-13T23:28:00.000Z",
+      "last_edited_time": "2026-06-13T23:28:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "bulleted_list_item",
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "First implication 3",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "First implication 3",
+            "href": null
+          }
+        ],
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-81dd-ab73-e4c14110c1f9",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-81a9-b764-d87a5957f93e"
+      },
+      "created_time": "2026-06-13T23:28:00.000Z",
+      "last_edited_time": "2026-06-13T23:28:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "bulleted_list_item",
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Second implication 3",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Second implication 3",
+            "href": null
+          }
+        ],
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-81a6-b446-e0d59a2e0e00",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-81a9-b764-d87a5957f93e"
+      },
+      "created_time": "2026-06-13T23:28:00.000Z",
+      "last_edited_time": "2026-06-13T23:28:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "bulleted_list_item",
+      "bulleted_list_item": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Third implication 3",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Third implication 3",
+            "href": null
+          }
+        ],
+        "color": "default"
+      },
+      "archived": false
+    }
+  ]
+}

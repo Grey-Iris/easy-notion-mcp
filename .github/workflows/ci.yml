@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,17 +28,24 @@ jobs:
       - name: Security audit
         if: matrix.node-version == 20
         run: |
-          # Known non-exploitable advisories — each grounded in actual code path analysis:
+          # Known non-exploitable advisories — each grounded in actual code-path analysis.
+          # Full writeup with file:line evidence and cross-model (Codex) confirmation:
+          #   .meta/audits/dep-vuln-exploitability-2026-06-14.md
           #
-          # hono JSX SSR injection (GHSA-458j-xx4x-4375):
-          #   The MCP SDK uses hono for HTTP routing only. Neither the SDK
-          #   (verified: grep -r "hono/jsx" node_modules/@modelcontextprotocol/sdk/dist/ = 0 hits)
-          #   nor this server imports hono/jsx. The vulnerable SSR code path is never reached.
-          #   Fix requires downgrading @modelcontextprotocol/sdk to <1.25.0 (breaking).
-          #   Remove this allowlist once the SDK ships a hono bump.
+          # Our HTTP layer is Express (src/http.ts:99-100), NOT hono. The hono framework
+          # is never executed: grep -rn hono src/ = 0 hits; only the @hono/node-server
+          # adapter (Node built-ins only) is on the live path. No patched versions exist
+          # yet, so there is nothing to bump. Remove each entry when a patch lands.
           #
-          # @hono/node-server, @modelcontextprotocol/sdk: transitive via hono, same advisory.
-          KNOWN_ALLOWLIST="hono @hono/node-server @modelcontextprotocol/sdk"
+          # hono / @hono/node-server / @modelcontextprotocol/sdk (hono carriers):
+          #   GHSA-xrhx-7g5j-rcj5 (ipRestriction IPv6 bypass) — no hono routing/IP rules.
+          #   GHSA-3hrh-pfw6-9m5x (cookie helper injection)    — no hono cookies; bearer auth.
+          #   GHSA-f577-qrjj-4474 (JWT middleware any-scheme)  — we enforce Bearer (src/http.ts:71).
+          #   GHSA-2gcr-mfcq-wcc3 (app.mount undecoded prefix) — no hono app; Express routes.
+          # qs / body-parser / express (qs carriers):
+          #   GHSA-q8mj-m7cp-5q26 (qs.stringify DoS) — qs.stringify never called; only
+          #   express.json() mounted (urlencoded path inactive); Express uses qs.parse.
+          KNOWN_ALLOWLIST="hono @hono/node-server @modelcontextprotocol/sdk qs body-parser express"
           AUDIT=$(npm audit --omit=dev --json 2>/dev/null) || true
           VULN_KEYS=$(echo "$AUDIT" | jq -r '.vulnerabilities | keys[]' 2>/dev/null)
           if [ -z "$VULN_KEYS" ]; then
@@ -70,4 +77,8 @@ jobs:
           deny-licenses: GPL-3.0, AGPL-3.0
           # path-to-regexp ReDoS — not exploitable (static routes only).
           # Remove once express pulls in path-to-regexp >=8.4.0
-          allow-ghsas: GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7
+          #
+          # hono + qs advisories — assessed not exploitable; hono framework is never
+          # executed (Express is our HTTP layer) and qs.stringify is never called.
+          # Grounded per-advisory writeup: .meta/audits/dep-vuln-exploitability-2026-06-14.md
+          allow-ghsas: GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7, GHSA-xrhx-7g5j-rcj5, GHSA-3hrh-pfw6-9m5x, GHSA-f577-qrjj-4474, GHSA-2gcr-mfcq-wcc3, GHSA-q8mj-m7cp-5q26

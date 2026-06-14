@@ -84,7 +84,7 @@ src/
   - **OAuth mode**: mounts `mcpAuthRouter` for `.well-known/*`, `/authorize`, `/token`, `/register`; protects `/mcp` with bearer auth; relays OAuth to Notion
 - `createApp` is imported directly by integration tests (no server startup needed)
 - `GET /` on the HTTP server returns a health check JSON (`{"status":"ok","server":"easy-notion-mcp","transport":"streamable-http","endpoint":"/mcp"}`)
-- `find_replace` is the one editing tool that uses Notion's native markdown API via `pages.updateMarkdown`, rather than the GFM-to-blocks pipeline used by the other page content tools
+- `find_replace` and `replace_content` use Notion's native markdown API via `pages.updateMarkdown`, rather than the GFM-to-blocks pipeline used by the other page content tools
 - All logging goes to `console.error` (stdout is reserved for MCP protocol in stdio mode)
 
 ## Environment
@@ -153,3 +153,8 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 ## `.meta/research/` lifecycle
 
 Research notes under `.meta/research/` have a 90-day shelf life. If a research note has not been referenced by a merged plan, an active doc, or a tasuku task within 90 days of its creation, delete it. Check creation date via `git log --diff-filter=A --format=%ai -- <file>`. This rule is forward-looking only — do not retroactively purge existing notes when this rule is added.
+
+
+## Learnings
+
+- Workflow-construction standard for this repo (2026-06-12, James): (1) MODEL — Opus by default for all workflow agent() calls; use model:'sonnet' ONLY where measuring discoverability/legibility-to-a-typical-user (Sonnet is an instrument there, not a cost-saver). (2) CODEX — Workflow agent() spawns Claude subagents only; Codex enters via a workflow agent dispatching sync 'mcp-cli run --agent codex' (the builder.md pattern, = the through-a-PM governance rule). Strong fit: code-read/contract-audit + cross-model verify. Poor fit: live-MCP empirical streams (a Codex mcp-cli sub-session lacks this session's easy-notion MCP). (3) ROLES — reuse ../workflow-v2 roles (builder/audit/red-team/planner) via Codex sub-dispatch --role <name> (registry confirmed reachable) + role guidance inlined in the managing Claude agent's prompt; verify whether agent() agentType can natively load them before wiring. Apply this fully on the 1.0 EXECUTION-phase workflow, not by re-running completed recon.

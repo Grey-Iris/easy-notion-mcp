@@ -1,0 +1,40 @@
+{
+  "id": "awkoy",
+  "label": "awkoy/notion-mcp-server",
+  "status": "ok",
+  "toolCount": 2,
+  "totalTokens": 502,
+  "totalBytes": 2226,
+  "avgTokensPerTool": 251,
+  "perTool": [
+    {
+      "name": "notion_execute",
+      "tokens": 355,
+      "bytes": 1530
+    },
+    {
+      "name": "notion_describe",
+      "tokens": 145,
+      "bytes": 693
+    }
+  ],
+  "resolvedSha": "f5f1bdaf2456093a583722dab8422cf7b972636c",
+  "pkgVersion": "2.5.1",
+  "notionVersion": "2025-09-03",
+  "expectedPkgVersion": "2.5.1",
+  "expectedTools": 2,
+  "anthropic": {
+    "available": false,
+    "reason": "no ANTHROPIC_API_KEY"
+  },
+  "scriptsBlock": {
+    "build": "shx rm -rf build && tsc && shx chmod +x build/*.js",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js -e NOTION_TOKEN=your_notion_token -e NOTION_PAGE_ID=your_notion_page_id"
+  },
+  "binEntry": "build/index.js",
+  "cacheDir": "/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/bench-exec-harness-2026-06-13/.meta/bench/.servers-cache/awkoy"
+}

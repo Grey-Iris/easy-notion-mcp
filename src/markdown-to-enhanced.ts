@@ -197,7 +197,12 @@ function serializeBlock(
     case "to_do": {
       const text = richTextToEnhanced(b.to_do.rich_text, options);
       const checked = b.to_do.checked ? "x" : " ";
-      return indent(`- [${checked}] ${text}`, depth);
+      const head = indent(`- [${checked}] ${text}`, depth);
+      const children = b.to_do.children as NotionBlock[] | undefined;
+      if (children?.length) {
+        return `${head}\n${serializeBlocks(children, depth + 1, warnings, options)}`;
+      }
+      return head;
     }
     case "quote":
       return indent(`> ${richTextToEnhanced(b.quote.rich_text, options)}`, depth);

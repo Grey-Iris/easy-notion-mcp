@@ -37,6 +37,18 @@ describe("round-trip fidelity", () => {
     expect(roundTrip(input)).toBe(input);
   });
 
+  it("round-trips a nested task list", () => {
+    const input = [
+      "- [ ] Top",
+      "  - [x] Child one",
+      "  - [ ] Child two",
+      "    - [x] Grandchild",
+      "- [x] Second top",
+    ].join("\n");
+
+    expect(roundTrip(input)).toBe(input);
+  });
+
   it("round-trips a code block with language", () => {
     const input = [
       "```typescript",

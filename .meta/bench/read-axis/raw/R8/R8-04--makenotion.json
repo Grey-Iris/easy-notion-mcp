@@ -1,0 +1,329 @@
+{
+  "page": {
+    "object": "page",
+    "id": "37ebe876-242f-8149-ac8a-da72b440138d",
+    "created_time": "2026-06-13T23:55:00.000Z",
+    "last_edited_time": "2026-06-13T23:55:00.000Z",
+    "created_by": {
+      "object": "user",
+      "id": "37ebe876-242f-813b-a749-002702683e7d"
+    },
+    "last_edited_by": {
+      "object": "user",
+      "id": "37ebe876-242f-813b-a749-002702683e7d"
+    },
+    "cover": null,
+    "icon": null,
+    "parent": {
+      "type": "page_id",
+      "page_id": "37ebe876-242f-803a-aa12-d2c750435a8e"
+    },
+    "in_trash": false,
+    "is_archived": false,
+    "is_locked": false,
+    "properties": {
+      "title": {
+        "id": "title",
+        "type": "title",
+        "title": [
+          {
+            "type": "text",
+            "text": {
+              "content": "R8 media-embed-file-heavy 4",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "R8 media-embed-file-heavy 4",
+            "href": null
+          }
+        ]
+      }
+    },
+    "url": "https://app.notion.com/p/R8-media-embed-file-heavy-4-37ebe876242f8149ac8ada72b440138d",
+    "public_url": null,
+    "archived": false,
+    "request_id": "27d10d67-9d32-4de5-9266-2cf0d5371ebb"
+  },
+  "blocks": [
+    {
+      "object": "block",
+      "id": "37ebe876-242f-8162-a931-fcea81be9655",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-8149-ac8a-da72b440138d"
+      },
+      "created_time": "2026-06-13T23:55:00.000Z",
+      "last_edited_time": "2026-06-13T23:55:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "heading_1",
+      "heading_1": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Media heavy 4",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Media heavy 4",
+            "href": null
+          }
+        ],
+        "is_toggleable": false,
+        "color": "default"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-816d-860b-c2ddc52b78c4",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-8149-ac8a-da72b440138d"
+      },
+      "created_time": "2026-06-13T23:55:00.000Z",
+      "last_edited_time": "2026-06-13T23:55:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "image",
+      "image": {
+        "caption": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Diagram 4",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Diagram 4",
+            "href": null
+          }
+        ],
+        "type": "external",
+        "external": {
+          "url": "https://example.com/bench/4/diagram.png"
+        }
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-8110-a904-d2a965bb6724",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-8149-ac8a-da72b440138d"
+      },
+      "created_time": "2026-06-13T23:55:00.000Z",
+      "last_edited_time": "2026-06-13T23:55:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "embed",
+      "embed": {
+        "caption": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Embed 4",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Embed 4",
+            "href": null
+          }
+        ],
+        "url": "https://example.com/bench/4/embed"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-813c-bd16-c8a38d1d60ac",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-8149-ac8a-da72b440138d"
+      },
+      "created_time": "2026-06-13T23:55:00.000Z",
+      "last_edited_time": "2026-06-13T23:55:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "file",
+      "file": {
+        "caption": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Brief 4",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Brief 4",
+            "href": null
+          }
+        ],
+        "type": "external",
+        "external": {
+          "url": "https://example.com/bench/4/brief.pdf"
+        },
+        "name": "brief.pdf"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-81e7-96f1-f37eab4be434",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-8149-ac8a-da72b440138d"
+      },
+      "created_time": "2026-06-13T23:55:00.000Z",
+      "last_edited_time": "2026-06-13T23:55:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "bookmark",
+      "bookmark": {
+        "caption": [
+          {
+            "type": "text",
+            "text": {
+              "content": "Reference 4",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "Reference 4",
+            "href": null
+          }
+        ],
+        "url": "https://example.com/bench/4/reference"
+      },
+      "archived": false
+    },
+    {
+      "object": "block",
+      "id": "37ebe876-242f-8150-8357-d0fee457a6e1",
+      "parent": {
+        "type": "page_id",
+        "page_id": "37ebe876-242f-8149-ac8a-da72b440138d"
+      },
+      "created_time": "2026-06-13T23:55:00.000Z",
+      "last_edited_time": "2026-06-13T23:55:00.000Z",
+      "created_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "last_edited_by": {
+        "object": "user",
+        "id": "37ebe876-242f-813b-a749-002702683e7d"
+      },
+      "has_children": false,
+      "in_trash": false,
+      "type": "paragraph",
+      "paragraph": {
+        "rich_text": [
+          {
+            "type": "text",
+            "text": {
+              "content": "schema reader token stable block fixture page property agent database surface context",
+              "link": null
+            },
+            "annotations": {
+              "bold": false,
+              "italic": false,
+              "strikethrough": false,
+              "underline": false,
+              "code": false,
+              "color": "default"
+            },
+            "plain_text": "schema reader token stable block fixture page property agent database surface context",
+            "href": null
+          }
+        ],
+        "icon": null,
+        "color": "default"
+      },
+      "archived": false
+    }
+  ]
+}

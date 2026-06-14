@@ -1,0 +1,765 @@
+{
+  "generatedAt": "2026-06-14T01:02:36.982Z",
+  "tokenizer": {
+    "cl100k": "js-tiktoken encodingForModel('gpt-4')",
+    "anthropic": {
+      "model": "claude-opus-4-8",
+      "version": "2023-06-01",
+      "available": true
+    }
+  },
+  "servers": [
+    {
+      "id": "easy-notion",
+      "label": "easy-notion-mcp (ours)",
+      "resolvedSha": "69ddf9da937328bb1d2c9ef7b42d220df026f486",
+      "pkgVersion": "0.9.3",
+      "expectedPkgVersion": "0.9.3",
+      "notionVersion": "2026-03-11",
+      "cacheDir": "/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/bench-exec-harness-2026-06-13",
+      "binEntry": "dist/index.js"
+    },
+    {
+      "id": "makenotion",
+      "label": "makenotion/notion-mcp-server",
+      "resolvedSha": "e79f35fd64cc5db726fbba1beebaa84c80760c17",
+      "pkgVersion": "2.3.1",
+      "expectedPkgVersion": "2.3.1",
+      "notionVersion": "2025-09-03",
+      "cacheDir": "/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/bench-exec-harness-2026-06-13/.meta/bench/.servers-cache/makenotion",
+      "binEntry": "bin/cli.mjs"
+    },
+    {
+      "id": "awkoy",
+      "label": "awkoy/notion-mcp-server",
+      "resolvedSha": "f5f1bdaf2456093a583722dab8422cf7b972636c",
+      "pkgVersion": "2.5.1",
+      "expectedPkgVersion": "2.5.1",
+      "notionVersion": "2025-09-03",
+      "cacheDir": "/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/bench-exec-harness-2026-06-13/.meta/bench/.servers-cache/awkoy",
+      "binEntry": "build/index.js"
+    },
+    {
+      "id": "better-notion",
+      "label": "better-notion-mcp (@n24q02m)",
+      "resolvedSha": "923387f27cb0d7c4be327dc4e7beaa896fe49c7c",
+      "pkgVersion": "2.33.0",
+      "expectedPkgVersion": "2.33.0",
+      "notionVersion": "2025-09-03",
+      "cacheDir": "/mnt/d/backup/projects/personal/mcp-notion/.mcp-agents/worktrees/bench-exec-harness-2026-06-13/.meta/bench/.servers-cache/better-notion",
+      "binEntry": "bin/cli.mjs"
+    }
+  ],
+  "provisionedDatabases": [
+    {
+      "fixtureId": "D1-wide-005",
+      "databaseId": "9e8292ac-3acf-4e4f-a25c-f87d0a344d71",
+      "dataSourceId": "0fc1fafa-0a3c-4d74-a7e9-1b65ea56614f"
+    },
+    {
+      "fixtureId": "D1-wide-100",
+      "databaseId": "a1bbd568-65cd-4bd6-b0d8-a9345dd2efaf",
+      "dataSourceId": "fdc68cab-1ab8-4f73-84ea-ecb3ca322150"
+    },
+    {
+      "fixtureId": "D2-structured-020",
+      "databaseId": "6144d7a0-aa48-4a12-a11e-fb82c7aed463",
+      "dataSourceId": "533f3d84-8a7f-4e4f-973e-0339a350df53"
+    }
+  ],
+  "failureCount": 0,
+  "sensitivity": [
+    {
+      "fixtureId": "D1-wide-005",
+      "status": "ok",
+      "defaultVersion": "2025-09-03",
+      "forcedVersion": "2026-03-11",
+      "defaultTokens": {
+        "cl100k": 4100,
+        "anthropic": 5781,
+        "bytes": 11464
+      },
+      "forcedTokens": {
+        "cl100k": 4070,
+        "anthropic": 5742,
+        "bytes": 11362
+      },
+      "shapeDiffers": true,
+      "rowSetDiffers": false,
+      "defaultCallCount": 2,
+      "forcedCallCount": 2
+    },
+    {
+      "fixtureId": "D1-wide-100",
+      "status": "ok",
+      "defaultVersion": "2025-09-03",
+      "forcedVersion": "2026-03-11",
+      "defaultTokens": {
+        "cl100k": 74322,
+        "anthropic": 106195,
+        "bytes": 210735
+      },
+      "forcedTokens": {
+        "cl100k": 73820,
+        "anthropic": 105586,
+        "bytes": 209018
+      },
+      "shapeDiffers": true,
+      "rowSetDiffers": false,
+      "defaultCallCount": 2,
+      "forcedCallCount": 2
+    },
+    {
+      "fixtureId": "D2-structured-020",
+      "status": "ok",
+      "defaultVersion": "2025-09-03",
+      "forcedVersion": "2026-03-11",
+      "defaultTokens": {
+        "cl100k": 12856,
+        "anthropic": 17692,
+        "bytes": 34943
+      },
+      "forcedTokens": {
+        "cl100k": 12754,
+        "anthropic": 17568,
+        "bytes": 34586
+      },
+      "shapeDiffers": true,
+      "rowSetDiffers": false,
+      "defaultCallCount": 2,
+      "forcedCallCount": 2
+    }
+  ],
+  "results": [
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-005",
+      "classId": "D1",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 496,
+          "anthropic": 766,
+          "bytes": 1466
+        },
+        "commonIr": {
+          "cl100k": 581,
+          "anthropic": 958,
+          "bytes": 2001
+        },
+        "contentCompleteness": {
+          "preserved": 55,
+          "total": 55,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 55,
+          "total": 180,
+          "score": 0.3055555555555556,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-005",
+      "classId": "D1",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 4102,
+          "anthropic": 5784,
+          "bytes": 11464
+        },
+        "commonIr": {
+          "cl100k": 1223,
+          "anthropic": 1781,
+          "bytes": 3401
+        },
+        "contentCompleteness": {
+          "preserved": 55,
+          "total": 55,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 180,
+          "total": 180,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 2
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-005",
+      "classId": "D1",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 752,
+          "anthropic": 1116,
+          "bytes": 2130
+        },
+        "commonIr": {
+          "cl100k": 152,
+          "anthropic": 268,
+          "bytes": 589
+        },
+        "contentCompleteness": {
+          "preserved": 0,
+          "total": 55,
+          "score": 0,
+          "missing": [
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 0,
+          "total": 180,
+          "score": 0,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-005",
+      "classId": "D1",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 1044,
+          "anthropic": 1433,
+          "bytes": 2996
+        },
+        "commonIr": {
+          "cl100k": 152,
+          "anthropic": 268,
+          "bytes": 589
+        },
+        "contentCompleteness": {
+          "preserved": 0,
+          "total": 55,
+          "score": 0,
+          "missing": [
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 0,
+          "total": 180,
+          "score": 0,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-100",
+      "classId": "D1",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 9864,
+          "anthropic": 15051,
+          "bytes": 29376
+        },
+        "commonIr": {
+          "cl100k": 8719,
+          "anthropic": 14035,
+          "bytes": 29243
+        },
+        "contentCompleteness": {
+          "preserved": 1100,
+          "total": 1100,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 1100,
+          "total": 3600,
+          "score": 0.3055555555555556,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-100",
+      "classId": "D1",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 74323,
+          "anthropic": 106195,
+          "bytes": 210735
+        },
+        "commonIr": {
+          "cl100k": 21258,
+          "anthropic": 30547,
+          "bytes": 57328
+        },
+        "contentCompleteness": {
+          "preserved": 1100,
+          "total": 1100,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 3600,
+          "total": 3600,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 2
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-100",
+      "classId": "D1",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 13497,
+          "anthropic": 19993,
+          "bytes": 38967
+        },
+        "commonIr": {
+          "cl100k": 152,
+          "anthropic": 268,
+          "bytes": 589
+        },
+        "contentCompleteness": {
+          "preserved": 0,
+          "total": 1100,
+          "score": 0,
+          "missing": [
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 0,
+          "total": 3600,
+          "score": 0,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D1-wide-100",
+      "classId": "D1",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 18160,
+          "anthropic": 24675,
+          "bytes": 51995
+        },
+        "commonIr": {
+          "cl100k": 152,
+          "anthropic": 268,
+          "bytes": 589
+        },
+        "contentCompleteness": {
+          "preserved": 0,
+          "total": 1100,
+          "score": 0,
+          "missing": [
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 0,
+          "total": 3600,
+          "score": 0,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "property-value:Contact",
+            "property-value:Done",
+            "property-value:Due",
+            "property-value:Estimate",
+            "property-value:Link",
+            "property-value:Name",
+            "property-value:Phone",
+            "property-value:Priority",
+            "property-value:Status",
+            "property-value:Summary",
+            "property-value:Tags",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D2-structured-020",
+      "classId": "D2",
+      "serverId": "easy-notion",
+      "numbers": {
+        "serverId": "easy-notion",
+        "asConsumed": {
+          "cl100k": 1499,
+          "anthropic": 2305,
+          "bytes": 4326
+        },
+        "commonIr": {
+          "cl100k": 1358,
+          "anthropic": 2254,
+          "bytes": 4754
+        },
+        "contentCompleteness": {
+          "preserved": 160,
+          "total": 160,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 160,
+          "total": 600,
+          "score": 0.26666666666666666,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": []
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D2-structured-020",
+      "classId": "D2",
+      "serverId": "makenotion",
+      "numbers": {
+        "serverId": "makenotion",
+        "asConsumed": {
+          "cl100k": 12863,
+          "anthropic": 17695,
+          "bytes": 34943
+        },
+        "commonIr": {
+          "cl100k": 3889,
+          "anthropic": 5551,
+          "bytes": 10354
+        },
+        "contentCompleteness": {
+          "preserved": 160,
+          "total": 160,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "fullCompleteness": {
+          "preserved": 600,
+          "total": 600,
+          "score": 1,
+          "missing": [],
+          "lossy": []
+        },
+        "callCount": 2
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D2-structured-020",
+      "classId": "D2",
+      "serverId": "awkoy",
+      "numbers": {
+        "serverId": "awkoy",
+        "asConsumed": {
+          "cl100k": 2288,
+          "anthropic": 3380,
+          "bytes": 6516
+        },
+        "commonIr": {
+          "cl100k": 124,
+          "anthropic": 220,
+          "bytes": 471
+        },
+        "contentCompleteness": {
+          "preserved": 0,
+          "total": 160,
+          "score": 0,
+          "missing": [
+            "property-value:Active",
+            "property-value:Due",
+            "property-value:Name",
+            "property-value:OwnerEmail",
+            "property-value:Priority",
+            "property-value:Score",
+            "property-value:Status",
+            "property-value:Tags"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 0,
+          "total": 600,
+          "score": 0,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "property-value:Active",
+            "property-value:Due",
+            "property-value:Name",
+            "property-value:OwnerEmail",
+            "property-value:Priority",
+            "property-value:Score",
+            "property-value:Status",
+            "property-value:Tags",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "callCount": 1
+      }
+    },
+    {
+      "status": "ok",
+      "fixtureId": "D2-structured-020",
+      "classId": "D2",
+      "serverId": "better-notion",
+      "numbers": {
+        "serverId": "better-notion",
+        "asConsumed": {
+          "cl100k": 3091,
+          "anthropic": 4202,
+          "bytes": 8823
+        },
+        "commonIr": {
+          "cl100k": 124,
+          "anthropic": 220,
+          "bytes": 471
+        },
+        "contentCompleteness": {
+          "preserved": 0,
+          "total": 160,
+          "score": 0,
+          "missing": [
+            "property-value:Active",
+            "property-value:Due",
+            "property-value:Name",
+            "property-value:OwnerEmail",
+            "property-value:Priority",
+            "property-value:Score",
+            "property-value:Status",
+            "property-value:Tags"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "fullCompleteness": {
+          "preserved": 0,
+          "total": 600,
+          "score": 0,
+          "missing": [
+            "archived",
+            "authors",
+            "property-id",
+            "property-value:Active",
+            "property-value:Due",
+            "property-value:Name",
+            "property-value:OwnerEmail",
+            "property-value:Priority",
+            "property-value:Score",
+            "property-value:Status",
+            "property-value:Tags",
+            "row-uuid",
+            "select-option-color",
+            "select-option-id",
+            "timestamps"
+          ],
+          "lossy": [
+            "property-value"
+          ]
+        },
+        "callCount": 1
+      }
+    }
+  ]
+}
