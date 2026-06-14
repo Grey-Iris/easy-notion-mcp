@@ -3,12 +3,12 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { PageFixture } from "./corpus/generate.js";
-import { listTools } from "./lib/mcp-client.js";
+import { authEnvForServer, listTools, type McpLaunchSpec } from "./lib/mcp-client.js";
 import { markdownToIr } from "./lib/markdown-to-ir.js";
 import { notionJsonToIr, type GroundTruth } from "./lib/notion-json-to-ir.js";
 import { archiveBlock, provisionPage } from "./lib/notion-provision.js";
 import { provision, type ProvisionResult } from "./lib/provision.js";
-import { readPageFull, type ReadResult } from "./lib/read-adapters.js";
+import { extractMarkdown, readPageFull, type ReadResult } from "./lib/read-adapters.js";
 import { SERVERS, type ServerDef, type ServerId } from "./lib/servers.js";
 import { computeThreeNumber, type ThreeNumber } from "./lib/three-number.js";
 import { ANTHROPIC_TOKEN_COUNT_MODEL, ANTHROPIC_VERSION } from "./lib/token-counter.js";
@@ -20,6 +20,7 @@ type RunStatus =
 interface ProvisionedServer {
   def: ServerDef;
   provisioned: ProvisionResult;
+  launch: McpLaunchSpec;
 }
 
 interface CorpusManifest {
@@ -37,12 +38,14 @@ const readAxisDir = path.join(repoRoot, ".meta/bench/read-axis");
 const rawDir = path.join(readAxisDir, "raw");
 
 export async function runReadAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunStatus[]> {
-  const env = readEnv();
   const noCleanup = process.argv.includes("--no-cleanup");
   const reuseRaw = process.argv.includes("--reuse-raw");
+  const env = readEnv(reuseRaw);
   const createdPageIds: string[] = [];
   const statuses: RunStatus[] = [];
-  const provisionedServers = await provisionServers(serverDefs);
+  const provisionedServers = reuseRaw
+    ? reuseRawServers(serverDefs)
+    : await provisionServers(serverDefs, env.notionToken);
 
   await mkdir(rawDir, { recursive: true });
 
@@ -53,21 +56,23 @@ export async function runReadAxis(serverDefs: ServerDef[] = SERVERS): Promise<Ru
     const anthropicCount = createAnthropicCounter(env.anthropicApiKey);
 
     for (const fixture of fixtures) {
-      let pageId: string | undefined;
-      try {
-        console.error(`[read-axis] provisioning fixture ${fixture.id}`);
-        const created = await provisionPage(fixture, env.parentPageId, { token: env.notionToken });
-        pageId = created.pageId;
-        createdPageIds.push(pageId);
-      } catch (error) {
-        statuses.push({ status: "failed", fixtureId: fixture.id, classId: fixture.classId, reason: formatError(error) });
-        continue;
+      let pageId = "__reuse_raw__";
+      if (!reuseRaw) {
+        try {
+          console.error(`[read-axis] provisioning fixture ${fixture.id}`);
+          const created = await provisionPage(fixture, env.parentPageId, { token: env.notionToken });
+          pageId = created.pageId;
+          createdPageIds.push(pageId);
+        } catch (error) {
+          statuses.push({ status: "failed", fixtureId: fixture.id, classId: fixture.classId, reason: formatError(error) });
+          continue;
+        }
       }
 
       const readResults = new Map<ServerId, ReadResult>();
       for (const server of provisionedServers) {
         try {
-          const result = await readOrReuseRaw(server.def.id, server.provisioned, fixture, pageId, reuseRaw);
+          const result = await readOrReuseRaw(server.def.id, server, fixture, pageId, reuseRaw, env.readTimeoutMs);
           readResults.set(server.def.id, result);
         } catch (error) {
           statuses.push({
@@ -154,14 +159,15 @@ export async function runReadAxis(serverDefs: ServerDef[] = SERVERS): Promise<Ru
   }
 }
 
-async function provisionServers(serverDefs: ServerDef[]): Promise<ProvisionedServer[]> {
+async function provisionServers(serverDefs: ServerDef[], token: string): Promise<ProvisionedServer[]> {
   const provisionedServers: ProvisionedServer[] = [];
   for (const def of serverDefs) {
     try {
       console.error(`[read-axis] provisioning ${def.id}`);
       const provisioned = await provision(def);
-      await listTools(provisioned.launch);
-      provisionedServers.push({ def, provisioned });
+      const launch = authenticatedLaunch(provisioned.launch, def.id, token, def.notionVersion);
+      await listTools(launch);
+      provisionedServers.push({ def, provisioned, launch });
     } catch (error) {
       console.error(`[read-axis] skipping ${def.id}: ${formatError(error)}`);
       await writeFailureArtifact(`${def.id}-provisioning-error.log`, formatError(error));
@@ -170,20 +176,46 @@ async function provisionServers(serverDefs: ServerDef[]): Promise<ProvisionedSer
   return provisionedServers;
 }
 
+function reuseRawServers(serverDefs: ServerDef[]): ProvisionedServer[] {
+  return serverDefs.map((def) => {
+    const launch: McpLaunchSpec = { command: "", args: [], cwd: repoRoot };
+    return {
+      def,
+      launch,
+      provisioned: {
+        id: def.id,
+        resolvedSha: "reuse-raw",
+        pkgVersion: "",
+        launch,
+        scriptsBlock: {},
+        binEntry: "",
+        cacheDir: "",
+      },
+    };
+  });
+}
+
 async function readOrReuseRaw(
   serverId: ServerId,
-  provisioned: ProvisionResult,
+  server: ProvisionedServer,
   fixture: PageFixture,
   pageId: string,
   reuseRaw: boolean,
+  timeoutMs: number,
 ): Promise<ReadResult> {
   const classDir = path.join(rawDir, fixture.classId);
   await mkdir(classDir, { recursive: true });
   const rawTextPath = path.join(classDir, `${fixture.id}--${serverId}.txt`);
   const notionBlocksPath = path.join(classDir, `${fixture.id}--${serverId}.json`);
 
-  if (reuseRaw && existsSync(rawTextPath)) {
+  if (reuseRaw) {
+    if (!existsSync(rawTextPath)) {
+      throw new Error(`--reuse-raw missing raw artifact: ${rawTextPath}`);
+    }
     const asConsumedText = await readFile(rawTextPath, "utf8");
+    if (serverId === "makenotion" && !existsSync(notionBlocksPath)) {
+      throw new Error(`--reuse-raw missing makenotion ground-truth artifact: ${notionBlocksPath}`);
+    }
     const notionBlocks =
       serverId === "makenotion" && existsSync(notionBlocksPath)
         ? JSON.parse(await readFile(notionBlocksPath, "utf8")) as unknown
@@ -198,12 +230,27 @@ async function readOrReuseRaw(
     };
   }
 
-  const result = await readPageFull(serverId, provisioned.launch, pageId);
+  const result = await readPageFull(serverId, server.launch, pageId, { timeoutMs });
   await writeFile(rawTextPath, result.asConsumedText, "utf8");
   if (serverId === "makenotion" && result.notionBlocks) {
     await writeFile(notionBlocksPath, `${JSON.stringify(result.notionBlocks, null, 2)}\n`, "utf8");
   }
   return result;
+}
+
+function authenticatedLaunch(
+  launch: McpLaunchSpec,
+  serverId: ServerId,
+  token: string,
+  notionVersion: string,
+): McpLaunchSpec {
+  return {
+    ...launch,
+    env: {
+      ...launch.env,
+      ...authEnvForServer(serverId, token, notionVersion),
+    },
+  };
 }
 
 async function loadPageFixtures(): Promise<PageFixture[]> {
@@ -405,25 +452,27 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function extractMarkdown(text: string): string {
-  try {
-    const parsed = JSON.parse(text) as { markdown?: unknown };
-    return typeof parsed.markdown === "string" ? parsed.markdown : text;
-  } catch {
-    return text;
-  }
-}
-
-function readEnv(): { notionToken: string; parentPageId: string; anthropicApiKey?: string } {
+function readEnv(allowMissingNotion = false): {
+  notionToken: string;
+  parentPageId: string;
+  readTimeoutMs: number;
+  anthropicApiKey?: string;
+} {
   const notionToken = process.env.NOTION_TOKEN;
   const parentPageId = process.env.BENCH_PARENT_PAGE_ID;
-  if (!notionToken) throw new Error("NOTION_TOKEN is required");
-  if (!parentPageId) throw new Error("BENCH_PARENT_PAGE_ID is required");
+  if (!allowMissingNotion && !notionToken) throw new Error("NOTION_TOKEN is required");
+  if (!allowMissingNotion && !parentPageId) throw new Error("BENCH_PARENT_PAGE_ID is required");
   return {
-    notionToken,
-    parentPageId,
+    notionToken: notionToken ?? "",
+    parentPageId: parentPageId ?? "",
+    readTimeoutMs: readTimeoutMs(),
     ...(process.env.ANTHROPIC_API_KEY ? { anthropicApiKey: process.env.ANTHROPIC_API_KEY } : {}),
   };
+}
+
+function readTimeoutMs(): number {
+  const value = Number(process.env.BENCH_READ_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : 120_000;
 }
 
 async function writeFailureArtifact(fileName: string, reason: string): Promise<void> {

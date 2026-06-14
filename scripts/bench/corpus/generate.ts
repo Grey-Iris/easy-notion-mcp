@@ -163,6 +163,7 @@ function makeR4(index: number): BlockFixture[] {
 
 function makeR5(index: number): BlockFixture[] {
   const text = sentence(index, 60);
+  const colors = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red", "default"];
   return [
     { type: "heading_1", text: `Annotation pathological ${index}` },
     {
@@ -171,7 +172,7 @@ function makeR5(index: number): BlockFixture[] {
       annotations: Array.from({ length: 30 }, (_, annotationIndex) => ({
         start: annotationIndex * 5,
         end: annotationIndex * 5 + 4,
-        color: `color_${(annotationIndex + index) % 9}`,
+        color: colors[(annotationIndex + index) % colors.length],
         bold: annotationIndex % 2 === 0,
         italic: annotationIndex % 3 === 0,
       })),

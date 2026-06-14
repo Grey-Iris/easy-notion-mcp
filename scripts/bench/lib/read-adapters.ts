@@ -139,12 +139,23 @@ async function readMakeNotion(
   };
 }
 
-function extractMarkdown(text: string): string {
-  const parsed = parseJson(text);
-  if (isJsonObject(parsed) && typeof parsed.markdown === "string") {
-    return parsed.markdown;
+export function extractMarkdown(text: string): string {
+  const stripped = stripWrapperTags(text);
+  const parsed = parseJson(stripped);
+  if (parsed === undefined) {
+    return stripped;
   }
-  return text;
+  if (!isJsonObject(parsed)) {
+    return typeof parsed === "string" ? parsed : stripped;
+  }
+
+  return (
+    readNestedString(parsed, ["data", "markdown"]) ??
+    readNestedString(parsed, ["markdown"]) ??
+    readNestedString(parsed, ["content"]) ??
+    readNestedString(parsed, ["data", "content"]) ??
+    ""
+  );
 }
 
 function parseFirstJsonText(result: ToolCallResult, label: string): JsonObject {
@@ -166,4 +177,22 @@ function parseJson(text: string): unknown {
 
 function isJsonObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function stripWrapperTags(text: string): string {
+  let stripped = text.trim();
+  for (;;) {
+    const match = stripped.match(/^<([A-Za-z][\w:-]*)(?:\s[^>]*)?>\s*([\s\S]*?)\s*<\/\1>/u);
+    if (!match) return stripped;
+    stripped = (match[2] ?? "").trim();
+  }
+}
+
+function readNestedString(value: JsonObject, path: string[]): string | undefined {
+  let current: unknown = value;
+  for (const key of path) {
+    if (!isJsonObject(current)) return undefined;
+    current = current[key];
+  }
+  return typeof current === "string" ? current : undefined;
 }

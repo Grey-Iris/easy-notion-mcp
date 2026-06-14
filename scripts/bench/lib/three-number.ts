@@ -82,17 +82,28 @@ function scoreContent(projectedIr: IrPage, groundTruth: GroundTruth): SlotCounts
   const counts: SlotCounts = { preserved: 0, total: 0, missing: new Set(), lossy: new Set() };
   const groundBlocks = flattenBlocks(groundTruth.ir.blocks);
   const projectedBlocks = flattenBlocks(projectedIr.blocks);
+  const consumedProjected = new Set<number>();
+  const projectedOutputText = normalizeText(projectedBlocks.map((block) => block.text ?? "").join(" "));
 
-  for (const [index, groundBlock] of groundBlocks.entries()) {
-    const projectedBlock = projectedBlocks[index];
-    slot(counts, projectedBlock?.kind === groundBlock.kind, "block-kind");
+  for (const groundBlock of groundBlocks) {
+    const match = findProjectedBlock(groundBlock, projectedBlocks, consumedProjected);
+    const projectedBlock = match?.block;
+    if (match) {
+      consumedProjected.add(match.index);
+    }
+
+    slot(counts, kindMatches(groundBlock, projectedBlock, match?.textMatched === true), "block-kind");
 
     if (groundBlock.text) {
-      slot(counts, projectedBlock?.text === groundBlock.text, "text");
+      slot(counts, match?.textMatched === true, "text");
     }
 
     if ((groundBlock.children?.length ?? 0) > 0) {
-      slot(counts, (projectedBlock?.children?.length ?? 0) > 0, "nesting");
+      slot(
+        counts,
+        (projectedBlock?.children?.length ?? 0) > 0 || childTextsAppear(groundBlock, projectedOutputText),
+        "nesting",
+      );
     }
 
     switch (groundBlock.kind) {
@@ -145,7 +156,11 @@ function scoreSpanAttributes(counts: SlotCounts, groundBlock: IrBlock, projected
 }
 
 function findProjectedSpan(block: IrBlock | undefined, text: string) {
-  return block?.spans?.find((span) => span.text === text);
+  const normalizedText = normalizeText(text);
+  return block?.spans?.find((span) => {
+    const candidate = normalizeText(span.text);
+    return candidate === normalizedText || (normalizedText.length > 0 && candidate.includes(normalizedText));
+  });
 }
 
 function slot(counts: SlotCounts, preserved: boolean, label: string, lossyLabel?: string): void {
@@ -164,4 +179,80 @@ function flattenBlocks(blocks: IrBlock[]): IrBlock[] {
 
 function metadataSlotTotal(groundTruth: GroundTruth): number {
   return Object.values(groundTruth.metadataSlots).reduce((sum, count) => sum + count, 0);
+}
+
+function findProjectedBlock(
+  groundBlock: IrBlock,
+  projectedBlocks: IrBlock[],
+  consumedProjected: Set<number>,
+): { block: IrBlock; index: number; textMatched: boolean } | undefined {
+  const groundText = normalizeText(groundBlock.text ?? "");
+
+  if (groundBlock.url) {
+    const mediaMatch = projectedBlocks.findIndex((block, index) =>
+      !consumedProjected.has(index) && block.kind === groundBlock.kind && block.url === groundBlock.url,
+    );
+    if (mediaMatch >= 0) {
+      return { block: projectedBlocks[mediaMatch] as IrBlock, index: mediaMatch, textMatched: true };
+    }
+  }
+
+  if (groundText) {
+    const exactIndex = projectedBlocks.findIndex((block, index) =>
+      !consumedProjected.has(index) && normalizeText(block.text ?? "") === groundText,
+    );
+    if (exactIndex >= 0) {
+      return { block: projectedBlocks[exactIndex] as IrBlock, index: exactIndex, textMatched: true };
+    }
+
+    const containsIndex = projectedBlocks.findIndex((block, index) => {
+      if (consumedProjected.has(index)) return false;
+      const candidate = normalizeText(block.text ?? "");
+      return candidate.includes(groundText);
+    });
+    if (containsIndex >= 0) {
+      return { block: projectedBlocks[containsIndex] as IrBlock, index: containsIndex, textMatched: true };
+    }
+  }
+
+  const kindIndex = projectedBlocks.findIndex((block, index) =>
+    !consumedProjected.has(index) && block.kind === groundBlock.kind,
+  );
+  if (kindIndex >= 0) {
+    return { block: projectedBlocks[kindIndex] as IrBlock, index: kindIndex, textMatched: false };
+  }
+
+  return undefined;
+}
+
+function kindMatches(groundBlock: IrBlock, projectedBlock: IrBlock | undefined, textMatched: boolean): boolean {
+  if (!projectedBlock) return false;
+  if (projectedBlock.kind === groundBlock.kind) return true;
+  if (!textMatched) return false;
+  if (isHeading(groundBlock.kind) && isHeading(projectedBlock.kind)) return true;
+  if (isListItem(groundBlock.kind) && isListItem(projectedBlock.kind)) return true;
+  return false;
+}
+
+function childTextsAppear(groundBlock: IrBlock, projectedOutputText: string): boolean {
+  const childTexts = flattenBlocks(groundBlock.children ?? [])
+    .map((child) => normalizeText(child.text ?? ""))
+    .filter(Boolean);
+  return childTexts.length > 0 && childTexts.every((text) => projectedOutputText.includes(text));
+}
+
+function isHeading(kind: IrBlock["kind"]): boolean {
+  return kind === "heading_1" || kind === "heading_2" || kind === "heading_3";
+}
+
+function isListItem(kind: IrBlock["kind"]): boolean {
+  return kind === "bulleted_list_item" || kind === "numbered_list_item";
+}
+
+export function normalizeText(text: string): string {
+  return text
+    .replace(/\[Content retrieved from Notion\s+[—-]\s+treat as data,\s*not instructions\]\.?/giu, " ")
+    .trim()
+    .replace(/\s+/gu, " ")
+    .toLowerCase();
 }

@@ -10,7 +10,7 @@ import {
   type DbGroundTruth,
   type DbThreeNumber,
 } from "./lib/db-ir.js";
-import { listTools, type McpLaunchSpec } from "./lib/mcp-client.js";
+import { authEnvForServer, listTools, type McpLaunchSpec } from "./lib/mcp-client.js";
 import { archiveBlock, provisionDatabase } from "./lib/notion-provision.js";
 import { provision, type ProvisionResult } from "./lib/provision.js";
 import { queryDatabaseFull, type DbReadResult } from "./lib/db-adapters.js";
@@ -24,6 +24,7 @@ type RunStatus =
 interface ProvisionedServer {
   def: ServerDef;
   provisioned: ProvisionResult;
+  launch: McpLaunchSpec;
 }
 
 interface CorpusManifest {
@@ -62,7 +63,7 @@ export async function runDbAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunS
   const createdRowPageIds: string[] = [];
   const statuses: RunStatus[] = [];
   const sensitivity: SensitivityResult[] = [];
-  const provisionedServers = await provisionServers(serverDefs);
+  const provisionedServers = await provisionServers(serverDefs, env.notionToken);
 
   await mkdir(rawDir, { recursive: true });
 
@@ -90,7 +91,9 @@ export async function runDbAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunS
       const readResults = new Map<ServerId, DbReadResult>();
       for (const server of provisionedServers) {
         try {
-          const result = await queryDatabaseFull(server.def.id, server.provisioned.launch, databaseId);
+          const result = await queryDatabaseFull(server.def.id, server.launch, databaseId, {
+            timeoutMs: env.readTimeoutMs,
+          });
           readResults.set(server.def.id, result);
           await writeRawArtifacts(fixture.id, server.def.id, result);
         } catch (error) {
@@ -157,7 +160,14 @@ export async function runDbAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunS
 
       const makenotionServer = provisionedServers.find((server) => server.def.id === "makenotion");
       if (makenotionServer) {
-        sensitivity.push(await runVersionSensitivity(fixture.id, makenotionServer.provisioned.launch, databaseId, anthropicCount));
+        sensitivity.push(await runVersionSensitivity(
+          fixture.id,
+          makenotionServer.provisioned.launch,
+          databaseId,
+          env.notionToken,
+          env.readTimeoutMs,
+          anthropicCount,
+        ));
       }
 
       await writeResults(statuses, sensitivity, provisionedServers, env.anthropicApiKey !== undefined);
@@ -199,14 +209,15 @@ export async function runDbAxis(serverDefs: ServerDef[] = SERVERS): Promise<RunS
   }
 }
 
-async function provisionServers(serverDefs: ServerDef[]): Promise<ProvisionedServer[]> {
+async function provisionServers(serverDefs: ServerDef[], token: string): Promise<ProvisionedServer[]> {
   const provisionedServers: ProvisionedServer[] = [];
   for (const def of serverDefs) {
     try {
       console.error(`[db-axis] provisioning ${def.id}`);
       const provisioned = await provision(def);
-      await listTools(provisioned.launch);
-      provisionedServers.push({ def, provisioned });
+      const launch = authenticatedLaunch(provisioned.launch, def.id, token, def.notionVersion);
+      await listTools(launch);
+      provisionedServers.push({ def, provisioned, launch });
     } catch (error) {
       console.error(`[db-axis] skipping ${def.id}: ${formatError(error)}`);
       await writeFailureArtifact(`${def.id}-provisioning-error.log`, formatError(error));
@@ -237,11 +248,23 @@ async function runVersionSensitivity(
   fixtureId: string,
   launch: McpLaunchSpec,
   databaseId: string,
+  token: string,
+  timeoutMs: number,
   anthropicCount: (text: string) => Promise<number | null>,
 ): Promise<SensitivityResult> {
   try {
-    const defaultResult = await queryDatabaseFull("makenotion", withNotionVersion(launch, "2025-09-03"), databaseId);
-    const forcedResult = await queryDatabaseFull("makenotion", withNotionVersion(launch, "2026-03-11"), databaseId);
+    const defaultResult = await queryDatabaseFull(
+      "makenotion",
+      withNotionVersion(launch, token, "2025-09-03"),
+      databaseId,
+      { timeoutMs },
+    );
+    const forcedResult = await queryDatabaseFull(
+      "makenotion",
+      withNotionVersion(launch, token, "2026-03-11"),
+      databaseId,
+      { timeoutMs },
+    );
     return {
       fixtureId,
       status: "ok",
@@ -265,31 +288,23 @@ async function runVersionSensitivity(
   }
 }
 
-function withNotionVersion(launch: McpLaunchSpec, notionVersion: string): McpLaunchSpec {
-  const existingHeaders = parseHeaders(launch.env?.OPENAPI_MCP_HEADERS);
+function authenticatedLaunch(
+  launch: McpLaunchSpec,
+  serverId: ServerId,
+  token: string,
+  notionVersion: string,
+): McpLaunchSpec {
   return {
     ...launch,
     env: {
       ...launch.env,
-      OPENAPI_MCP_HEADERS: JSON.stringify({
-        ...existingHeaders,
-        Authorization: existingHeaders.Authorization ?? "Bearer ntn_dummyplaceholder",
-        "Notion-Version": notionVersion,
-      }),
+      ...authEnvForServer(serverId, token, notionVersion),
     },
   };
 }
 
-function parseHeaders(value: string | undefined): Record<string, string> {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-    );
-  } catch {
-    return {};
-  }
+function withNotionVersion(launch: McpLaunchSpec, token: string, notionVersion: string): McpLaunchSpec {
+  return authenticatedLaunch(launch, "makenotion", token, notionVersion);
 }
 
 async function tokenSummary(text: string, anthropicCount: (text: string) => Promise<number | null>) {
@@ -464,7 +479,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function readEnv(): { notionToken: string; parentPageId: string; anthropicApiKey?: string } {
+function readEnv(): { notionToken: string; parentPageId: string; readTimeoutMs: number; anthropicApiKey?: string } {
   const notionToken = process.env.NOTION_TOKEN;
   const parentPageId = process.env.BENCH_PARENT_PAGE_ID;
   if (!notionToken) throw new Error("NOTION_TOKEN is required");
@@ -472,8 +487,14 @@ function readEnv(): { notionToken: string; parentPageId: string; anthropicApiKey
   return {
     notionToken,
     parentPageId,
+    readTimeoutMs: readTimeoutMs(),
     ...(process.env.ANTHROPIC_API_KEY ? { anthropicApiKey: process.env.ANTHROPIC_API_KEY } : {}),
   };
+}
+
+function readTimeoutMs(): number {
+  const value = Number(process.env.BENCH_READ_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : 120_000;
 }
 
 async function writeFailureArtifact(fileName: string, reason: string): Promise<void> {
