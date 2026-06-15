@@ -32,7 +32,10 @@ function makeNotion(
       retrieve: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
-      children: { list: vi.fn(), append: vi.fn() },
+      children: {
+        list: vi.fn(async () => ({ results: [], has_more: false, next_cursor: null })),
+        append: vi.fn(),
+      },
     },
     users: { list: vi.fn(), me: vi.fn() },
     search: vi.fn(),
@@ -70,8 +73,12 @@ describe("replace_content (atomic) handler", () => {
         },
       });
 
-      // Old delete-children + append path is not invoked; atomic endpoint is the only network call.
-      expect(notion.blocks.children.list).not.toHaveBeenCalled();
+      // Old delete-children + append path is not invoked; receipt lookup is read-only.
+      expect(notion.blocks.children.list).toHaveBeenCalledWith({
+        block_id: "page-1",
+        start_cursor: undefined,
+        page_size: 100,
+      });
       expect(notion.blocks.delete).not.toHaveBeenCalled();
       expect(notion.blocks.children.append).not.toHaveBeenCalled();
 

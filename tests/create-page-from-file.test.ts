@@ -47,7 +47,13 @@ function parseToolResult(result: { content?: Array<{ type: string; text?: string
 }
 
 async function createConnectedClient(config: TestServerConfig = {}) {
-  const notion = {};
+  const notion = {
+    blocks: {
+      children: {
+        list: vi.fn(async () => ({ results: [], has_more: false, next_cursor: null })),
+      },
+    },
+  };
   const server = createServer(() => notion as any, config as CreateServerConfig);
   const client = new McpClient(
     { name: "create-page-from-file-test", version: "1.0.0" },

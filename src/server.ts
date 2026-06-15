@@ -1252,6 +1252,17 @@ export function blockSearchText(block: any): string {
   }
 }
 
+const TEXT_PREVIEW_CAP = 80;
+
+export function blockTextPreview(block: any): string {
+  const text = blockSearchText(block);
+  return text.length > TEXT_PREVIEW_CAP ? text.slice(0, TEXT_PREVIEW_CAP) : text;
+}
+
+export function blockMapFromBlocks(blocks: any[]): Array<{ block_id: string; type: string; text_preview: string }> {
+  return blocks.map((b) => ({ block_id: b.id, type: b.type, text_preview: blockTextPreview(b) }));
+}
+
 function snippetsForMatches(text: string, query: string, cap = 5): string[] {
   const snippets: string[] = [];
   const haystack = text.toLowerCase();
@@ -2327,11 +2338,12 @@ export function createServer(
           };
 
           const parent = await resolveParent(notion, parent_page_id);
+          const parsedBlocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
           const page = await createPage(
             notion,
             parent,
             title,
-            markdownToBlocks(await processFileUploads(notion, markdown, transport)),
+            parsedBlocks,
             icon,
             cover,
           ) as any;
@@ -2339,9 +2351,17 @@ export function createServer(
             id: page.id,
             title,
             url: page.url,
+            success: true,
           };
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          if (parsedBlocks.length > 0) {
+            const created = await listChildren(notion, page.id);
+            const block_map = blockMapFromBlocks(created);
+            if (block_map.length > 0) {
+              response.block_map = block_map;
+            }
           }
           return textResponse(response);
         }
@@ -2360,20 +2380,29 @@ export function createServer(
 
           const parent = await resolveParent(notion, parent_page_id);
           const markdown = await readMarkdownFile(file_path, workspaceRoot);
+          const parsedBlocks = markdownToBlocks(markdown);
           const page = await createPage(
             notion,
             parent,
             title,
-            markdownToBlocks(markdown),
+            parsedBlocks,
           ) as any;
 
           const response: Record<string, unknown> = {
             id: page.id,
             title,
             url: page.url,
+            success: true,
           };
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
+          }
+          if (parsedBlocks.length > 0) {
+            const created = await listChildren(notion, page.id);
+            const block_map = blockMapFromBlocks(created);
+            if (block_map.length > 0) {
+              response.block_map = block_map;
+            }
           }
           return textResponse(response);
         }
@@ -2381,7 +2410,11 @@ export function createServer(
           const notion = notionClientFactory();
           const { page_id, markdown } = args as { page_id: string; markdown: string };
           const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
-          return textResponse({ success: true, blocks_added: result.length });
+          return textResponse({
+            success: true,
+            blocks_added: result.length,
+            ...(result.length > 0 ? { block_map: blockMapFromBlocks(result) } : {}),
+          });
         }
         case "replace_content": {
           const notion = notionClientFactory();
@@ -2412,10 +2445,13 @@ export function createServer(
           if (unmatched.length > 0) {
             warnings.push({ code: "unmatched_blocks", block_ids: unmatched });
           }
+          const current = await listChildren(notion, page_id);
+          const block_map = blockMapFromBlocks(current);
           return textResponse({
             success: true,
             ...(result.truncated ? { truncated: true } : {}),
             ...(warnings.length > 0 ? { warnings } : {}),
+            ...(block_map.length > 0 ? { block_map } : {}),
           });
         }
         case "update_section": {
@@ -2487,10 +2523,15 @@ export function createServer(
               : isToggleableHeading(headingBlock)
                 ? await appendBlocks(notion, headingBlock.id, replacementBodyBlocks)
                 : await appendBlocksAfter(notion, page_id, replacementBodyBlocks, headingBlock.id);
+            const deletedBlocks = [...existingHeadingChildren, ...sectionBlocks.slice(1)];
+            const deleted_blocks = blockMapFromBlocks(deletedBlocks);
+            const block_map = blockMapFromBlocks(appended);
 
             return textResponse({
               deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
               appended: appended.length,
+              ...(deleted_blocks.length > 0 ? { deleted_blocks } : {}),
+              ...(block_map.length > 0 ? { block_map } : {}),
             });
           }
 
@@ -2552,9 +2593,14 @@ export function createServer(
               replacementBlocks.slice(1),
               headingBlock.id,
             );
+            const deletedBlocks = [...existingHeadingChildren, ...sectionBlocks.slice(1)];
+            const deleted_blocks = blockMapFromBlocks(deletedBlocks);
+            const block_map = blockMapFromBlocks([...appendedHeadingChildren, ...appended]);
             return textResponse({
               deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
               appended: appendedHeadingChildren.length + appended.length,
+              ...(deleted_blocks.length > 0 ? { deleted_blocks } : {}),
+              ...(block_map.length > 0 ? { block_map } : {}),
             });
           }
 
@@ -2587,9 +2633,13 @@ export function createServer(
             replacementBlocks,
             afterBlockId,
           );
+          const deleted_blocks = blockMapFromBlocks(sectionBlocks);
+          const block_map = blockMapFromBlocks(appended);
           return textResponse({
             deleted: sectionBlocks.length,
             appended: appended.length,
+            ...(deleted_blocks.length > 0 ? { deleted_blocks } : {}),
+            ...(block_map.length > 0 ? { block_map } : {}),
           });
         }
         case "read_section": {
@@ -2779,6 +2829,8 @@ export function createServer(
             type: result.block.type,
             deleted: existingChildren.length,
             appended: appended.length,
+            ...(existingChildren.length > 0 ? { deleted_blocks: blockMapFromBlocks(existingChildren) } : {}),
+            ...(appended.length > 0 ? { block_map: blockMapFromBlocks(appended) } : {}),
           });
         }
         case "archive_toggle": {
@@ -2883,7 +2935,7 @@ export function createServer(
               });
             }
             await updateBlock(notion, block_id, { in_trash: true });
-            return textResponse({ id: block_id, type: existingType, archived: true });
+            return textResponse({ id: block_id, type: existingType, archived: true, success: true });
           }
 
           if (!UPDATABLE_BLOCK_TYPES.has(existingType)) {
@@ -2914,7 +2966,7 @@ export function createServer(
             });
           }
           await updateBlock(notion, block_id, built.payload);
-          return textResponse({ id: block_id, type: existingType, updated: true });
+          return textResponse({ id: block_id, type: existingType, updated: true, success: true });
         }
         case "read_page": {
           const notion = notionClientFactory();
@@ -3129,6 +3181,7 @@ export function createServer(
             title,
             url: result.url,
             properties: Object.keys(schemaToProperties(schema)),
+            success: true,
           });
         }
         case "update_data_source": {
@@ -3436,7 +3489,7 @@ export function createServer(
           const notion = notionClientFactory();
           const { page_id, new_parent_id } = args as { page_id: string; new_parent_id: string };
           const result = await movePage(notion, page_id, new_parent_id) as any;
-          return textResponse({ id: result.id, url: result.url, parent_id: new_parent_id });
+          return textResponse({ id: result.id, url: result.url, parent_id: new_parent_id, success: true });
         }
         case "restore_page": {
           const notion = notionClientFactory();

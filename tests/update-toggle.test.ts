@@ -116,6 +116,14 @@ describe("update_toggle handler", () => {
         type: "toggle",
         deleted: 2,
         appended: 2,
+        deleted_blocks: [
+          { block_id: "old-1", type: "paragraph", text_preview: "Old one" },
+          { block_id: "old-2", type: "paragraph", text_preview: "Old two" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "New body" },
+          { block_id: "new-1", type: "bulleted_list_item", text_preview: "item" },
+        ],
       });
       expect(mutations).toEqual([
         "delete:old-1",
@@ -160,6 +168,12 @@ describe("update_toggle handler", () => {
         type: "heading_2",
         deleted: 1,
         appended: 1,
+        deleted_blocks: [
+          { block_id: "old-child", type: "paragraph", text_preview: "Old child" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Replacement child" },
+        ],
       });
       expect(notion.blocks.update).not.toHaveBeenCalled();
       expect(mutations).toEqual([

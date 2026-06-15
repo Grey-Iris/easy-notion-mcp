@@ -81,7 +81,7 @@ describe("update_block handler", () => {
       expect(call.in_trash).toBeUndefined();
 
       const response = JSON.parse(parseToolText(result));
-      expect(response).toEqual({ id: "block-1", type: "paragraph", updated: true });
+      expect(response).toEqual({ id: "block-1", type: "paragraph", updated: true, success: true });
     } finally {
       await close();
     }
@@ -201,7 +201,7 @@ describe("update_block handler", () => {
           expect(payload[tc.key]).toBeDefined();
           tc.assertContent?.(payload);
           const response = JSON.parse(parseToolText(result));
-          expect(response).toEqual({ id: "blk", type: tc.existingType, updated: true });
+          expect(response).toEqual({ id: "blk", type: tc.existingType, updated: true, success: true });
         } finally {
           await close();
         }
@@ -279,7 +279,7 @@ describe("update_block handler", () => {
       expect(payload.divider).toBeUndefined();
       expect(payload.archived).toBeUndefined();
       const response = JSON.parse(parseToolText(result));
-      expect(response).toEqual({ id: "d1", type: "divider", archived: true });
+      expect(response).toEqual({ id: "d1", type: "divider", archived: true, success: true });
     } finally {
       await close();
     }
@@ -433,7 +433,7 @@ describe("update_block handler", () => {
       });
       expect(notion.blocks.update).toHaveBeenCalledOnce();
       const response = JSON.parse(parseToolText(result));
-      expect(response).toEqual({ id: "div-1", type: "divider", archived: true });
+      expect(response).toEqual({ id: "div-1", type: "divider", archived: true, success: true });
     } finally {
       await close();
     }

@@ -206,7 +206,16 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 1 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 1,
+        appended: 1,
+        deleted_blocks: [
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Replacement body" },
+        ],
+      });
       expect(notion.blocks.update).not.toHaveBeenCalled();
       expect(notion.blocks.delete).toHaveBeenCalledWith({ block_id: "old-body" });
       expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
@@ -242,7 +251,16 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 1 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 1,
+        appended: 1,
+        deleted_blocks: [
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Replacement body" },
+        ],
+      });
       expect(notion.blocks.update).not.toHaveBeenCalled();
       expect(notion.blocks.delete).toHaveBeenCalledWith({ block_id: "old-body" });
       expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
@@ -272,7 +290,13 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 0 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 1,
+        appended: 0,
+        deleted_blocks: [
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+      });
       expect(notion.blocks.update).not.toHaveBeenCalled();
       expect(notion.blocks.delete).toHaveBeenCalledWith({ block_id: "old-body" });
       expect(notion.blocks.children.append).not.toHaveBeenCalled();
@@ -313,7 +337,17 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 2, appended: 1 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 2,
+        appended: 1,
+        deleted_blocks: [
+          { block_id: "old-child", type: "paragraph", text_preview: "Old child" },
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Replacement child" },
+        ],
+      });
       expect(notion.blocks.update).not.toHaveBeenCalled();
       expect(mutations).toEqual([
         "delete:old-child",
@@ -346,7 +380,17 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 2 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 1,
+        appended: 2,
+        deleted_blocks: [
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Inside" },
+          { block_id: "new-1", type: "paragraph", text_preview: "After" },
+        ],
+      });
       const children = notion.blocks.children.append.mock.calls[0][0].children;
       expect(children.map((block: any) => block.type)).toEqual(["paragraph", "paragraph"]);
       expect(children[0].paragraph.rich_text[0].text.content).toBe("Inside");
@@ -374,7 +418,17 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 2, appended: 1 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 2,
+        appended: 1,
+        deleted_blocks: [
+          { block_id: "h2-target", type: "heading_2", text_preview: "Target" },
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Replacement body" },
+        ],
+      });
       expect(notion.blocks.delete).toHaveBeenNthCalledWith(1, { block_id: "h2-target" });
       expect(notion.blocks.delete).toHaveBeenNthCalledWith(2, { block_id: "old-body" });
       expect(notion.blocks.children.append).toHaveBeenCalledWith(expect.objectContaining({
@@ -403,7 +457,16 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 1, appended: 1 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 1,
+        appended: 1,
+        deleted_blocks: [
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Replacement body" },
+        ],
+      });
       expect(notion.blocks.update).toHaveBeenCalledWith(expect.objectContaining({
         block_id: "h2-target",
         heading_2: expect.objectContaining({
@@ -459,7 +522,17 @@ describe("update_section handler", () => {
         },
       });
 
-      expect(parseToolText(result)).toEqual({ deleted: 2, appended: 1 });
+      expect(parseToolText(result)).toEqual({
+        deleted: 2,
+        appended: 1,
+        deleted_blocks: [
+          { block_id: "old-child", type: "paragraph", text_preview: "Old child" },
+          { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+        ],
+        block_map: [
+          { block_id: "new-0", type: "paragraph", text_preview: "Replacement body" },
+        ],
+      });
       expect(notion.blocks.update).toHaveBeenCalledWith(expect.objectContaining({
         block_id: "h2-target",
         heading_2: expect.objectContaining({ is_toggleable: false }),
