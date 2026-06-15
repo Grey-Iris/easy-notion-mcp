@@ -1513,7 +1513,7 @@ type ToolDefinition = {
 const tools = [
   {
     name: "create_page",
-    description: "Create a Notion page from markdown. Supports GFM plus Notion extensions for callouts, toggles, columns, bookmarks, embeds, equations, table of contents, and stdio-only file:// uploads. For the full syntax guide, read resource easy-notion://docs/markdown.",
+    description: "Create a Notion page from markdown, converted server-side to native Notion blocks (not flat text). The server auto-handles Notion's limits (100-block batching, 2000-char splitting, deep nesting); send large trees in one call, no pre-chunking. Supports stdio-only file:// uploads. Syntax guide: resource easy-notion://docs/markdown. Returns { id, title, url } only (no block count or per-block IDs).",
     inputSchema: {
       type: "object",
       properties: {
@@ -1531,7 +1531,7 @@ const tools = [
   },
   {
     name: "create_page_from_file",
-    description: `Create a Notion page from a local markdown file. The server reads and validates the file, then creates the same result as create_page without sending file contents through the agent context.
+    description: `Create a Notion page from a local markdown file. The server reads and validates the file, then creates the same result as create_page without sending file contents through the agent context. The server converts the markdown to native Notion blocks (not flat text) and automatically handles Notion's limits (100-block batching, 2000-char splitting, deep nesting), so large files need no pre-chunking.
 
 STDIO MODE ONLY. This tool is not available when the server runs over HTTP, because in HTTP mode the server's filesystem belongs to the server host, not the caller.
 
@@ -1543,7 +1543,7 @@ Restrictions:
 - File must be valid UTF-8
 - Symlinks are resolved and the resolved path must still be inside the workspace root
 
-For supported markdown syntax, read resource easy-notion://docs/markdown.`,
+For supported markdown syntax, read resource easy-notion://docs/markdown. Returns: { id, title, url }, plus note only when created at the workspace root. There is no block count and no per-block IDs in the receipt.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1563,7 +1563,7 @@ For supported markdown syntax, read resource easy-notion://docs/markdown.`,
   },
   {
     name: "append_content",
-    description: "Append markdown content to an existing page. Supports the same syntax as create_page; read resource easy-notion://docs/markdown for the full syntax guide.",
+    description: "Append markdown content to an existing page. The server converts markdown into native Notion blocks, not flat/plain text. The server automatically handles Notion API limits: batches more than 100 child blocks, splits rich text over 2000 characters, and writes deeply nested blocks in additional passes, so callers can append large documents in one call with no need to pre-chunk or pre-split. Supports the same syntax as create_page; read resource easy-notion://docs/markdown for the full syntax guide. Returns: { success: true, blocks_added: <number> }.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1575,11 +1575,11 @@ For supported markdown syntax, read resource easy-notion://docs/markdown.`,
   },
   {
     name: "replace_content",
-    description: `Replaces all page content with the provided markdown atomically (one Notion API call). On matched blocks Notion preserves the original block IDs, so deep-link anchors (\`#block-id\`) and inline-comment threads attached to those blocks survive the edit. Unmatched blocks (returned in \`warnings\` with code \`unmatched_blocks\`) are replaced with new IDs.
+    description: `Replaces all page content with the provided markdown atomically (one Notion API call). Notion's atomic markdown endpoint converts the markdown to native Notion blocks in that one API call. On matched blocks Notion preserves the original block IDs, so deep-link anchors (\`#block-id\`) and inline-comment threads attached to those blocks survive the edit. Unmatched blocks (returned in \`warnings\` with code \`unmatched_blocks\`) are replaced with new IDs.
 
 NOT preserved across replace_content: \`child_page\` subpages, \`synced_block\` instances, \`child_database\` views, and \`link_to_page\` references on the source page — Enhanced Markdown has no input form for these, so they are dropped from the new page content. If the source contains them, use duplicate_page first or edit those types via the Notion UI.
 
-Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \`bookmark_lost_on_atomic_replace\` warning so callers know the rich-bookmark UI is lost. For supported markdown syntax and warning details, read resources easy-notion://docs/markdown and easy-notion://docs/warnings.`,
+Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \`bookmark_lost_on_atomic_replace\` warning so callers know the rich-bookmark UI is lost. For supported markdown syntax and warning details, read resources easy-notion://docs/markdown and easy-notion://docs/warnings. Returns: { success: true }, optionally truncated: true, optionally warnings with entries such as { code: "unmatched_blocks", block_ids: [...] }.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1674,7 +1674,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
     name: "update_toggle",
     description: `DESTRUCTIVE — no rollback: this tool preserves the matched toggle container block ID, then deletes its body children and appends replacement body blocks. Child block IDs inside the body change, and if the write fails mid-call the toggle can be left partially or fully emptied. For irreplaceable content, duplicate_page the target first so you have a restore point.
 
-Update the body of one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. The markdown is replacement body content, not a wrapper that renames the toggle. If the markdown parses as one matching top-level toggle or toggleable heading wrapper, that wrapper is ignored and only its children are used as the replacement body.`,
+Update the body of one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. The markdown is replacement body content, not a wrapper that renames the toggle, and the server converts it into native Notion blocks, not flat/plain text. The server automatically handles Notion API limits: batches more than 100 child blocks, splits rich text over 2000 characters, and writes deeply nested blocks in additional passes, so callers can send a full multi-section toggle tree in one call with no need to pre-chunk or pre-split. If the markdown parses as one matching top-level toggle or toggleable heading wrapper, that wrapper is ignored and only its children are used as the replacement body. For supported markdown syntax, read resource easy-notion://docs/markdown. Returns: { success: true, block_id, type, deleted, appended }, where deleted and appended are counts.`,
     inputSchema: {
       type: "object",
       properties: {
