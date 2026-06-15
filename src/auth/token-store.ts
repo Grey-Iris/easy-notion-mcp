@@ -5,6 +5,8 @@ import { join } from "path";
 
 export interface TokenRecord {
   mcpToken: string;
+  // Token type: only "access" tokens may be presented on the /mcp bearer path.
+  kind: "access" | "refresh";
   notionToken: string;
   refreshToken?: string;
   workspaceId?: string;

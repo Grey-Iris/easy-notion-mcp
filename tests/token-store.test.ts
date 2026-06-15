@@ -22,6 +22,7 @@ describe("TokenStore", () => {
   function makeRecord(overrides: Partial<TokenRecord> = {}): TokenRecord {
     return {
       mcpToken: "mcp-token-abc",
+      kind: "access",
       notionToken: "ntn_secret_xyz",
       refreshToken: "refresh-123",
       workspaceId: "ws-456",

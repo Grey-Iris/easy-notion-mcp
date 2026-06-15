@@ -297,6 +297,7 @@ export class NotionOAuthProvider implements OAuthServerProvider {
     // Persist the mapping
     await this.tokenStore.storeToken({
       mcpToken,
+      kind: "access",
       notionToken: pending.notionToken,
       refreshToken: pending.notionRefreshToken,
       workspaceId: pending.workspaceId,
@@ -309,6 +310,7 @@ export class NotionOAuthProvider implements OAuthServerProvider {
     // Also store the refresh token mapping (using mcpRefreshToken as key)
     await this.tokenStore.storeToken({
       mcpToken: mcpRefreshToken,
+      kind: "refresh",
       notionToken: pending.notionToken,
       refreshToken: pending.notionRefreshToken,
       workspaceId: pending.workspaceId,
@@ -392,6 +394,7 @@ export class NotionOAuthProvider implements OAuthServerProvider {
 
     await this.tokenStore.storeToken({
       mcpToken: newMcpToken,
+      kind: "access",
       notionToken,
       refreshToken: record.refreshToken,
       workspaceId: record.workspaceId,
@@ -417,6 +420,9 @@ export class NotionOAuthProvider implements OAuthServerProvider {
   async verifyAccessToken(token: string): Promise<AuthInfo> {
     const record = await this.tokenStore.getByMcpToken(token);
     if (!record) {
+      throw new Error("Invalid or expired token");
+    }
+    if (record.kind !== "access") {
       throw new Error("Invalid or expired token");
     }
 
