@@ -40,7 +40,7 @@ CI runs on every PR and push to `main`/`dev` (GitHub Actions: build, typecheck, 
 
 CI Trusted Publishing is the primary path. Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs build/typecheck/test, publishes to npm via OIDC (no `NPM_TOKEN` required), and creates the GitHub release. Total runtime is under a minute when green.
 
-1. Bump `version` in **both** `package.json` and `package-lock.json` (top-level `version` field AND `packages."".version`) in the same commit
+1. Bump `version` in **all three** of `package.json`, `package-lock.json` (top-level `version` field AND `packages."".version`), and `server.json` (the MCP Registry manifest; bump BOTH its top-level `version` field AND `packages[0].version`) in the same commit (a CI drift-guard test, `tests/server-version.test.ts`, fails the build if `server.json` and `package.json` versions diverge, so all three files must move together)
 2. Commit: `git commit -am "chore: bump to vX.Y.Z"`
 3. Tag: `git tag vX.Y.Z`
 4. Push: `git push public dev && git push public --tags`
