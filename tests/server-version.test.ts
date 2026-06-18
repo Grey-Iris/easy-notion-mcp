@@ -7,6 +7,10 @@ import { createServer } from "../src/server.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { name: string; version: string };
+const serverManifest = require("../server.json") as {
+  version: string;
+  packages: Array<{ version: string }>;
+};
 
 function makeNotion() {
   return {
@@ -36,5 +40,13 @@ describe("MCP server version", () => {
       await client.close();
       await server.close();
     }
+  });
+
+  it("keeps server.json (MCP Registry manifest) version in lockstep with package.json", () => {
+    // The release runbook bumps package.json and package-lock.json; server.json
+    // is easy to forget and silently drifts. Both manifest version fields must
+    // match package.json so the published registry entry is never stale.
+    expect(serverManifest.version).toBe(pkg.version);
+    expect(serverManifest.packages[0].version).toBe(pkg.version);
   });
 });
