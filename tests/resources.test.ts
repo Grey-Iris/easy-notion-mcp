@@ -98,6 +98,10 @@ describe("MCP documentation resources", () => {
         '{ "code": "embed_lost_on_atomic_replace", "url": "https://example.com/embed-target" }',
       ],
       [
+        "unrepresentable_block",
+        '{ "code": "unrepresentable_block", "type": "synced_block" }',
+      ],
+      [
         "data_source_options_removed",
         '"removed": ["Doing", "Done"]',
       ],

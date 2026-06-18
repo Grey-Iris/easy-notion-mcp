@@ -1516,7 +1516,10 @@ export async function queryView(
       ...(options.page_size !== undefined ? { page_size: options.page_size } : {}),
       ...(options.start_cursor !== undefined ? { start_cursor: options.start_cursor } : {}),
     });
-    return { query, results };
+    // Return only the curated results payload. The transient view-query object
+    // is an internal implementation detail (a throwaway query we create and
+    // immediately delete) and must not leak into the tool's response contract.
+    return results;
   } finally {
     await client.views.queries.delete({ view_id: viewId, query_id: query.id });
   }

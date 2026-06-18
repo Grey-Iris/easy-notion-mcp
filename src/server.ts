@@ -345,6 +345,15 @@ Shape:
 { "code": "embed_lost_on_atomic_replace", "url": "https://example.com/embed-target" }
 \`\`\`
 
+## unrepresentable_block
+
+Returned by replace_content when an existing block type has no Enhanced-Markdown serialization, so it is dropped from the atomic replacement content. The \`type\` field names the Notion block type that could not be represented.
+
+Shape:
+\`\`\`json
+{ "code": "unrepresentable_block", "type": "synced_block" }
+\`\`\`
+
 ## data_source_options_removed
 
 Returned by update_data_source when a select / multi_select / status property update omits options that exist in the current schema, so Notion drops them and unassigns rows that used them (full-list replace semantics).

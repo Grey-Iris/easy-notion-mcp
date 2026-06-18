@@ -258,7 +258,7 @@ describe("Views MCP tools", () => {
     const { client, close } = await connect(notion);
 
     try {
-      const response = parseToolJson<{ query: typeof query; results: typeof results }>(
+      const response = parseToolJson<typeof results & { query?: unknown }>(
         await client.callTool({
           name: "query_view",
           arguments: { view_id: "view-1", page_size: 10, start_cursor: "cursor-1" },
@@ -279,7 +279,8 @@ describe("Views MCP tools", () => {
         view_id: "view-1",
         query_id: "query-1",
       });
-      expect(response).toEqual({ query, results });
+      expect(response).toEqual(results);
+      expect(response).not.toHaveProperty("query");
       expect(notion.views.queries.delete.mock.invocationCallOrder[0]).toBeGreaterThan(
         notion.views.queries.results.mock.invocationCallOrder[0],
       );

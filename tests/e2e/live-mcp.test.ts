@@ -195,17 +195,11 @@ type DeleteViewResponse = {
 };
 
 type QueryViewResponse = {
-  query?: {
-    object?: string;
-    id?: string;
-    view_id?: string;
-  };
-  results?: {
-    object?: string;
-    results?: unknown[];
-    next_cursor?: string | null;
-    has_more?: boolean;
-  };
+  object?: string;
+  results?: unknown[];
+  next_cursor?: string | null;
+  has_more?: boolean;
+  query?: unknown;
   error?: string;
 };
 
@@ -1789,14 +1783,11 @@ describe.skipIf(!env.shouldRun)(
         page_size: 10,
       });
       expect(queried.error).toBeUndefined();
-      expect(queried.query?.id).toEqual(expect.any(String));
-      if (queried.query?.view_id !== undefined) {
-        expect(queried.query.view_id).toBe(view.id);
-      }
-      expect(queried.results?.object).toBe("list");
-      expect(Array.isArray(queried.results?.results)).toBe(true);
+      expect(queried.query).toBeUndefined();
+      expect(queried.object).toBe("list");
+      expect(Array.isArray(queried.results)).toBe(true);
       console.error(
-        `[e2e] V1 query_view returned results.object=${queried.results?.object} results_count=${queried.results?.results?.length ?? "unknown"}`,
+        `[e2e] V1 query_view returned object=${queried.object} results_count=${queried.results?.length ?? "unknown"}`,
       );
     }, 45_000);
 
