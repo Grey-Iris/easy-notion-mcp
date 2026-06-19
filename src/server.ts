@@ -1984,7 +1984,8 @@ Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-valu
   },
   {
     name: "list_views",
-    description: "List Notion database views. Pass exactly one of database_id or data_source_id. Returns the raw Notion views list response.",
+    description:
+      "List Notion database views. Pass exactly one of database_id or data_source_id. Returns a curated summary of each view (id, name, type, url, data_source_id) plus pagination cursors; set include_config: true for the full raw Notion view objects.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1992,23 +1993,35 @@ Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-valu
         data_source_id: { type: "string", description: "Data source ID" },
         page_size: { type: "number", description: "Maximum number of views to return" },
         start_cursor: { type: "string", description: "Pagination cursor from a previous response" },
+        include_config: {
+          type: "boolean",
+          description:
+            "Return the full raw Notion view objects (filter, sorts, configuration, parent) instead of the curated summary. Default false.",
+        },
       },
     },
   },
   {
     name: "get_view",
-    description: "Retrieve one Notion database view by ID. Returns the raw Notion view response.",
+    description:
+      "Retrieve one Notion database view by ID. Returns a curated summary (id, name, type, url, data_source_id); set include_config: true for the full raw Notion view object.",
     inputSchema: {
       type: "object",
       properties: {
         view_id: { type: "string", description: "View ID" },
+        include_config: {
+          type: "boolean",
+          description:
+            "Return the full raw Notion view objects (filter, sorts, configuration, parent) instead of the curated summary. Default false.",
+        },
       },
       required: ["view_id"],
     },
   },
   {
     name: "query_view",
-    description: "Query a Notion database view. Creates a temporary view query, fetches raw page results, then deletes the query.",
+    description:
+      "Query a Notion database view. Creates a temporary view query, fetches database row results, then deletes the query.",
     inputSchema: {
       type: "object",
       properties: {
@@ -3292,11 +3305,12 @@ export function createServer(
         }
         case "list_views": {
           const notion = notionClientFactory();
-          const { database_id, data_source_id, page_size, start_cursor } = args as {
+          const { database_id, data_source_id, page_size, start_cursor, include_config } = args as {
             database_id?: unknown;
             data_source_id?: unknown;
             page_size?: number;
             start_cursor?: string;
+            include_config?: boolean;
           };
           const hasDatabaseId = database_id !== undefined;
           const hasDataSourceId = data_source_id !== undefined;
@@ -3309,18 +3323,22 @@ export function createServer(
           if (data_source_id !== undefined && typeof data_source_id !== "string") {
             throw new Error("list_views: `data_source_id` must be a string.");
           }
-          const result = await listViews(notion, {
-            ...(database_id !== undefined ? { database_id } : {}),
-            ...(data_source_id !== undefined ? { data_source_id } : {}),
-            ...(page_size !== undefined ? { page_size } : {}),
-            ...(start_cursor !== undefined ? { start_cursor } : {}),
-          });
+          const result = await listViews(
+            notion,
+            {
+              ...(database_id !== undefined ? { database_id } : {}),
+              ...(data_source_id !== undefined ? { data_source_id } : {}),
+              ...(page_size !== undefined ? { page_size } : {}),
+              ...(start_cursor !== undefined ? { start_cursor } : {}),
+            },
+            { includeConfig: include_config === true },
+          );
           return textResponse(result);
         }
         case "get_view": {
           const notion = notionClientFactory();
-          const { view_id } = args as { view_id: string };
-          const result = await getView(notion, view_id);
+          const { view_id, include_config } = args as { view_id: string; include_config?: boolean };
+          const result = await getView(notion, view_id, { includeConfig: include_config === true });
           return textResponse(result);
         }
         case "query_view": {

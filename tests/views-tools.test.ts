@@ -69,11 +69,15 @@ describe("Views MCP tools", () => {
           data_source_id: { type: "string" },
           page_size: { type: "number" },
           start_cursor: { type: "string" },
+          include_config: { type: "boolean" },
         },
       });
       expect(getView?.inputSchema).toMatchObject({
         required: ["view_id"],
-        properties: { view_id: { type: "string" } },
+        properties: {
+          view_id: { type: "string" },
+          include_config: { type: "boolean" },
+        },
       });
       expect(queryView?.inputSchema).toMatchObject({
         required: ["view_id"],
@@ -83,6 +87,7 @@ describe("Views MCP tools", () => {
           start_cursor: { type: "string" },
         },
       });
+      expect(queryView?.inputSchema.properties).not.toHaveProperty("include_config");
       expect(createView?.inputSchema).toMatchObject({
         required: ["database_id", "name", "type"],
         properties: {
@@ -148,11 +153,19 @@ describe("Views MCP tools", () => {
     }
   });
 
-  it("list_views forwards database pagination parameters and returns raw response", async () => {
+  it("list_views forwards database pagination parameters and returns curated response by default", async () => {
     const notion = makeNotion();
     const rawResponse = {
       object: "list",
-      results: [{ object: "view", id: "view-1", type: "table" }],
+      results: [
+        {
+          object: "view",
+          id: "view-1",
+          type: "table",
+          parent: { type: "database_id", database_id: "db-1" },
+          filter: {},
+        },
+      ],
       next_cursor: "next",
       has_more: true,
       type: "view",
@@ -174,7 +187,59 @@ describe("Views MCP tools", () => {
         page_size: 25,
         start_cursor: "cursor-1",
       });
+      expect(result).toEqual({
+        object: "list",
+        results: [{ id: "view-1", object: "view", type: "table" }],
+        next_cursor: "next",
+        has_more: true,
+      });
+      expect(result.results[0]).toEqual({ id: "view-1", object: "view", type: "table" });
+      expect(result.results[0]).not.toHaveProperty("parent");
+      expect(result.results[0]).not.toHaveProperty("filter");
+      expect(result.next_cursor).toBe("next");
+      expect(result.has_more).toBe(true);
+      expect(result.object).toBe("list");
+      expect(result).not.toHaveProperty("view");
+      expect(result).not.toHaveProperty("type");
+    } finally {
+      await close();
+    }
+  });
+
+  it("list_views include_config returns the raw response", async () => {
+    const notion = makeNotion();
+    const rawResponse = {
+      object: "list",
+      results: [
+        {
+          object: "view",
+          id: "view-1",
+          type: "table",
+          parent: { type: "database_id", database_id: "db-1" },
+          filter: {},
+        },
+      ],
+      next_cursor: "next",
+      has_more: true,
+      type: "view",
+      view: {},
+    };
+    notion.views.list.mockResolvedValue(rawResponse);
+    const { client, close } = await connect(notion);
+
+    try {
+      const result = parseToolJson<typeof rawResponse>(
+        await client.callTool({
+          name: "list_views",
+          arguments: { database_id: "db-1", include_config: true },
+        }),
+      );
+
+      expect(notion.views.list).toHaveBeenCalledWith({ database_id: "db-1" });
       expect(result).toEqual(rawResponse);
+      expect(result.results[0].parent).toEqual({ type: "database_id", database_id: "db-1" });
+      expect(result).toHaveProperty("view");
+      expect(result).toHaveProperty("type", "view");
     } finally {
       await close();
     }
@@ -204,7 +269,7 @@ describe("Views MCP tools", () => {
     }
   });
 
-  it("get_view retrieves by view_id and returns raw response", async () => {
+  it("get_view retrieves by view_id and returns curated response by default", async () => {
     const notion = makeNotion();
     const rawResponse = {
       object: "view",
@@ -212,6 +277,7 @@ describe("Views MCP tools", () => {
       parent: { type: "database_id", database_id: "db-1" },
       name: "Table",
       type: "table",
+      filter: {},
     };
     notion.views.retrieve.mockResolvedValue(rawResponse);
     const { client, close } = await connect(notion);
@@ -222,13 +288,49 @@ describe("Views MCP tools", () => {
       );
 
       expect(notion.views.retrieve).toHaveBeenCalledWith({ view_id: "view-1" });
-      expect(result).toEqual(rawResponse);
+      expect(result).toEqual({
+        id: "view-1",
+        object: "view",
+        name: "Table",
+        type: "table",
+      });
+      expect(result).not.toHaveProperty("parent");
+      expect(result).not.toHaveProperty("filter");
     } finally {
       await close();
     }
   });
 
-  it("query_view creates a query, fetches paginated results, deletes the query, and returns raw payloads", async () => {
+  it("get_view include_config returns the raw response", async () => {
+    const notion = makeNotion();
+    const rawResponse = {
+      object: "view",
+      id: "view-1",
+      parent: { type: "database_id", database_id: "db-1" },
+      name: "Table",
+      type: "table",
+      filter: {},
+    };
+    notion.views.retrieve.mockResolvedValue(rawResponse);
+    const { client, close } = await connect(notion);
+
+    try {
+      const result = parseToolJson<typeof rawResponse>(
+        await client.callTool({
+          name: "get_view",
+          arguments: { view_id: "view-1", include_config: true },
+        }),
+      );
+
+      expect(notion.views.retrieve).toHaveBeenCalledWith({ view_id: "view-1" });
+      expect(result).toEqual(rawResponse);
+      expect(result.parent).toEqual({ type: "database_id", database_id: "db-1" });
+    } finally {
+      await close();
+    }
+  });
+
+  it("query_view returns row results unchanged and does not leak the temporary query config", async () => {
     const notion = makeNotion();
     const query = {
       object: "view_query",

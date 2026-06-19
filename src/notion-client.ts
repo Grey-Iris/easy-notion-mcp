@@ -1399,12 +1399,29 @@ export type ListViewsParameters = Pick<
   "database_id" | "data_source_id" | "page_size" | "start_cursor"
 >;
 
-export async function listViews(client: Client, params: ListViewsParameters) {
-  return client.views.list(params);
+export async function listViews(
+  client: Client,
+  params: ListViewsParameters,
+  options: { includeConfig?: boolean } = {},
+) {
+  const result = await client.views.list(params);
+  if (options.includeConfig) return result;
+  return {
+    object: (result as any).object,
+    results: ((result as any).results ?? []).map(compactView),
+    next_cursor: (result as any).next_cursor,
+    has_more: (result as any).has_more,
+  };
 }
 
-export async function getView(client: Client, viewId: string) {
-  return client.views.retrieve({ view_id: viewId });
+export async function getView(
+  client: Client,
+  viewId: string,
+  options: { includeConfig?: boolean } = {},
+) {
+  const result = await client.views.retrieve({ view_id: viewId });
+  if (options.includeConfig) return result;
+  return compactView(result);
 }
 
 export type ViewType =
