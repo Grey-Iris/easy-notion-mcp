@@ -1,5 +1,5 @@
 import { marked } from "marked";
-import type { NotionBlock, RichText } from "./types.js";
+import type { MentionRichText, NotionBlock, RichText, TextRichText } from "./types.js";
 
 type RichTextAnnotations = NonNullable<RichText["annotations"]>;
 type Segment =
@@ -17,12 +17,53 @@ export function isSafeUrl(url: string): boolean {
   }
 }
 
+const NOTION_PAGE_ID_PATTERN = "[0-9a-fA-F]{32}";
+const NOTION_DASHED_PAGE_ID_PATTERN = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+const NOTION_PAGE_ID_EXACT = new RegExp(`^(?:${NOTION_PAGE_ID_PATTERN}|${NOTION_DASHED_PAGE_ID_PATTERN})$`);
+const NOTION_PAGE_ID_TRAILING = new RegExp(`(${NOTION_PAGE_ID_PATTERN}|${NOTION_DASHED_PAGE_ID_PATTERN})$`);
+
+function isNotionHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    host === "notion.so" ||
+    host.endsWith(".notion.so") ||
+    host === "notion.com" ||
+    host.endsWith(".notion.com") ||
+    host.endsWith(".notion.site")
+  );
+}
+
+export function notionUrlToPageId(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+
+  if (!isNotionHost(parsed.hostname)) {
+    return null;
+  }
+
+  const peekPageId = parsed.searchParams.get("p");
+  if (peekPageId && NOTION_PAGE_ID_EXACT.test(peekPageId)) {
+    return peekPageId;
+  }
+
+  const lastSegment = parsed.pathname.split("/").filter(Boolean).at(-1);
+  if (!lastSegment) {
+    return null;
+  }
+
+  return lastSegment.match(NOTION_PAGE_ID_TRAILING)?.[1] ?? null;
+}
+
 function createRichText(
   content: string,
   annotations: RichTextAnnotations = {},
   link?: string,
-): RichText {
-  const richText: RichText = {
+): TextRichText {
+  const richText: TextRichText = {
     type: "text",
     text: {
       content,
@@ -32,6 +73,29 @@ function createRichText(
   if (link) {
     richText.text.link = { url: link };
   }
+
+  if (Object.keys(annotations).length > 0) {
+    richText.annotations = annotations;
+  }
+
+  return richText;
+}
+
+function createMentionRichText(
+  content: string,
+  href: string,
+  pageId: string,
+  annotations: RichTextAnnotations,
+): MentionRichText {
+  const richText: MentionRichText = {
+    type: "mention",
+    mention: {
+      type: "page",
+      page: { id: pageId },
+    },
+    plain_text: content,
+    href,
+  };
 
   if (Object.keys(annotations).length > 0) {
     richText.annotations = annotations;
@@ -89,6 +153,19 @@ function inlineTokensToRichText(
         );
         break;
       case "link":
+        if (token.href && link === undefined) {
+          const pageId = notionUrlToPageId(token.href);
+          const previous = richText[richText.length - 1];
+          if (pageId && previous?.type === "text" && previous.text.content.endsWith("@")) {
+            previous.text.content = previous.text.content.slice(0, -1);
+            if (previous.text.content.length === 0) {
+              richText.pop();
+            }
+            richText.push(createMentionRichText(token.text ?? "", token.href, pageId, annotations));
+            break;
+          }
+        }
+
         if (token.href && !isSafeUrl(token.href)) {
           richText.push(
             ...inlineTokensToRichText(token.tokens ?? [], annotations, link),
@@ -664,4 +741,214 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
     const tokens = marked.lexer(normalizeOrderedListIndentation(segment.content)) as any[];
     return tokens.flatMap((token) => tokenToBlocks(token));
   });
+}
+
+function richTextContainsPageMention(richText: RichText[] | undefined): boolean {
+  return Boolean(richText?.some((item) => item.type === "mention" && item.mention.type === "page"));
+}
+
+function childBlocks(block: NotionBlock): NotionBlock[] {
+  const value = (block as any)[block.type];
+  if (Array.isArray(value?.children)) {
+    return value.children as NotionBlock[];
+  }
+  return [];
+}
+
+function blockRichTextArrays(block: NotionBlock): RichText[][] {
+  const value = (block as any)[block.type];
+  const arrays: RichText[][] = [];
+
+  if (Array.isArray(value?.rich_text)) {
+    arrays.push(value.rich_text as RichText[]);
+  }
+  if (block.type === "table_row") {
+    arrays.push(...block.table_row.cells);
+  }
+
+  return arrays;
+}
+
+export function blocksContainPageMention(blocks: NotionBlock[]): boolean {
+  return blocks.some((block) =>
+    blockRichTextArrays(block).some(richTextContainsPageMention) ||
+    blocksContainPageMention(childBlocks(block))
+  );
+}
+
+type DowngradedMention = { page_id: string; url?: string };
+
+function downgradeRichText(richText: RichText[], downgraded: DowngradedMention[]): RichText[] {
+  return richText.map((item) => {
+    if (item.type !== "mention" || item.mention.type !== "page") {
+      return item;
+    }
+
+    const pageId = item.mention.page.id;
+    if (item.href) {
+      downgraded.push({ page_id: pageId, url: item.href });
+    } else {
+      downgraded.push({ page_id: pageId });
+    }
+
+    return {
+      type: "text",
+      text: {
+        content: item.plain_text || item.href || pageId,
+        ...(item.href ? { link: { url: item.href } } : {}),
+      },
+    };
+  });
+}
+
+function downgradeBlock(block: NotionBlock, downgraded: DowngradedMention[]): NotionBlock {
+  switch (block.type) {
+    case "heading_1":
+      return {
+        ...block,
+        heading_1: {
+          ...block.heading_1,
+          rich_text: downgradeRichText(block.heading_1.rich_text, downgraded),
+          ...(block.heading_1.children
+            ? { children: block.heading_1.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    case "heading_2":
+      return {
+        ...block,
+        heading_2: {
+          ...block.heading_2,
+          rich_text: downgradeRichText(block.heading_2.rich_text, downgraded),
+          ...(block.heading_2.children
+            ? { children: block.heading_2.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    case "heading_3":
+      return {
+        ...block,
+        heading_3: {
+          ...block.heading_3,
+          rich_text: downgradeRichText(block.heading_3.rich_text, downgraded),
+          ...(block.heading_3.children
+            ? { children: block.heading_3.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    case "paragraph":
+      return { ...block, paragraph: { ...block.paragraph, rich_text: downgradeRichText(block.paragraph.rich_text, downgraded) } };
+    case "toggle":
+      return {
+        ...block,
+        toggle: {
+          ...block.toggle,
+          rich_text: downgradeRichText(block.toggle.rich_text, downgraded),
+          ...(block.toggle.children
+            ? { children: block.toggle.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    case "bulleted_list_item":
+      return {
+        ...block,
+        bulleted_list_item: {
+          ...block.bulleted_list_item,
+          rich_text: downgradeRichText(block.bulleted_list_item.rich_text, downgraded),
+          ...(block.bulleted_list_item.children
+            ? { children: block.bulleted_list_item.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    case "numbered_list_item":
+      return {
+        ...block,
+        numbered_list_item: {
+          ...block.numbered_list_item,
+          rich_text: downgradeRichText(block.numbered_list_item.rich_text, downgraded),
+          ...(block.numbered_list_item.children
+            ? { children: block.numbered_list_item.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    case "quote":
+      return { ...block, quote: { ...block.quote, rich_text: downgradeRichText(block.quote.rich_text, downgraded) } };
+    case "callout": {
+      const callout = block.callout as typeof block.callout & { children?: NotionBlock[] };
+      return {
+        ...block,
+        callout: {
+          ...block.callout,
+          rich_text: downgradeRichText(block.callout.rich_text, downgraded),
+          ...(callout.children
+            ? { children: callout.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    }
+    case "code":
+      return { ...block, code: { ...block.code, rich_text: downgradeRichText(block.code.rich_text, downgraded) } };
+    case "to_do":
+      return {
+        ...block,
+        to_do: {
+          ...block.to_do,
+          rich_text: downgradeRichText(block.to_do.rich_text, downgraded),
+          ...(block.to_do.children
+            ? { children: block.to_do.children.map((child) => downgradeBlock(child, downgraded)) }
+            : {}),
+        },
+      };
+    case "table_row":
+      return {
+        ...block,
+        table_row: {
+          ...block.table_row,
+          cells: block.table_row.cells.map((cell) => downgradeRichText(cell, downgraded)),
+        },
+      };
+    case "table":
+      return {
+        ...block,
+        table: {
+          ...block.table,
+          children: block.table.children.map((child) => downgradeBlock(child, downgraded)),
+        },
+      };
+    case "column_list":
+      return {
+        ...block,
+        column_list: {
+          ...block.column_list,
+          children: block.column_list.children.map((child) => downgradeBlock(child, downgraded)),
+        },
+      };
+    case "column":
+      return {
+        ...block,
+        column: {
+          ...block.column,
+          children: block.column.children.map((child) => downgradeBlock(child, downgraded)),
+        },
+      };
+    default:
+      return block;
+  }
+}
+
+export function downgradeMentionsToLinks(blocks: NotionBlock[]): { blocks: NotionBlock[]; downgraded: DowngradedMention[] } {
+  const downgraded: DowngradedMention[] = [];
+  return {
+    blocks: blocks.map((block) => downgradeBlock(block, downgraded)),
+    downgraded,
+  };
+}
+
+export function isMentionTargetError(err: unknown): boolean {
+  if (!err || typeof err !== "object") {
+    return false;
+  }
+
+  const code = (err as { code?: unknown }).code;
+  return code === "validation_error" || code === "object_not_found";
 }

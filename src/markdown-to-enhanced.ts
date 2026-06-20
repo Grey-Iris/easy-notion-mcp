@@ -81,6 +81,10 @@ function richTextToEnhanced(
   if (!richText) return "";
   return richText
     .map((rt) => {
+      if (rt.type === "mention") {
+        const href = rt.href ?? `https://www.notion.so/${rt.mention.page.id}`;
+        return `@[${rt.plain_text ?? ""}](${href})`;
+      }
       let content = rt.text?.content ?? "";
       const annotations = rt.annotations ?? {};
       if (annotations.code) {
@@ -228,7 +232,7 @@ function serializeBlock(
     }
     case "code": {
       const text = (b.code.rich_text ?? [])
-        .map((rt: RichText) => rt.text?.content ?? "")
+        .map((rt: RichText) => rt.type === "text" ? rt.text.content : rt.plain_text ?? "")
         .join("");
       const lang = b.code.language ?? "plain text";
       const fence = `\`\`\`${lang}\n${text}\n\`\`\``;

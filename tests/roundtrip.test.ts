@@ -19,6 +19,28 @@ describe("round-trip fidelity", () => {
     expect(roundTrip(input)).toBe(input);
   });
 
+  it("round-trips @-prefixed Notion page mentions", () => {
+    const input = "@[Title](https://www.notion.so/Some-Title-1a2b3c4d5e6f7081920a1b2c3d4e5f60)";
+
+    expect(roundTrip(input)).toBe(input);
+    expect(markdownToBlocks(input)[0]).toEqual({
+      type: "paragraph",
+      paragraph: {
+        rich_text: [
+          {
+            type: "mention",
+            mention: {
+              type: "page",
+              page: { id: "1a2b3c4d5e6f7081920a1b2c3d4e5f60" },
+            },
+            plain_text: "Title",
+            href: "https://www.notion.so/Some-Title-1a2b3c4d5e6f7081920a1b2c3d4e5f60",
+          },
+        ],
+      },
+    });
+  });
+
   it("round-trips a bullet list with nested items", () => {
     const input = ["- First item", "  - Nested under first", "- Second item"].join("\n");
 

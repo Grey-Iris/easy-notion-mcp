@@ -59,6 +59,30 @@ describe("blocksToMarkdown", () => {
     expect(blocksToMarkdown(blocks)).toBe("**bold** *italic* `code` [link](https://example.com)");
   });
 
+  it("renders page mentions with plain_text and href as @-prefixed links", () => {
+    const url = "https://www.notion.so/Some-Title-1a2b3c4d5e6f7081920a1b2c3d4e5f60";
+    const blocks: NotionBlock[] = [
+      {
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            {
+              type: "mention",
+              mention: {
+                type: "page",
+                page: { id: "1a2b3c4d5e6f7081920a1b2c3d4e5f60" },
+              },
+              plain_text: "Title",
+              href: url,
+            } as unknown as RichText,
+          ],
+        },
+      },
+    ];
+
+    expect(blocksToMarkdown(blocks)).toBe(`@[Title](${url})`);
+  });
+
   it("converts bulleted list items", () => {
     const blocks: NotionBlock[] = [
       {

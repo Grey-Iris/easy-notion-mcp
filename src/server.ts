@@ -11,7 +11,13 @@ import {
 const { version: PACKAGE_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 import { blocksToMarkdown } from "./blocks-to-markdown.js";
 import { detectFileUploadReferences, DRY_RUN_FILE_UPLOAD_ERROR, FILE_SCHEME_HTTP_ERROR, processFileUploads } from "./file-upload.js";
-import { blockTextToRichText, markdownToBlocks } from "./markdown-to-blocks.js";
+import {
+  blockTextToRichText,
+  blocksContainPageMention,
+  downgradeMentionsToLinks,
+  isMentionTargetError,
+  markdownToBlocks,
+} from "./markdown-to-blocks.js";
 import { translateGfmToEnhancedMarkdown } from "./markdown-to-enhanced.js";
 import { readMarkdownFile } from "./read-markdown-file.js";
 import {
@@ -246,6 +252,7 @@ easy-notion-mcp accepts standard GitHub-flavored markdown plus a few Notion-spec
 - Columns: ::: columns, nested ::: column blocks, then :::
 - Bookmarks: bare URL on its own line creates a rich preview card
 - Embeds: [embed](url)
+- Page mentions: @[Title](notion-url) creates a Notion page mention; non-Notion URLs stay ordinary links
 - Equations: $$expression$$ or multi-line $$ blocks
 - Table of contents: [toc]
 - File uploads in stdio transport only: ![alt](file:///path/image.png) or [name](file:///path/file.pdf)
@@ -334,6 +341,15 @@ Returned by replace_content when bookmark markdown must fall back to a plain URL
 Shape:
 \`\`\`json
 { "code": "bookmark_lost_on_atomic_replace", "url": "https://example.com/some-page" }
+\`\`\`
+
+## mention_target_unresolved
+
+Returned by append_content when an @[Title](url) page mention targets a page the integration cannot access. The mention falls back to a plain hyperlink and the write still succeeds.
+
+Shape:
+\`\`\`json
+{ "code": "mention_target_unresolved", "page_id": "...", "url": "https://www.notion.so/..." }
 \`\`\`
 
 ## embed_lost_on_atomic_replace
@@ -2431,11 +2447,36 @@ export function createServer(
         case "append_content": {
           const notion = notionClientFactory();
           const { page_id, markdown } = args as { page_id: string; markdown: string };
-          const result = await appendBlocks(notion, page_id, markdownToBlocks(await processFileUploads(notion, markdown, transport)));
+          const blocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+          const warnings: Array<Record<string, unknown>> = [];
+          let result: Awaited<ReturnType<typeof appendBlocks>>;
+
+          if (blocksContainPageMention(blocks)) {
+            try {
+              result = await appendBlocks(notion, page_id, blocks);
+            } catch (err) {
+              if (!isMentionTargetError(err)) {
+                throw err;
+              }
+              const downgraded = downgradeMentionsToLinks(blocks);
+              result = await appendBlocks(notion, page_id, downgraded.blocks);
+              warnings.push(
+                ...downgraded.downgraded.map((item) => ({
+                  code: "mention_target_unresolved",
+                  page_id: item.page_id,
+                  ...(item.url ? { url: item.url } : {}),
+                })),
+              );
+            }
+          } else {
+            result = await appendBlocks(notion, page_id, blocks);
+          }
+
           return textResponse({
             success: true,
             blocks_added: result.length,
             ...(result.length > 0 ? { block_map: blockMapFromBlocks(result) } : {}),
+            ...(warnings.length > 0 ? { warnings } : {}),
           });
         }
         case "replace_content": {

@@ -103,6 +103,38 @@ describe("markdownToBlocks", () => {
     ]);
   });
 
+  it("handles @-prefixed link convention", () => {
+    const url = "https://www.notion.so/Some-Title-1a2b3c4d5e6f7081920a1b2c3d4e5f60";
+
+    expect(markdownToBlocks("@[x](https://example.com)")).toEqual([
+      {
+        type: "paragraph",
+        paragraph: {
+          rich_text: [text("@"), text("x", { link: "https://example.com" })],
+        },
+      },
+    ]);
+
+    expect(markdownToBlocks(`@[Title](${url})`)).toEqual([
+      {
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            {
+              type: "mention",
+              mention: {
+                type: "page",
+                page: { id: "1a2b3c4d5e6f7081920a1b2c3d4e5f60" },
+              },
+              plain_text: "Title",
+              href: url,
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
   it("converts composed annotations", () => {
     expect(markdownToBlocks("***bold italic***")).toEqual([
       {

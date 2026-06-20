@@ -1,11 +1,12 @@
-import type { NotionBlock, RichText } from "./types.js";
+import type { NotionBlock, RichText, TextRichText } from "./types.js";
 
 export const NOTION_RICH_TEXT_CONTENT_LIMIT = 2000;
 type LooseRichText = {
   type?: unknown;
+  mention?: unknown;
   text?: {
     content?: unknown;
-    link?: RichText["text"]["link"];
+    link?: TextRichText["text"]["link"];
   } | null;
   annotations?: RichText["annotations"];
   plain_text?: unknown;
@@ -31,8 +32,8 @@ function splitTextContent(content: string): string[] {
   return chunks;
 }
 
-function sanitizeTextRichText(item: LooseRichText, content: string): RichText {
-  const sanitized: RichText = {
+function sanitizeTextRichText(item: LooseRichText, content: string): TextRichText {
+  const sanitized: TextRichText = {
     type: "text",
     text: {
       content,

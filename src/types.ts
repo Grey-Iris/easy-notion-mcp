@@ -1,4 +1,4 @@
-export interface RichText {
+export interface TextRichText {
   type: "text";
   text: { content: string; link?: { url: string } | null };
   annotations?: {
@@ -10,6 +10,16 @@ export interface RichText {
     color?: string;
   };
 }
+
+export interface MentionRichText {
+  type: "mention";
+  mention: { type: "page"; page: { id: string } };
+  plain_text?: string;
+  href?: string;
+  annotations?: TextRichText["annotations"];
+}
+
+export type RichText = TextRichText | MentionRichText;
 
 export type NotionBlock =
   | { type: "heading_1"; heading_1: { rich_text: RichText[]; is_toggleable?: boolean; children?: NotionBlock[] } }

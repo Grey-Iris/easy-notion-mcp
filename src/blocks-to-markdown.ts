@@ -1,6 +1,6 @@
-import type { NotionBlock, RichText } from "./types.js";
+import type { NotionBlock, RichText, TextRichText } from "./types.js";
 
-function applyAnnotations(text: string, richText: RichText): string {
+function applyAnnotations(text: string, richText: TextRichText): string {
   let result = text;
   const annotations = richText.annotations ?? {};
 
@@ -25,7 +25,15 @@ function applyAnnotations(text: string, richText: RichText): string {
 
 function richTextToMarkdown(richText: RichText[]): string {
   return richText
-    .map((item) => applyAnnotations(item.text.content, item))
+    .map((item) => {
+      if (item.type === "mention") {
+        const href = item.href ?? `https://www.notion.so/${item.mention.page.id}`;
+        // Round-trip caveat: Notion read-backs may return the live page title and canonical URL,
+        // not the originally typed title/URL stored by local markdown construction.
+        return `@[${item.plain_text ?? ""}](${href})`;
+      }
+      return applyAnnotations(item.text.content, item);
+    })
     .join("");
 }
 
@@ -188,7 +196,7 @@ function renderBlock(block: NotionBlock, indent: number): string {
     case "code": {
       const lang = block.code.language === "plain text" ? "" : block.code.language;
       return `${prefix}\`\`\`${lang}\n${block.code.rich_text
-        .map((item) => item.text.content)
+        .map((item) => item.type === "text" ? item.text.content : item.plain_text ?? "")
         .join("")}\n${prefix}\`\`\``;
     }
     case "divider":

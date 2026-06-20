@@ -126,6 +126,7 @@ Notion has block types with no standard markdown equivalent. We use these conven
 | Table of contents | `[toc]` |
 | Embed | `[embed](url)` |
 | Bookmark (rich preview) | Bare URL on its own line |
+| Page mention | `@[Title](url)` |
 | Task list | `- [ ] unchecked` / `- [x] checked` |
 
 These round-trip cleanly: `read_page` outputs the same conventions that `create_page` accepts.
