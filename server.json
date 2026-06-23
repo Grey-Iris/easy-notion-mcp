@@ -6,12 +6,12 @@
     "url": "https://github.com/Grey-Iris/easy-notion-mcp",
     "source": "github"
   },
-  "version": "0.10.1",
+  "version": "1.0.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "easy-notion-mcp",
-      "version": "0.10.1",
+      "version": "1.0.0",
       "transport": {
         "type": "stdio"
       },
