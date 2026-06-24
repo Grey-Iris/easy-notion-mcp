@@ -25,7 +25,7 @@ npx easy-notion-mcp
 
 ---
 
-**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [MCP resources](#what-mcp-resources-are-available) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [FAQ](#frequently-asked-questions) · [Community](#community)
+**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [MCP resources](#what-mcp-resources-are-available) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [Stability](#stability-and-versioning) · [FAQ](#frequently-asked-questions) · [Community](#community)
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
@@ -521,6 +521,22 @@ easy-notion-mcp includes two layers of security for production deployments:
 **URL sanitization:** `javascript:`, `data:`, and other unsafe URL protocols are stripped and rendered as plain text. Only `http:`, `https:`, and `mailto:` are allowed.
 
 ![](assets/papercraft-divider.png)
+
+## Stability and versioning
+
+easy-notion-mcp follows [Semantic Versioning](https://semver.org/). As of
+1.0.0 the public contract is frozen additive-only: tool names, tool input
+schemas, tool return shapes, the custom markdown conventions, and the
+warning-code vocabulary will not change in a breaking way until a future 2.0
+release. Additive changes (new tools, new optional parameters, new optional
+response fields, new warning codes) are not breaking and can ship in minor
+releases.
+
+Two surfaces are outside this freeze: the OAuth / HTTP authentication contract
+is experimental and may change while its security posture matures, and the
+`easy-notion` CLI is pre-1.0 and not yet covered. See the
+[CHANGELOG](CHANGELOG.md) for the full contract statement and per-release
+history.
 
 ## Frequently Asked Questions
 

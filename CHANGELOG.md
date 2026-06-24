@@ -7,6 +7,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-23
+
+### Added
+
+- **Curated views read path (`compactView`).** `list_views`, `get_view`, and
+  `query_view` now return a curated `compactView` shape matching the
+  already-curated write path, instead of raw Notion SDK view objects. A new
+  `include_config` opt-out returns the volatile `filter` / `sorts` /
+  `configuration` fields for callers that need them. This aligns the read path
+  with the write path and decouples the frozen 1.0 contract from the upstream
+  view shape, which evolves across Notion-Version bumps.
+- **`@[Title](url)` page-mention markdown convention (issue #67).** Markdown
+  of the form `@[Title](url)` now maps to a Notion page-mention block. If Notion
+  rejects the mention's target page when the content is written (for example,
+  the page is not shared with the integration), the mention is downgraded to a
+  plain link and a new `mention_target_unresolved` warning is emitted, so the
+  degradation is visible rather than silent.
+- **Identity-bearing mutation receipts (additive).** Id-bearing creators now
+  return `success: true`. Mutating tools return a `block_map` (an ordered array
+  of `{ block_id, type, text_preview }`) for created or appended blocks on
+  `create_page`, `create_page_from_file`, `append_content`, `replace_content`,
+  and the appended side of `update_section` / `update_toggle`;
+  `update_section` and `update_toggle` also return `deleted_blocks` in the same
+  shape for removed children. Existing count fields (`blocks_added`, `deleted`,
+  `appended`) are kept and supplemented, never replaced. Empty arrays are
+  omitted.
+
+### Changed
+
+- **Pre-1.0 freeze hygiene.** The published `server.json` manifest version is
+  now honest and guarded by a version-drift test. The transient
+  `{ query, results }` wrapper previously leaked by `query_view` is removed (it
+  returns the curated results directly). The `unrepresentable_block` warning is
+  now documented in the `easy-notion://docs/warnings` resource.
+
+### Stability
+
+This release establishes the public contract. From 1.0.0 the project follows
+Semantic Versioning with a strict additive-only policy: no breaking changes to
+the frozen surfaces until a future 2.0.
+
+- **Frozen surfaces** (additive-only, no removals or renames before 2.0): tool
+  names; tool input schemas; tool return / response shapes; the custom markdown
+  conventions (the syntax `read_page` emits and `create_page` accepts); and the
+  warning-code vocabulary, currently 9 codes: `omitted_block_types`,
+  `read_only_block_rendered`, `truncated_properties`, `unmatched_blocks`,
+  `bookmark_lost_on_atomic_replace`, `mention_target_unresolved`,
+  `embed_lost_on_atomic_replace`, `unrepresentable_block`,
+  `data_source_options_removed`.
+- **Additive changes remain allowed:** new tools, new optional input fields or
+  parameters, new optional response fields, and new warning codes are not
+  breaking and may ship in minor releases.
+- **Out of scope for the freeze:** the OAuth / HTTP authentication contract
+  (token-response shape, `.well-known` discovery metadata, bearer format) is
+  experimental and may change without a major version bump while its security
+  posture matures; the `easy-notion` CLI (flags, profile names, output shapes)
+  is explicitly pre-1.0 and excluded from the freeze.
+- There is no formal 0.9.x support window; older versions are best-effort only.
+
+## [0.10.1] - 2026-06-14
+
+### Security
+
+- **OAuth refresh tokens are rejected on the access-bearer path.** A refresh
+  token could previously be replayed directly as a `/mcp` access bearer; the
+  access path now rejects refresh tokens.
+
+## [0.10.0] - 2026-06-14
+
+### Changed
+
+- **Node.js 20 or newer is now required.** CI tests on Node 20 and 22;
+  end-of-life Node 18 is no longer supported. Update your runtime to Node 20+
+  before upgrading.
+
+## [0.9.4] - 2026-06-14
+
+### Added
+
+- **`data_source_options_removed` warning.** `update_data_source` now warns
+  when a schema update would drop existing `select` / `status` options, instead
+  of removing them silently.
+
+### Fixed
+
+- **Nested task-list (`to_do`) children are preserved.** Nested `- [ ]` /
+  `- [x]` items under a parent task item were previously dropped on
+  markdown-to-blocks conversion; they now round-trip.
+- **`get_database` error hint is scoped to property-related validation
+  errors.** The "call `get_database` first" hint no longer attaches to
+  unrelated validation failures.
+
+### Security
+
+- **Refreshed `package-lock.json` to clear in-range transitive advisories and
+  allowlisted assessed-not-exploitable `qs` / `express` advisories with a
+  refreshed `hono` rationale.** End-user impact is nil: the npm tarball does
+  not ship `package-lock.json`. Refreshed for our own CI and audit posture, per
+  the "patch rather than whitelist" rule in CLAUDE.md.
+
+## [0.9.3] - 2026-05-13
+
+### Fixed
+
+- **Depth-2 children of optional containers are inlined.** `notion-client` now
+  inlines depth-2 children for optional container blocks that Notion did not
+  return inline, preventing missing nested content on reads.
+
+## [0.9.2] - 2026-05-12
+
+### Fixed
+
+- **Data-source ID layer mismatch is detected.** `notion-client` now detects
+  when a database ID is passed where a data-source ID is required (and vice
+  versa) under Notion's 2025-09-03 data-source model, and surfaces an
+  actionable error instead of an opaque API failure.
+
 ## [0.9.1] - 2026-05-09
 
 ### Added
