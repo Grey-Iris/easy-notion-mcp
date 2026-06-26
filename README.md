@@ -25,7 +25,7 @@ npx easy-notion-mcp
 
 ---
 
-**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [MCP resources](#what-mcp-resources-are-available) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Security](#what-about-security-and-prompt-injection) · [Stability](#stability-and-versioning) · [FAQ](#frequently-asked-questions) · [Community](#community)
+**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [MCP resources](#what-mcp-resources-are-available) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Cookbook](#cookbook-recipes-for-your-own-agent) · [Security](#what-about-security-and-prompt-injection) · [Stability](#stability-and-versioning) · [FAQ](#frequently-asked-questions) · [Community](#community)
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
@@ -511,6 +511,95 @@ edits when you want a preflight response instead of a mutation.
 easy-notion-mcp provides 9 database tools that abstract away Notion's complex property format. Agents pass simple key-value pairs like `{ "Status": "Done", "Priority": "High" }`; easy-notion-mcp fetches the database schema at runtime, caches it for 5 minutes, and converts to Notion's property format automatically.
 
 easy-notion-mcp supports creating and updating databases with typed schemas, querying with filters and sorts, and bulk operations via `add_database_entries` (multiple rows in one call).
+
+## Cookbook: recipes for your own agent
+
+These recipes point your own agent at Notion. The agent owns the intelligence; easy-notion-mcp supplies deterministic connective tissue through the existing MCP tools, so the recipes run on demand with zero second install. They are free and sovereign: your own agent, your own token, no-OAuth API-token setup, and free-plan database queries.
+
+These steps work through the MCP tools or the claude.ai connector when the equivalent tools are enabled. Recipe 2 additionally works through the `easy-notion` CLI skill in `skills/easy-notion-cli/`; Recipe 1 needs `create_database` and a structured dedupe filter, neither of which the current CLI surface exposes. Claude Code agents can use the operational skill in `skills/notion-recipes/`.
+
+### Recipe 1: meeting notes to action items
+
+This recipe turns a meeting-notes page or pasted notes into deduplicated rows in an Action Items database. The tool sequence is `create_database` once, then per run `read_page` when the source is a page, `query_database` with an exact `Item Key` filter for each candidate item, `add_database_entry` or `add_database_entries` for new rows, and a final `query_database` verification.
+
+The proven live result was 5 rows from a planning meeting. Missing owners and due dates were stored in the `Flags` multi-select, not in `Source`, and a `query_database` filter of `{"property":"Item Key","rich_text":{"equals":"draft-v1-1-release-notes"}}` returned exactly 1 row. A free-text search for the shared meeting name returned every row because it also scanned `Source`, so this recipe uses the exact Item Key filter for dedupe.
+
+Safety boundary: Recipe 1 is single-run-safe but re-run-unsafe today. The Item Key equals filter blocks re-inserting an item whose key matches exactly, but the key is derived by the agent from the action wording. Re-running over the same notes with reworded items produces new keys and therefore duplicate rows. Run it once per set of notes. Deterministic re-run safety is tracked for a future `block-id-dedupe-helper`, keying off the source block ID.
+
+#### Copy-paste for claude.ai connector users, Recipe 1
+
+```text
+Use the enabled easy-notion or Notion connector tools to turn my meeting notes into an Action Items database.
+
+Note: the simple {"Property":"Value"} write format below assumes the easy-notion tools. If only the official Notion connector is enabled, wrap each value in its Notion property-type object instead.
+
+Inputs I will provide:
+- Meeting notes page or pasted meeting notes: <MEETING_NOTES_PAGE_OR_TEXT>
+- Parent page for the database, if a new database is needed: <PARENT_PAGE>
+- Existing Action Items database, if one already exists: <DATABASE_NAME_OR_ID>
+
+If an Action Items database does not already exist, create one with these properties:
+- Name: title
+- Item Key: rich_text
+- Owner: rich_text
+- Due: date
+- Status: status
+- Flags: multi_select
+- Source: rich_text
+
+Read the meeting notes or use the pasted notes. Extract only discrete action items. For each item, derive:
+- Name: the action text
+- Owner: the named assignee, or blank
+- Due: the stated date as ISO YYYY-MM-DD, or blank
+- Item Key: a stable lowercase hyphenated slug of the action text, such as draft-v1-1-release-notes
+- Source: the meeting title plus date, with no flags stashed here
+- Status: Not started
+- Flags: add needs-owner if no owner, and needs-due if no due date
+
+Before inserting each item, dedupe with an exact Item Key filter:
+{"property":"Item Key","rich_text":{"equals":"<that item's key>"}}
+
+If the query returns no results, insert the row with simple key-value properties. If it returns a result, skip that item. Do not dedupe with free-text database search, because text search also scans Source and can false-match every row from the same meeting.
+
+After inserting, query the database and summarize the rows created and skipped.
+
+Safety boundary: this recipe is single-run-safe but re-run-unsafe today. The Item Key equals filter blocks re-inserting an item whose key matches exactly, but the key is derived from the action wording. Re-running over the same notes with reworded items produces new keys and therefore duplicate rows. Run it once per set of notes.
+```
+
+### Recipe 2: bulk-edit, find-replace, and repair
+
+This recipe covers two surfaces where an agent can iterate past native Notion limits: database property repair and page-body find-replace. For database repair, the sequence is `get_database`, `query_database` through all rows, build a normalization map, `update_database_entry` for rows that need fixes, then re-query. For page text, the sequence is `find_replace` with `dry_run: true`, `find_replace` with `replace_all: true`, then `read_page` to verify.
+
+The proven live database repair normalized 4 rows with mixed `Eng` and `engineering` values to one consistent option while leaving unrelated rows unchanged. The proven live page edit replaced 4 occurrences across paragraphs and a heading body. Caveat: select and status option matching is case-insensitive, and writes snap to the earliest-existing option's casing. If a lowercase variant already exists, writing a capitalized version reuses the existing lowercase option. To force specific casing, rename the option in Notion's UI rather than writing the new casing.
+
+#### Copy-paste for claude.ai connector users, Recipe 2
+
+```text
+Use the enabled easy-notion or Notion connector tools to repair Notion database rows or replace repeated text in a Notion page.
+
+Note: the simple {"Property":"Value"} write format below assumes the easy-notion tools. If only the official Notion connector is enabled, wrap each value in its Notion property-type object instead.
+
+Inputs I will provide:
+- Target database for property repair: <DATABASE_NAME_OR_ID>
+- Property to normalize: <PROPERTY_NAME>
+- Normalization map, for example {"Eng":"Engineering","engineering":"Engineering"}
+- Target page for find-replace, if needed: <PAGE_NAME_OR_ID>
+- Find text and replacement text, if needed: <FIND_TEXT> -> <REPLACE_TEXT>
+
+For database property repair:
+1. Get the database schema so you know the exact property names. If select or status options are missing from the schema, query live rows and read the current values from the results.
+2. Query the database rows. If the database is large, page through all results in a loop.
+3. Build or use the normalization map I provide.
+4. For each row whose property value needs fixing, update that row with a simple key-value map such as {"<PROPERTY_NAME>":"<CANONICAL_VALUE>"}.
+5. Re-query the database and summarize how many rows changed and which values remain.
+
+Important caveat: select and status option matching is case-insensitive, and writes snap to the earliest-existing option's casing. If a lowercase variant already exists, writing a capitalized version may reuse the lowercase option. To force specific casing, I need to rename the option in Notion's UI.
+
+For page-body find-replace:
+1. Run a dry-run find-replace with replace_all enabled and report the match count before changing anything.
+2. If the match count is expected, run find-replace with replace_all enabled.
+3. Read the page afterward and verify the replacement.
+```
 
 ## What about security and prompt injection?
 
