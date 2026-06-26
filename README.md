@@ -516,15 +516,15 @@ easy-notion-mcp supports creating and updating databases with typed schemas, que
 
 These recipes point your own agent at Notion. The agent owns the intelligence; easy-notion-mcp supplies deterministic connective tissue through the existing MCP tools, so the recipes run on demand with zero second install. They are free and sovereign: your own agent, your own token, no-OAuth API-token setup, and free-plan database queries.
 
-These steps work through the MCP tools or the claude.ai connector when the equivalent tools are enabled. Recipe 2 additionally works through the `easy-notion` CLI skill in `skills/easy-notion-cli/`; Recipe 1 needs `create_database` and a structured dedupe filter, neither of which the current CLI surface exposes. Claude Code agents can use the operational skill in `skills/notion-recipes/`.
+These steps work through the MCP tools or the claude.ai connector when the equivalent tools are enabled. Recipe 2 additionally works through the `easy-notion` CLI skill in `skills/easy-notion-cli/`; Recipe 1 needs `create_database`, source-block lookup with `search_in_page`, and a structured dedupe filter, and the current CLI surface does not expose that full workflow. Claude Code agents can use the operational skill in `skills/notion-recipes/`.
 
 ### Recipe 1: meeting notes to action items
 
-This recipe turns a meeting-notes page or pasted notes into deduplicated rows in an Action Items database. The tool sequence is `create_database` once, then per run `read_page` when the source is a page, `query_database` with an exact `Item Key` filter for each candidate item, `add_database_entry` or `add_database_entries` for new rows, and a final `query_database` verification.
+This recipe turns a meeting-notes page or pasted notes into deduplicated rows in an Action Items database. The tool sequence is `create_database` once, then per run `read_page` when the source is a page, `search_in_page` to resolve each item's source block ID, `query_database` with an exact `Item Key` filter for each candidate item, `add_database_entry` or `add_database_entries` for new rows, and a final `query_database` verification.
 
-The proven live result was 5 rows from a planning meeting. Missing owners and due dates were stored in the `Flags` multi-select, not in `Source`, and a `query_database` filter of `{"property":"Item Key","rich_text":{"equals":"draft-v1-1-release-notes"}}` returned exactly 1 row. A free-text search for the shared meeting name returned every row because it also scanned `Source`, so this recipe uses the exact Item Key filter for dedupe.
+The proven live result was 5 rows from a planning meeting. Missing owners and due dates were stored in the `Flags` multi-select, not in `Source`, and a `query_database` filter of `{"property":"Item Key","rich_text":{"equals":"38bbe876-242f-81f1-97b7-df935d050a24:38bbe876-242f-81c9-86c6-d9a792fc70b7"}}` returned exactly 1 row. Running twice over the same notes left the count at 5 with zero duplicates. A free-text search for the shared meeting name returned every row because it also scanned `Source`, so this recipe uses the exact Item Key filter for dedupe.
 
-Safety boundary: Recipe 1 is single-run-safe but re-run-unsafe today. The Item Key equals filter blocks re-inserting an item whose key matches exactly, but the key is derived by the agent from the action wording. Re-running over the same notes with reworded items produces new keys and therefore duplicate rows. Run it once per set of notes. Deterministic re-run safety is tracked for a future `block-id-dedupe-helper`, keying off the source block ID.
+Safety boundary: Recipe 1 is re-run-safe and idempotent because `Item Key` stores the source line's stable Notion identity (`<pageId>:<blockId>`), not the action wording.
 
 #### Copy-paste for claude.ai connector users, Recipe 1
 
@@ -551,10 +551,12 @@ Read the meeting notes or use the pasted notes. Extract only discrete action ite
 - Name: the action text
 - Owner: the named assignee, or blank
 - Due: the stated date as ISO YYYY-MM-DD, or blank
-- Item Key: a stable lowercase hyphenated slug of the action text, such as draft-v1-1-release-notes
+- Item Key: the source line's stable identity, formatted as <sourcePageId>:<sourceBlockId>
 - Source: the meeting title plus date, with no flags stashed here
 - Status: Not started
 - Flags: add needs-owner if no owner, and needs-due if no due date
+
+Resolve sourceBlockId with search_in_page. read_page returns markdown without block IDs. For a Notion-page source, call read_page to extract items, then for each item call search_in_page with a verbatim, distinctive substring of that item's original source line. Use the matches[].block_id whose text is that source line. If several blocks match, use a longer verbatim substring to isolate one block. For pasted notes, first save them as a Notion page with create_page, then proceed through search_in_page. Do not rely on block IDs from create_page, which returns only {id,title,url}. If one source line contains multiple distinct actions, append a stable ordinal suffix in source order, such as :1 or :2, to keep keys unique.
 
 Before inserting each item, dedupe with an exact Item Key filter:
 {"property":"Item Key","rich_text":{"equals":"<that item's key>"}}
@@ -563,7 +565,7 @@ If the query returns no results, insert the row with simple key-value properties
 
 After inserting, query the database and summarize the rows created and skipped.
 
-Safety boundary: this recipe is single-run-safe but re-run-unsafe today. The Item Key equals filter blocks re-inserting an item whose key matches exactly, but the key is derived from the action wording. Re-running over the same notes with reworded items produces new keys and therefore duplicate rows. Run it once per set of notes.
+Re-running is safe and idempotent because the exact Item Key filter uses the source line's stable Notion identity, not the action wording.
 ```
 
 ### Recipe 2: bulk-edit, find-replace, and repair

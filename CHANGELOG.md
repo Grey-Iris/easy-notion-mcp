@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Notion's native limits. Includes copy-paste blocks for claude.ai connector
   users. Both recipes were verified against live Notion. Content and docs only;
   no version bump.
+- **Recipe 1 deterministic dedupe docs.** Recipe 1 of the notion-recipes
+  cookbook now keys dedupe on the source block's stable Notion identity
+  (`<pageId>:<blockId>`) instead of an LLM-derived text slug, so re-running over
+  the same notes is idempotent. Docs only, no version bump.
 
 ## [1.0.1] - 2026-06-25
 
