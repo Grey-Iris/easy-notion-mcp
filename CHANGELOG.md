@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **notion-recipes cookbook.** A Claude Code skill (`skills/notion-recipes/`)
+  plus a README cookbook section with two on-demand recipes that point a user's
+  own agent at Notion over the existing MCP tools: meeting notes to a
+  deduplicated Action Items database, and bulk-edit / find-replace / repair past
+  Notion's native limits. Includes copy-paste blocks for claude.ai connector
+  users. Both recipes were verified against live Notion. Content and docs only;
+  no version bump.
+
 ## [1.0.1] - 2026-06-25
 
 ### Security
