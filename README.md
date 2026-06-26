@@ -516,7 +516,7 @@ easy-notion-mcp supports creating and updating databases with typed schemas, que
 
 These recipes point your own agent at Notion. The agent owns the intelligence; easy-notion-mcp supplies deterministic connective tissue through the existing MCP tools, so the recipes run on demand with zero second install. They are free and sovereign: your own agent, your own token, no-OAuth API-token setup, and free-plan database queries.
 
-The same steps work through MCP tools, the `easy-notion` CLI skill in `skills/easy-notion-cli/`, or the claude.ai connector when the equivalent tools are enabled. Claude Code and CLI agents can use the operational skill in `skills/notion-recipes/`.
+These steps work through the MCP tools or the claude.ai connector when the equivalent tools are enabled. Recipe 2 additionally works through the `easy-notion` CLI skill in `skills/easy-notion-cli/`; Recipe 1 needs `create_database` and a structured dedupe filter, neither of which the current CLI surface exposes. Claude Code agents can use the operational skill in `skills/notion-recipes/`.
 
 ### Recipe 1: meeting notes to action items
 
@@ -530,6 +530,8 @@ Safety boundary: Recipe 1 is single-run-safe but re-run-unsafe today. The Item K
 
 ```text
 Use the enabled easy-notion or Notion connector tools to turn my meeting notes into an Action Items database.
+
+Note: the simple {"Property":"Value"} write format below assumes the easy-notion tools. If only the official Notion connector is enabled, wrap each value in its Notion property-type object instead.
 
 Inputs I will provide:
 - Meeting notes page or pasted meeting notes: <MEETING_NOTES_PAGE_OR_TEXT>
@@ -574,6 +576,8 @@ The proven live database repair normalized 4 rows with mixed `Eng` and `engineer
 
 ```text
 Use the enabled easy-notion or Notion connector tools to repair Notion database rows or replace repeated text in a Notion page.
+
+Note: the simple {"Property":"Value"} write format below assumes the easy-notion tools. If only the official Notion connector is enabled, wrap each value in its Notion property-type object instead.
 
 Inputs I will provide:
 - Target database for property repair: <DATABASE_NAME_OR_ID>

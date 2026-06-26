@@ -1,11 +1,11 @@
 ---
 name: notion-recipes
-description: Use this skill when a user wants to turn meeting notes into a tracked action-items database, or bulk-edit, find-replace, or repair many Notion database rows or page text, through easy-notion's MCP tools.
+description: Use this skill when a user wants to turn meeting notes into a tracked Action Items database in Notion, or to bulk-edit, find-replace, normalize, or repair Notion database rows or page text at a scale past Notion's native find-and-replace limits. Uses easy-notion's MCP tools.
 ---
 
 # Notion Recipes
 
-Use these recipes with easy-notion's MCP tools. The same steps also work through the `easy-notion` CLI skill in `skills/easy-notion-cli/` or through the claude.ai connector when the equivalent tools are available.
+Use these recipes with easy-notion's MCP tools, or through the claude.ai connector when the equivalent tools are enabled. Recipe 2 (repair and find-replace) also works through the `easy-notion` CLI skill in `skills/easy-notion-cli/`. Recipe 1 does not: the CLI does not expose `create_database`, and its `database query` surface is free-text only, which this recipe's dedupe step explicitly avoids.
 
 ## Recipe 1: Meeting Notes To Action Items
 
