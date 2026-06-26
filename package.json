@@ -1,6 +1,6 @@
 {
   "name": "easy-notion-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "mcpName": "io.github.misterwigglesworth/easy-notion",
   "description": "Token-efficient, markdown-first Notion MCP server — agents write markdown, never touch raw Notion JSON",
   "type": "module",
@@ -54,6 +54,10 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "marked": "^17.0.0"
+  },
+  "overrides": {
+    "hono": "^4.12.27",
+    "qs": "^6.15.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
