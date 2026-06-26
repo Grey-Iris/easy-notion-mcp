@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-25
+
+### Security
+
+- **Production transitive dependency vulnerabilities cleared.** Pinned patched
+  `hono` (`^4.12.27`) and `qs` (`^6.15.3`) via `package.json` `overrides` to
+  resolve 6 production transitive vulnerabilities: 1 high in the hono chain
+  (pulled through `@modelcontextprotocol/sdk` and `@hono/node-server`) and 5
+  moderate in the qs / body-parser chain (pulled through express). All
+  advisories were already fixed and published upstream, so a registry-version
+  override was sufficient, with no SDK downgrade and no `npm audit fix --force`.
+  `npm audit --omit=dev` now reports 0 vulnerabilities.
+- The vulnerabilities were confined to the experimental HTTP/OAuth transport;
+  the stdio path was unaffected. The HTTP/OAuth transport behavior is unchanged
+  and remains covered by the existing integration suite.
+- Upstream tracking issues against `@modelcontextprotocol/sdk` cover raising the
+  bundled dependency floor (#2036, #2042, #1924). Remaining `npm audit` findings
+  are limited to development-only tooling (`vite`, `form-data`, `esbuild`) and
+  do not affect the published package.
+
 ## [1.0.0] - 2026-06-23
 
 ### Added
