@@ -82,3 +82,16 @@ jobs:
           # executed (Express is our HTTP layer) and qs.stringify is never called.
           # Grounded per-advisory writeup: .meta/audits/dep-vuln-exploitability-2026-06-14.md
           allow-ghsas: GHSA-j3q9-mxjg-w52f, GHSA-27v5-c462-wpq7, GHSA-xrhx-7g5j-rcj5, GHSA-3hrh-pfw6-9m5x, GHSA-f577-qrjj-4474, GHSA-2gcr-mfcq-wcc3, GHSA-q8mj-m7cp-5q26
+
+  ci-required:
+    needs: [ci]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify matrix result
+        run: |
+          if [ "${{ needs.ci.result }}" != "success" ]; then
+            echo "ci matrix result: ${{ needs.ci.result }}"
+            exit 1
+          fi
+          echo "ci matrix succeeded"
