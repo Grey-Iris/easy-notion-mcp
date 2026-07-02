@@ -269,7 +269,9 @@ async function detectClaude(deps: InitDeps) {
 
 async function promptForToken(deps: InitDeps) {
   try {
-    await deps.openBrowser(TOKEN_URL);
+    if (deps.isTTY) {
+      await deps.openBrowser(TOKEN_URL);
+    }
   } catch {
     // Browser opening is best effort. The printed prompt still gives the URL.
   }

@@ -283,6 +283,20 @@ describe("init wizard", () => {
     expect(io.output).toMatch(/invalid|auth|token/i);
   });
 
+  it("only opens the token URL in TTY mode while always printing it", async () => {
+    const runInit = await loadRunInit();
+    const tokenUrl = "https://www.notion.so/my-integrations";
+
+    const nonTty = await createDeps({ isTTY: false });
+    await expect(runInit([], nonTty.deps)).resolves.toBe(0);
+    expect(nonTty.openBrowserCalls).toHaveLength(0);
+    expect(nonTty.io.output).toContain(tokenUrl);
+
+    const tty = await createDeps({ isTTY: true });
+    await expect(runInit([], tty.deps)).resolves.toBe(0);
+    expect(tty.openBrowserCalls).toContain(tokenUrl);
+  });
+
   it("detects a legacy notion registration that points at this package and does not add a duplicate", async () => {
     const runInit = await loadRunInit();
     const { deps, confirmCalls, execCalls } = await createDeps({
