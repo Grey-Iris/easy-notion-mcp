@@ -9,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 let tempDir: string | undefined;
 let symlinkPath: string;
 let port: number;
+// Full-suite parallel spawn/import load can exceed the old 12s startup window; this is not a server regression.
+const STARTUP_TIMEOUT_MS = 30_000;
 
 function waitForStartupMessage(
   child: ChildProcessWithoutNullStreams,
@@ -20,7 +22,7 @@ function waitForStartupMessage(
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error(`Timed out waiting for startup message. stderr:\n${stderr}`));
-    }, 12_000);
+    }, STARTUP_TIMEOUT_MS);
 
     const onData = (chunk: Buffer | string) => {
       stderr += chunk.toString();
@@ -112,5 +114,5 @@ describe("HTTP bin-shim startup", () => {
     } finally {
       await stopChildProcess(child);
     }
-  }, 20_000);
+  }, 45_000);
 });

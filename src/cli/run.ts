@@ -2024,6 +2024,11 @@ export async function runCli(
   partialIo: Partial<CliIO> = {},
   deps: CliDeps = {},
 ): Promise<number> {
+  if (argv[0] === "init" || argv[0] === "setup") {
+    const { runInit } = await import("./init.js");
+    return runInit(argv.slice(1));
+  }
+
   const io: CliIO = {
     stdout: process.stdout,
     stderr: process.stderr,
