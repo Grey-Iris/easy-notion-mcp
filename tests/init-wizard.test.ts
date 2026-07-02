@@ -410,6 +410,9 @@ describe("init wizard", () => {
 
     await expect(runInit([], deps)).resolves.toBe(0);
 
+    expect(io.output).toContain("<paste-your-notion-token-here>");
+    expect(io.output).toMatch(/replace .*with your actual notion token/i);
+    expect(io.output).not.toContain("secret_notion_token");
     expect(clientSection(io.output, "Cursor")).toContain('"mcpServers"');
     expect(clientSection(io.output, "Windsurf")).toContain('"mcpServers"');
     expect(clientSection(io.output, "Claude Desktop")).toContain('"mcpServers"');

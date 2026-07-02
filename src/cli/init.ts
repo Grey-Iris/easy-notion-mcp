@@ -44,6 +44,7 @@ export type InitDeps = {
 };
 
 const SERVER_NAME = "easy-notion-mcp";
+const TOKEN_PLACEHOLDER = "<paste-your-notion-token-here>";
 const TOKEN_URL = "https://www.notion.so/my-integrations";
 const SKILL_NAMES = ["notion-recipes", "easy-notion-cli"] as const;
 
@@ -383,8 +384,8 @@ async function checkSharedPages(deps: InitDeps, client: NotionProbe) {
   }
 }
 
-function manualConfig(command: string, token: string, rootPageId?: string) {
-  const env: Record<string, string> = { NOTION_TOKEN: token };
+function manualConfig(command: string, rootPageId?: string) {
+  const env: Record<string, string> = { NOTION_TOKEN: TOKEN_PLACEHOLDER };
   if (rootPageId) {
     env.NOTION_ROOT_PAGE_ID = rootPageId;
   }
@@ -395,16 +396,17 @@ function manualConfig(command: string, token: string, rootPageId?: string) {
   };
 }
 
-function printManualBlocks(deps: InitDeps, token: string, rootPageId?: string) {
+function printManualBlocks(deps: InitDeps, rootPageId?: string) {
   const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
   const mcpServers = {
-    [SERVER_NAME]: manualConfig(npxCommand, token, rootPageId),
+    [SERVER_NAME]: manualConfig(npxCommand, rootPageId),
   };
   const servers = {
-    [SERVER_NAME]: manualConfig(npxCommand, token, rootPageId),
+    [SERVER_NAME]: manualConfig(npxCommand, rootPageId),
   };
 
-  writeLine(deps, "The blocks below contain your Notion token. Treat them as a secret and do not commit them to source control.");
+  writeLine(deps, `Replace ${TOKEN_PLACEHOLDER} with your actual Notion token in the blocks below.`);
+  writeLine(deps, "Treat your Notion token as a secret and do not commit these blocks to source control.");
   writeLine(deps, "Cursor");
   writeLine(deps, JSON.stringify({ mcpServers }, null, 2));
   writeLine(deps, "Windsurf");
@@ -496,7 +498,7 @@ export async function runInit(args: string[], partialDeps?: Partial<InitDeps>): 
   }
 
   await checkSharedPages(deps, validation.client);
-  printManualBlocks(deps, token, rootPageId);
+  printManualBlocks(deps, rootPageId);
   await installSkills(deps);
 
   writeLine(deps, "Restart Claude Code or start a new session to pick up the user-scope MCP config.");
