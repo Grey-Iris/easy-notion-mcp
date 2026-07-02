@@ -12,16 +12,24 @@ Markdown-first Notion MCP server. Agents write markdown, the server converts it 
 - **PR scope discipline.** Keep PRs narrowly scoped so reviewers and future auditors can tell what changed and why. Don't bundle unrelated fixes into a docs PR, don't let chores leak into feature branches. Semantic titles, focused diffs.
 - **Honest positioning.** Avoid marketing superlatives in README/docs. Soften unverifiable comparisons, cite real numbers, and match the existing measured tone.
 
-### Screening `.meta/` files before commit
+### `.meta/` publication policy (hybrid, 2026-07-02)
 
-Handoffs, audits, and plans under `.meta/` are public by default. That's the right default — transparency is a feature, and agent portability requires these files to travel with the repo rather than living local-only. But before committing any `.meta/handoffs/*.md` or `.meta/audits/*.md` file, run a 30-second screen:
+Two classes of `.meta/` content, two defaults:
 
-1. **Third parties by name or specific role?** ("James's co-founder", "client X asked for Y", "$VENDOR's support said Z"). If yes: generalize to a role-less description, get consent, or move that specific file to a gitignored `.meta/handoffs-private/` path.
+- **Audits, plans, and research are public by default.** They explain the code, and transparency is a feature. Before committing one, run the 30-second screen below.
+- **Session exhaust is private.** Handoffs, explorations, and session-state files are gitignored here and archived in the private promo repo under `ops/`. They never need screening because they never publish. (Handoffs committed before this policy remain tracked; that's deliberate — removing them from HEAD wouldn't unpublish history.)
+
+The screen, for the public class:
+
+1. **Third parties by name or specific role?** ("James's co-founder", "client X asked for Y", "$VENDOR's support said Z"). If yes: generalize to a role-less description, get consent, or keep the file private.
 2. **Business, financial, or client information?** Deal terms, pricing, customer lists, revenue, internal roadmap items not yet announced.
 3. **Credentials or secrets, even partially redacted.** Never commit them, even with `[REDACTED]`.
 4. **Tone you wouldn't want cited back in six months.** Self-deprecation is fine and often valuable; gratuitous snark about a maintainer or project isn't.
+5. **Plane mismatch?** Distribution/marketing-strategy content belongs in the private promo repo, not here, regardless of sensitivity.
 
-If any item fails the screen, stop and ask the user before committing. The default is still public — screening is a filter, not a rejection. The goal is to keep the honest writing that makes handoffs valuable while catching the rare detail that shouldn't go out.
+If any item fails the screen, stop and ask the user before committing. The default for the public class is still public — screening is a filter, not a rejection.
+
+Cross-repo orientation (planes, gates, task homes) lives in the private promo repo's `PROJECT-MAP.md`.
 
 ## Commands
 
@@ -150,6 +158,7 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 - **OAuth relay** — the server acts as an MCP OAuth Authorization Server, redirects to Notion's OAuth consent screen, exchanges codes, and issues its own bearer tokens backed by encrypted file-based storage (AES-256-GCM)
 - **Transport-conditional tools** — tools can declare a `transports: ['stdio' | 'http']` list to restrict where they appear. Tools without the field are available in all transports. File-reading tools (e.g. `create_page_from_file`) are stdio-only because HTTP-mode callers don't share the server's filesystem.
 - **Non-fatal `warnings` field on tool responses** — tools may return an optional `warnings: Array<{code: string, ...detail}>` for non-fatal data-fidelity concerns (e.g., `omitted_block_types` on `read_page`). Omitted when empty. Codes are part of the contract once shipped — new tools should reuse existing codes or add specific descriptive names.
+- **Recipes ship as docs/skills only** — no scheduler or runtime automation code lands in this repo until the automation-product direction is decided (docketed 2026-07-02). The post-1.0 converter stays thin; automation, if built, is an agent-layer product with its own home.
 
 ## `.meta/research/` lifecycle
 
@@ -159,3 +168,4 @@ Research notes under `.meta/research/` have a 90-day shelf life. If a research n
 ## Learnings
 
 - Workflow-construction standard for this repo (2026-06-12, James): (1) MODEL — Opus by default for all workflow agent() calls; use model:'sonnet' ONLY where measuring discoverability/legibility-to-a-typical-user (Sonnet is an instrument there, not a cost-saver). (2) CODEX — Workflow agent() spawns Claude subagents only; Codex enters via a workflow agent dispatching sync 'mcp-cli run --agent codex' (the builder.md pattern, = the through-a-PM governance rule). Strong fit: code-read/contract-audit + cross-model verify. Poor fit: live-MCP empirical streams (a Codex mcp-cli sub-session lacks this session's easy-notion MCP). (3) ROLES — reuse ../workflow-v2 roles (builder/audit/red-team/planner) via Codex sub-dispatch --role <name> (registry confirmed reachable) + role guidance inlined in the managing Claude agent's prompt; verify whether agent() agentType can natively load them before wiring. Apply this fully on the 1.0 EXECUTION-phase workflow, not by re-running completed recon.
+- CI branch-protection required status checks that encode a matrix value (e.g. 'ci (20)'/'ci (18)') become phantom 'Expected - waiting for status' checks that hang PRs forever when the Node matrix changes but the protection list is not updated in lockstep. Fix: add a version-stable aggregator job (ci-required: needs [ci], if: always(), fails unless needs.ci.result==success) and require ONLY that context, so matrix bumps never touch branch protection. Bit us 2026-06-27: protection still required 'ci (18)' after the matrix moved to [20,22]; PR #72 hung until fixed. Sequencing: the aggregator must report at least once BEFORE you require it (else you recreate the hang), and don't flip a branch to require it until every open PR's branch contains the job.

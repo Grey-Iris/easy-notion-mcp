@@ -21,7 +21,17 @@ internal/
 .meta/bench/.runner-pids/
 .meta/bench/.servers-cache/
 
-# Private handoffs (failed public-default screen but locally useful)
+# Session exhaust is private (hybrid .meta policy, 2026-07-02): handoffs,
+# explorations, and session state live locally and are archived in the private
+# promo repo under ops/. Handoffs committed before this policy stay tracked
+# (gitignore does not affect tracked files). Audits/plans/research remain
+# public by default, subject to the CLAUDE.md screen.
+.meta/handoffs/
+.meta/explorations/
+.meta/session-state-*.md
+.claude/
+
+# Private handoffs (legacy path, superseded by the hybrid policy above)
 .meta/handoffs-private/
 
 # Local working artifacts
