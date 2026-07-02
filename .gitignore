@@ -26,6 +26,10 @@ internal/
 # promo repo under ops/. Handoffs committed before this policy stay tracked
 # (gitignore does not affect tracked files). Audits/plans/research remain
 # public by default, subject to the CLAUDE.md screen.
+# HANDOFF.md is the current-session handoff (skill convention: root, overwritten
+# each session); it is session exhaust and references private planes, so it is
+# local-only + archived to promo ops/handoffs/mcp-notion/, never published here.
+HANDOFF.md
 .meta/handoffs/
 .meta/explorations/
 .meta/session-state-*.md
