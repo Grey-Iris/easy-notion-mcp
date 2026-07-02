@@ -1,0 +1,60 @@
+{
+  "run_id": "run-2026-04-24-0c94f02",
+  "git_sha": "0c94f02159a58c8e0b8229638deb555553bf4533",
+  "git_branch": "fix/bench-scenario-10-assert-ts-2026-04-24",
+  "started_at": "2026-04-24T03:51:44Z",
+  "finished_at": "2026-04-24T03:53:09Z",
+  "model": "claude-sonnet-4-6",
+  "node_version": "v22.19.0",
+  "scenarios": [
+    {
+      "id": "project-portfolio-rollup",
+      "passed": true,
+      "status": "pass",
+      "duration_ms": 76577,
+      "cost_usd": 0.18557355,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-0c94f02/scenario-project-portfolio-rollup.ndjson",
+      "transcript_sha256": "13184b3b9f3aa7b6597313e3d151824c2933113a535cb4ef04261a7ecd4959eb",
+      "claims": [
+        {
+          "kind": "databases[0]",
+          "index": 0,
+          "status": "pass"
+        },
+        {
+          "kind": "databases[1]",
+          "index": 1,
+          "status": "pass"
+        },
+        {
+          "kind": "rows[0]",
+          "index": 2,
+          "status": "pass"
+        },
+        {
+          "kind": "rows[1]",
+          "index": 3,
+          "status": "pass"
+        },
+        {
+          "kind": "tools_must_be_called",
+          "index": 4,
+          "status": "pass"
+        },
+        {
+          "kind": "assert.ts",
+          "index": 5,
+          "status": "pass",
+          "reason": "5 tasks have project relation links"
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "scenarios_run": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "cost_usd": 0.18557355
+  }
+}

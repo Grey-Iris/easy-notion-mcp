@@ -1,0 +1,60 @@
+{
+  "run_id": "run-2026-04-24-800cd7f",
+  "git_sha": "800cd7fbec36eb304a52e7c412e4e326f22ba567",
+  "git_branch": "fix/bench-scenario-10-assert-ts-2026-04-24",
+  "started_at": "2026-04-24T03:48:53Z",
+  "finished_at": "2026-04-24T03:50:59Z",
+  "model": "claude-sonnet-4-6",
+  "node_version": "v22.19.0",
+  "scenarios": [
+    {
+      "id": "project-portfolio-rollup",
+      "passed": false,
+      "status": "fail",
+      "duration_ms": 112445,
+      "cost_usd": 0.19308585,
+      "transcript_path": ".meta/bench/transcripts/run-2026-04-24-800cd7f/scenario-project-portfolio-rollup.ndjson",
+      "transcript_sha256": "29c2cbeb84ead09fa8d67aaef4ff8ffb35f94b56fe5fe95f7fa0bf1df48642b1",
+      "claims": [
+        {
+          "kind": "databases[0]",
+          "index": 0,
+          "status": "pass"
+        },
+        {
+          "kind": "databases[1]",
+          "index": 1,
+          "status": "pass"
+        },
+        {
+          "kind": "rows[0]",
+          "index": 2,
+          "status": "pass"
+        },
+        {
+          "kind": "rows[1]",
+          "index": 3,
+          "status": "pass"
+        },
+        {
+          "kind": "tools_must_be_called",
+          "index": 4,
+          "status": "pass"
+        },
+        {
+          "kind": "assert.ts",
+          "index": 5,
+          "status": "fail",
+          "reason": "Cannot find module '/mnt/d/backup/projects/personal/mcp-notion/tests/src/notion-client.ts' imported from /mnt/d/backup/projects/personal/mcp-notion/tests/bench/scenarios/10-project-portfolio-rollup/assert.ts"
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "scenarios_run": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "cost_usd": 0.19308585
+  }
+}
