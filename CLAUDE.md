@@ -29,7 +29,17 @@ The screen, for the public class:
 
 If any item fails the screen, stop and ask the user before committing. The default for the public class is still public — screening is a filter, not a rejection.
 
-Cross-repo orientation (planes, gates, task homes) lives in the private promo repo's `PROJECT-MAP.md`.
+Decided boundaries are stated in this file as facts. Direction, planning, and
+anything in-flux lives in the private sibling repo
+(`../easy-notion-mcp-promo/PROJECT-MAP.md` — planes, gates, task homes,
+roadmap). Dev machines have it checked out; sessions without it: ask James.
+If it's written here, it's true today.
+
+## Standing priorities
+
+- **Top product priority: tool-surface token reduction.** The v1.0.1 HTTP `tools/list` measures 7,102 cl100k tokens (41 tools). Goal: substantially reduce the always-loaded tool-listing cost via tiered/minimal descriptions and/or dynamic toolsets, without breaking the 1.0 additive-only contract. Success = a remeasured surface benchmark. Evidence and benchmark method: `../easy-notion-mcp-promo/benchmarks/token-count/` (private planning repo — see pointer at the top of this file).
+- **Docs rule — token setup URL.** All setup instructions must point users to the classic integrations page (https://www.notion.so/profile/integrations) for creating the integration token — never app.notion.com/developers. Reason (per Notion's own changelog): Developer-portal personal access tokens default to an expiration (up to 1 year); classic integration secrets do not expire. A token with a silent 12-month fuse breaks unattended deployments.
+- **Claims discipline.** Before changing README or any public-facing copy that makes comparative or numeric claims (token efficiency, tool counts, comparisons to other servers), read `../easy-notion-mcp-promo/claims.md` and `../easy-notion-mcp-promo/PROJECT-MAP.md` first (private planning repo). Public claims must match verified rows there.
 
 ## Commands
 
@@ -158,7 +168,7 @@ These round-trip cleanly: `read_page` outputs the same conventions that `create_
 - **OAuth relay** — the server acts as an MCP OAuth Authorization Server, redirects to Notion's OAuth consent screen, exchanges codes, and issues its own bearer tokens backed by encrypted file-based storage (AES-256-GCM)
 - **Transport-conditional tools** — tools can declare a `transports: ['stdio' | 'http']` list to restrict where they appear. Tools without the field are available in all transports. File-reading tools (e.g. `create_page_from_file`) are stdio-only because HTTP-mode callers don't share the server's filesystem.
 - **Non-fatal `warnings` field on tool responses** — tools may return an optional `warnings: Array<{code: string, ...detail}>` for non-fatal data-fidelity concerns (e.g., `omitted_block_types` on `read_page`). Omitted when empty. Codes are part of the contract once shipped — new tools should reuse existing codes or add specific descriptive names.
-- **Recipes ship as docs/skills only** — no scheduler or runtime automation code lands in this repo until the automation-product direction is decided (docketed 2026-07-02). The post-1.0 converter stays thin; automation, if built, is an agent-layer product with its own home.
+- **Recipes ship as docs/skills only — PERMANENT boundary (decided 2026-07-04)** — no scheduler or runtime automation code lands in this repo, ever. The converter stays thin and pure (holds only the user's Notion token). Automation, if it is ever built, will live outside this repo; whether and how is undecided — that discussion lives in the private planning repo.
 
 ## `.meta/research/` lifecycle
 
