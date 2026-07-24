@@ -309,7 +309,7 @@ function serializeBlock(
  */
 export function translateGfmToEnhancedMarkdown(markdown: string): TranslateResult {
   const warnings: TranslateWarning[] = [];
-  if (!markdown.trim()) {
+  if (!markdown || !markdown.trim()) {
     return { enhanced: "", warnings };
   }
   const blocks = markdownToBlocks(markdown);

@@ -70,8 +70,10 @@ function wrapUntrusted(markdown: string, trustContent: boolean): string {
   return trustContent ? markdown : CONTENT_NOTICE + markdown;
 }
 
-function countOccurrences(text: string, find: string): number {
-  if (find.length === 0) return 0;
+/** @internal Exported for test seams; not part of the public API contract. */
+export function countOccurrences(text: string, find: string): number {
+  if (!text) return 0;
+  if (!find || find.length === 0) return 0;
 
   let count = 0;
   let fromIndex = 0;
@@ -531,7 +533,7 @@ export function findSectionRange(
   allBlocks: any[],
   heading: string,
 ): { ok: true; headingIndex: number; sectionEnd: number; headingBlock: any } | { ok: false; availableHeadings: string[] } {
-  const normalizedHeading = heading.trim().toLowerCase();
+  const normalizedHeading = (heading ?? "").trim().toLowerCase();
   const headingIndex = allBlocks.findIndex((block: any) => {
     const blockHeading = getBlockHeadingText(block);
     return blockHeading !== null && blockHeading.toLowerCase() === normalizedHeading;
@@ -1162,7 +1164,7 @@ export async function findToggleRecursiveWithListChildren(
   title: string,
   listChildrenFn: ListChildrenFn = listChildren,
 ): Promise<{ block: any | null; availableTitles: string[] }> {
-  const target = title.trim().toLowerCase();
+  const target = (title ?? "").trim().toLowerCase();
   const availableTitles: string[] = [];
 
   async function visit(parentId: string): Promise<any | null> {
