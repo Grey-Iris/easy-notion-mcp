@@ -427,6 +427,7 @@ const RAW_PROPERTY_SHAPE_KEYS = new Set([
 
 const schemaCache = new Map<string, { schema: any; expires: number }>();
 const dataSourceIdCache = new Map<string, { dsId: string; expires: number }>();
+const pageIdResolutionCache = new Map<string, { dbId: string; expires: number }>();
 const SCHEMA_CACHE_TTL = 5 * 60 * 1000;
 
 function isPaginatedPropertyType(type: unknown): type is PaginatedPropertyType {
@@ -585,6 +586,69 @@ async function getDataSourceId(client: Client, dbId: string): Promise<string> {
   }
   dataSourceIdCache.set(dbId, { dsId, expires: Date.now() + SCHEMA_CACHE_TTL });
   return dsId;
+}
+
+/**
+ * Resolve page_id alias to a database_id.
+ * When page_id is a page containing exactly one inline database, resolves to that database.
+ * When page_id is already a database ID, passes through.
+ * Caches resolution results with the same TTL as schema/dataSourceId caches.
+ */
+export async function resolvePageIdAlias(
+  client: Client,
+  args: { database_id?: string; page_id?: string },
+): Promise<string> {
+  const { database_id, page_id } = args;
+
+  if (database_id && !page_id) {
+    return database_id;
+  }
+
+  if (database_id && page_id) {
+    if (database_id.replace(/-/g, "") === page_id.replace(/-/g, "")) {
+      return database_id;
+    }
+    throw new Error(
+      "database_id and page_id refer to different objects — pass one.",
+    );
+  }
+
+  if (!page_id) {
+    throw new Error("Either database_id or page_id is required.");
+  }
+
+  const cached = pageIdResolutionCache.get(page_id);
+  if (cached && cached.expires > Date.now()) {
+    return cached.dbId;
+  }
+
+  try {
+    await client.databases.retrieve({ database_id: page_id });
+    pageIdResolutionCache.set(page_id, { dbId: page_id, expires: Date.now() + SCHEMA_CACHE_TTL });
+    return page_id;
+  } catch (error: unknown) {
+    const msg = (error as any)?.message;
+    if (typeof msg !== "string" || !msg.includes("is a page, not a database")) {
+      throw error;
+    }
+    const kids = await client.blocks.children.list({ block_id: page_id, page_size: 100 }) as any;
+    const dbs = (kids?.results ?? []).filter((b: any) => b.type === "child_database");
+    if (dbs.length === 1) {
+      const resolvedId = dbs[0].id;
+      pageIdResolutionCache.set(page_id, { dbId: resolvedId, expires: Date.now() + SCHEMA_CACHE_TTL });
+      return resolvedId;
+    }
+    if (dbs.length === 0) {
+      throw new Error(
+        `ID ${page_id} is a page, not a database. The page contains no inline database — use list_databases to find the database container ID.`,
+      );
+    }
+    throw new Error(
+      `ID ${page_id} is a page, not a database. The page contains ${dbs.length} inline databases — pass one of: ` +
+        dbs.map((b: any) => b.id + " (" + (b.child_database?.title ?? "untitled") + ")").join(", ") +
+        ".",
+    );
+  }
 }
 
 /**
