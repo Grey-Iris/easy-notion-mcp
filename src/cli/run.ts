@@ -253,8 +253,8 @@ function helpText(): string {
     "  user list",
     "  search <query> [--filter pages|databases]",
     "  page read <page> [--include-metadata] [--include-transcript] [--max-blocks <n>] [--max-property-items <n>]",
-    "  page create --title <title> [--parent <page_id>] [--icon <emoji>] [--cover <url>] (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  page create-from-file --title <title> --file <path> [--parent <page_id>]",
+    "  page create --title <title> [--parent <page_id>] [--icon <emoji>] [--cover <url>] [--collapse-soft-wraps] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  page create-from-file --title <title> --file <path> [--parent <page_id>] [--collapse-soft-wraps]",
     "  page duplicate <page_id> [--title <title>] [--parent <page_id>]",
     "  page share <page_id>",
     "  page list-children <parent_page_id>",
@@ -262,20 +262,20 @@ function helpText(): string {
     "  page archive <page_id> [--dry-run]",
     "  page restore <page_id>",
     "  page move <page_id> --parent <new_parent_id>",
-    "  content append <page> (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content append <page> [--collapse-soft-wraps] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content read-section <page_id> --heading <heading>",
     "  content read-toggle <page_id> --title <title>",
     "  content search-in-page <page_id> --query <text> [--within-toggle <title>]",
-    "  content replace <page_id> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  content update-toggle <page_id> --title <title> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content replace <page_id> [--dry-run] [--collapse-soft-wraps] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content update-section <page_id> --heading <heading> [--preserve-heading] [--dry-run] [--collapse-soft-wraps] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  content update-toggle <page_id> --title <title> [--dry-run] [--collapse-soft-wraps] (--markdown <text>|--markdown-file <path>|--stdin)",
     "  content archive-toggle <page_id> --title <title> [--dry-run]",
     "  content restore-toggle <block_id> [--dry-run]",
     "  content find-replace <page_id> --find <text> --replace <text> [--all] [--dry-run]",
     "  block read <block_id>",
-    "  block update <block_id> [--dry-run] (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
+    "  block update <block_id> [--dry-run] [--collapse-soft-wraps] (--markdown <text>|--markdown-file <path>|--stdin | --archived) [--checked true|false]",
     "  comment list <page_id>",
-    "  comment add <page_id> --text <text>",
+    "  comment add <page_id> --text <text> [--collapse-soft-wraps]",
     "  database get <database_id>",
     "  database list",
     "  database query <database_id> [--filter-json <json>] [--sorts-json <json>] [--text <text>] [--max-property-items <n>]",
@@ -989,7 +989,7 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
       client,
       parent,
       title,
-      markdownToBlocks(processedMarkdown),
+      markdownToBlocks(processedMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") }),
       icon,
       cover,
     ) as any;
@@ -1016,7 +1016,7 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
       client,
       parent,
       title,
-      markdownToBlocks(processedMarkdown),
+      markdownToBlocks(processedMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") }),
     ) as any;
     return success(mapMutationResultPage(page, title));
   }
@@ -1263,7 +1263,7 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
     const markdown = await readMarkdownInput(args, io);
     const client = clientFor(resolved, ops);
     const processedMarkdown = await ops.processFileUploads(client, markdown);
-    const blocks = markdownToBlocks(processedMarkdown);
+    const blocks = markdownToBlocks(processedMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") });
     const appended = await ops.appendBlocks(client, pageId, blocks);
     return success({ success: true, blocks_added: appended.length });
   }
@@ -1284,7 +1284,10 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       assertDryRunMarkdownSafe(markdown);
     }
     const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
-    const { enhanced, warnings: translatorWarnings } = translateGfmToEnhancedMarkdown(inputMarkdown);
+    const { enhanced, warnings: translatorWarnings } = translateGfmToEnhancedMarkdown(
+      inputMarkdown,
+      { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") },
+    );
     if (dryRun) {
       return success({
         success: true,
@@ -1341,7 +1344,7 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       assertDryRunMarkdownSafe(markdown);
     }
     const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
-    const replacementBlocks = markdownToBlocks(inputMarkdown);
+    const replacementBlocks = markdownToBlocks(inputMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") });
     const preserveHeading = hasFlag(args, "--preserve-heading");
 
     if (preserveHeading) {
@@ -1514,7 +1517,7 @@ async function handleContent(args: string[], options: GlobalOptions, io: CliIO, 
       assertDryRunMarkdownSafe(markdown);
     }
     const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
-    const parsed = markdownToBlocks(inputMarkdown);
+    const parsed = markdownToBlocks(inputMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") });
     const replacementBlocks = replacementToggleBodyBlocks(parsed, getToggleTitle(found.block) ?? title);
 
     if (dryRun) {
@@ -1781,7 +1784,7 @@ async function handleBlock(args: string[], options: GlobalOptions, io: CliIO, co
       assertDryRunMarkdownSafe(markdown);
     }
     const inputMarkdown = dryRun ? markdown : await ops.processFileUploads(client, markdown);
-    const parsed = markdownToBlocks(inputMarkdown);
+    const parsed = markdownToBlocks(inputMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") });
     const built = buildUpdateBlockPayload(parsed, existingType, { checked });
     if (!built.ok) {
       throw new CliError("invalid_update_block_markdown", built.error);
@@ -1826,7 +1829,7 @@ async function handleComment(args: string[], options: GlobalOptions, io: CliIO, 
     }
     const resolved = await resolveSelectedProfile(options, io, configDir);
     assertCanMutate(resolved, "comment add");
-    const result = await ops.addComment(clientFor(resolved, ops), pageId, blockTextToRichText(text)) as any;
+    const result = await ops.addComment(clientFor(resolved, ops), pageId, blockTextToRichText(text, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") })) as any;
     return success({
       id: result.id,
       content: result.rich_text?.map((richText: any) => richText.plain_text).join("") ?? text,

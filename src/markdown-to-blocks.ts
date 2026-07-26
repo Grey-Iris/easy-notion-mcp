@@ -2,6 +2,44 @@ import { marked } from "marked";
 import type { MentionRichText, NotionBlock, RichText, TextRichText } from "./types.js";
 
 type RichTextAnnotations = NonNullable<RichText["annotations"]>;
+
+/**
+ * Options shared by every markdown-to-Notion conversion entry point.
+ *
+ * `collapseSoftWraps` opts in to CommonMark soft-wrap handling: a single newline
+ * inside a paragraph becomes a space. Default off, so conversion behavior is
+ * unchanged unless a caller asks for it. Threaded as an argument rather than
+ * module state so concurrent conversions cannot observe each other's settings.
+ */
+export type ConversionOptions = {
+  collapseSoftWraps?: boolean;
+};
+
+/**
+ * CommonMark treats a single newline inside a paragraph as a soft line break,
+ * which renders as a space. Collapsing it lets hard-wrapped source text rejoin
+ * into flowing paragraphs instead of arriving with ragged mid-sentence breaks.
+ *
+ * Blank-line runs are preserved verbatim. They separate paragraphs, and
+ * `blockquoteToBlock` deliberately joins a multi-paragraph quote or callout body
+ * with "\n\n" into one rich-text field, so collapsing those would destroy the
+ * paragraph structure that round-trip fixtures pin as correct.
+ *
+ * Explicit hard breaks never reach this function: `marked` emits a trailing
+ * backslash or two trailing spaces as a separate `br` token.
+ */
+function collapseSoftWraps(text: string): string {
+  return text
+    .replace(/\r\n/g, "\n")
+    .split(/(\n{2,})/)
+    .map((part, index) => (index % 2 === 1 ? part : part.replace(/[ \t]*\n[ \t]*/g, " ")))
+    .join("");
+}
+
+function applyLineBreakPolicy(text: string, options: ConversionOptions): string {
+  return options.collapseSoftWraps ? collapseSoftWraps(text) : text;
+}
+
 type Segment =
   | { type: "markdown"; content: string }
   | { type: "toggle"; title: string; content: string }
@@ -115,6 +153,7 @@ function inlineTokensToRichText(
   tokens: any[],
   annotations: RichTextAnnotations = {},
   link?: string,
+  options: ConversionOptions = {},
 ): RichText[] {
   const richText: RichText[] = [];
 
@@ -126,6 +165,7 @@ function inlineTokensToRichText(
             token.tokens ?? [],
             mergeAnnotations(annotations, { bold: true }),
             link,
+            options,
           ),
         );
         break;
@@ -135,6 +175,7 @@ function inlineTokensToRichText(
             token.tokens ?? [],
             mergeAnnotations(annotations, { italic: true }),
             link,
+            options,
           ),
         );
         break;
@@ -144,6 +185,7 @@ function inlineTokensToRichText(
             token.tokens ?? [],
             mergeAnnotations(annotations, { strikethrough: true }),
             link,
+            options,
           ),
         );
         break;
@@ -168,27 +210,31 @@ function inlineTokensToRichText(
 
         if (token.href && !isSafeUrl(token.href)) {
           richText.push(
-            ...inlineTokensToRichText(token.tokens ?? [], annotations, link),
+            ...inlineTokensToRichText(token.tokens ?? [], annotations, link, options),
           );
         } else {
           richText.push(
-            ...inlineTokensToRichText(token.tokens ?? [], annotations, token.href ?? link),
+            ...inlineTokensToRichText(token.tokens ?? [], annotations, token.href ?? link, options),
           );
         }
         break;
       case "text":
         if (Array.isArray(token.tokens) && token.tokens.length > 0) {
-          richText.push(...inlineTokensToRichText(token.tokens, annotations, link));
+          richText.push(...inlineTokensToRichText(token.tokens, annotations, link, options));
         } else {
-          richText.push(createRichText(token.text ?? "", annotations, link));
+          richText.push(
+            createRichText(applyLineBreakPolicy(token.text ?? "", options), annotations, link),
+          );
         }
         break;
       case "br":
+        // An explicit hard break (trailing backslash or two trailing spaces).
+        // Stays literal in both modes; soft-wrap collapsing never sees it.
         richText.push(createRichText("\n", annotations, link));
         break;
       default:
         if (typeof token.text === "string") {
-          richText.push(createRichText(token.text, annotations, link));
+          richText.push(createRichText(applyLineBreakPolicy(token.text, options), annotations, link));
         }
         break;
     }
@@ -197,11 +243,14 @@ function inlineTokensToRichText(
   return richText;
 }
 
-export function blockTextToRichText(text: string): RichText[] {
-  return inlineTokensToRichText(marked.Lexer.lexInline(text) as any[]);
+export function blockTextToRichText(
+  text: string,
+  options: ConversionOptions = {},
+): RichText[] {
+  return inlineTokensToRichText(marked.Lexer.lexInline(text) as any[], {}, undefined, options);
 }
 
-function listItemToRichText(item: any): RichText[] {
+function listItemToRichText(item: any, options: ConversionOptions): RichText[] {
   const inlineTokens: any[] = [];
 
   for (const token of item.tokens ?? []) {
@@ -217,22 +266,22 @@ function listItemToRichText(item: any): RichText[] {
     inlineTokens.push(token);
   }
 
-  return inlineTokensToRichText(inlineTokens);
+  return inlineTokensToRichText(inlineTokens, {}, undefined, options);
 }
 
-function listTokenToBlocks(token: any): NotionBlock[] {
+function listTokenToBlocks(token: any, options: ConversionOptions): NotionBlock[] {
   const blocks: NotionBlock[] = [];
 
   for (const item of token.items ?? []) {
     const children = (item.tokens ?? [])
       .filter((child: any) => child.type === "list")
-      .flatMap((child: any) => listTokenToBlocks(child));
+      .flatMap((child: any) => listTokenToBlocks(child, options));
 
     if (item.task) {
       blocks.push({
         type: "to_do",
         to_do: {
-          rich_text: listItemToRichText(item),
+          rich_text: listItemToRichText(item, options),
           checked: Boolean(item.checked),
           ...(children.length > 0 ? { children } : {}),
         },
@@ -245,14 +294,14 @@ function listTokenToBlocks(token: any): NotionBlock[] {
         ? {
             type: "numbered_list_item" as const,
             numbered_list_item: {
-              rich_text: listItemToRichText(item),
+              rich_text: listItemToRichText(item, options),
               ...(children.length > 0 ? { children } : {}),
             },
           }
         : {
             type: "bulleted_list_item" as const,
             bulleted_list_item: {
-              rich_text: listItemToRichText(item),
+              rich_text: listItemToRichText(item, options),
               ...(children.length > 0 ? { children } : {}),
             },
           };
@@ -263,7 +312,7 @@ function listTokenToBlocks(token: any): NotionBlock[] {
   return blocks;
 }
 
-function blockquoteToBlock(token: any): NotionBlock {
+function blockquoteToBlock(token: any, options: ConversionOptions): NotionBlock {
   const paragraphTexts: string[] = Array.isArray(token.tokens)
     ? token.tokens
         .filter((child: any) => child?.type === "paragraph")
@@ -293,7 +342,7 @@ function blockquoteToBlock(token: any): NotionBlock {
     return {
       type: "callout",
       callout: {
-        rich_text: blockTextToRichText(content),
+        rich_text: blockTextToRichText(content, options),
         icon: { type: "emoji", emoji },
       },
     };
@@ -302,7 +351,7 @@ function blockquoteToBlock(token: any): NotionBlock {
   return {
     type: "quote",
     quote: {
-      rich_text: blockTextToRichText(combinedText),
+      rich_text: blockTextToRichText(combinedText, options),
     },
   };
 }
@@ -522,12 +571,12 @@ function splitCustomSyntax(markdown: string): Segment[] {
   return segments;
 }
 
-function tokenToBlocks(token: any): NotionBlock[] {
+function tokenToBlocks(token: any, options: ConversionOptions): NotionBlock[] {
   switch (token.type) {
     case "space":
       return [];
     case "heading": {
-      const richText = inlineTokensToRichText(token.tokens ?? []);
+      const richText = inlineTokensToRichText(token.tokens ?? [], {}, undefined, options);
       if (token.depth === 1) {
         return [{ type: "heading_1", heading_1: { rich_text: richText } }];
       }
@@ -608,21 +657,25 @@ function tokenToBlocks(token: any): NotionBlock[] {
         {
           type: "paragraph",
           paragraph: {
-            rich_text: inlineTokensToRichText(token.tokens ?? []),
+            rich_text: inlineTokensToRichText(token.tokens ?? [], {}, undefined, options),
           },
         },
       ];
     }
     case "list":
-      return listTokenToBlocks(token);
+      return listTokenToBlocks(token, options);
     case "blockquote":
-      return [blockquoteToBlock(token)];
+      return [blockquoteToBlock(token, options)];
     case "table": {
       const headerRow = createTableRow(
-        (token.header ?? []).map((cell: any) => inlineTokensToRichText(cell.tokens ?? [])),
+        (token.header ?? []).map((cell: any) =>
+          inlineTokensToRichText(cell.tokens ?? [], {}, undefined, options),
+        ),
       );
       const bodyRows = (token.rows ?? []).map((row: any[]) =>
-        createTableRow(row.map((cell: any) => inlineTokensToRichText(cell.tokens ?? []))),
+        createTableRow(
+          row.map((cell: any) => inlineTokensToRichText(cell.tokens ?? [], {}, undefined, options)),
+        ),
       );
 
       return [
@@ -654,7 +707,10 @@ function tokenToBlocks(token: any): NotionBlock[] {
   }
 }
 
-export function markdownToBlocks(markdown: string): NotionBlock[] {
+export function markdownToBlocks(
+  markdown: string,
+  options: ConversionOptions = {},
+): NotionBlock[] {
   if (!markdown.trim()) {
     return [];
   }
@@ -669,13 +725,13 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
         const depth = headingMatch[1].length;
         const headingText = headingMatch[2];
         const childrenBlocks = segment.content.trim()
-          ? markdownToBlocks(segment.content)
+          ? markdownToBlocks(segment.content, options)
           : [];
         if (depth === 1) {
           return [{
             type: "heading_1",
             heading_1: {
-              rich_text: blockTextToRichText(headingText),
+              rich_text: blockTextToRichText(headingText, options),
               is_toggleable: true,
               ...(childrenBlocks.length ? { children: childrenBlocks } : {}),
             },
@@ -685,7 +741,7 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
           return [{
             type: "heading_2",
             heading_2: {
-              rich_text: blockTextToRichText(headingText),
+              rich_text: blockTextToRichText(headingText, options),
               is_toggleable: true,
               ...(childrenBlocks.length ? { children: childrenBlocks } : {}),
             },
@@ -694,7 +750,7 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
         return [{
           type: "heading_3",
           heading_3: {
-            rich_text: blockTextToRichText(headingText),
+            rich_text: blockTextToRichText(headingText, options),
             is_toggleable: true,
             ...(childrenBlocks.length ? { children: childrenBlocks } : {}),
           },
@@ -704,9 +760,9 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
         {
           type: "toggle",
           toggle: {
-            rich_text: blockTextToRichText(segment.title),
+            rich_text: blockTextToRichText(segment.title, options),
             ...(segment.content.trim()
-              ? { children: markdownToBlocks(segment.content) }
+              ? { children: markdownToBlocks(segment.content, options) }
               : {}),
           },
         },
@@ -721,7 +777,7 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
             children: segment.columns.map((column) => ({
               type: "column",
               column: {
-                children: markdownToBlocks(column),
+                children: markdownToBlocks(column, options),
               },
             })),
           },
@@ -739,7 +795,7 @@ export function markdownToBlocks(markdown: string): NotionBlock[] {
     }
 
     const tokens = marked.lexer(normalizeOrderedListIndentation(segment.content)) as any[];
-    return tokens.flatMap((token) => tokenToBlocks(token));
+    return tokens.flatMap((token) => tokenToBlocks(token, options));
   });
 }
 
