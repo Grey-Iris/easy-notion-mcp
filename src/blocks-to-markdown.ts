@@ -1,5 +1,27 @@
 import type { NotionBlock, RichText, TextRichText } from "./types.js";
 
+/**
+ * Notion rich text can hold real intra-block newlines (a shift-enter). Emitting
+ * them bare would make them indistinguishable from a hard-wrapped source line,
+ * so a write tool would collapse them per CommonMark and silently destroy the
+ * author's line breaks on the next read-edit-write round trip.
+ *
+ * Emitting them as CommonMark hard breaks keeps them intact. The trailing
+ * backslash form is used rather than two trailing spaces because trailing
+ * whitespace is invisible and gets stripped by editors and agents.
+ */
+export function emitHardBreaks(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\n/g, "\\\n");
+}
+
+/**
+ * Contexts where a line break cannot be expressed at all: table cells, whose
+ * row syntax is line-delimited, and code spans, where a backslash is literal.
+ */
+export function collapseToSpaces(text: string): string {
+  return text.replace(/\r?\n/g, " ");
+}
+
 function applyAnnotations(text: string, richText: TextRichText): string {
   let result = text;
   const annotations = richText.annotations ?? {};
@@ -23,7 +45,10 @@ function applyAnnotations(text: string, richText: TextRichText): string {
   return result;
 }
 
-function richTextToMarkdown(richText: RichText[]): string {
+function richTextToMarkdown(
+  richText: RichText[],
+  options: { singleLine?: boolean } = {},
+): string {
   return richText
     .map((item) => {
       if (item.type === "mention") {
@@ -32,13 +57,17 @@ function richTextToMarkdown(richText: RichText[]): string {
         // not the originally typed title/URL stored by local markdown construction.
         return `@[${item.plain_text ?? ""}](${href})`;
       }
-      return applyAnnotations(item.text.content, item);
+      const content =
+        options.singleLine || item.annotations?.code
+          ? collapseToSpaces(item.text.content)
+          : emitHardBreaks(item.text.content);
+      return applyAnnotations(content, item);
     })
     .join("");
 }
 
 function tableRowToMarkdown(row: Extract<NotionBlock, { type: "table_row" }>): string {
-  const cells = row.table_row.cells.map((cell) => richTextToMarkdown(cell));
+  const cells = row.table_row.cells.map((cell) => richTextToMarkdown(cell, { singleLine: true }));
   return `| ${cells.join(" | ")} |`;
 }
 
@@ -83,7 +112,7 @@ function renderBlock(block: NotionBlock, indent: number): string {
 
   switch (block.type) {
     case "heading_1": {
-      const h1Title = richTextToMarkdown(block.heading_1.rich_text);
+      const h1Title = richTextToMarkdown(block.heading_1.rich_text, { singleLine: true });
       const h1Children = block.heading_1.children ?? [];
       if (block.heading_1.is_toggleable) {
         const childContent = h1Children.length > 0 ? `\n${renderBlocks(h1Children, indent)}` : "";
@@ -96,7 +125,7 @@ function renderBlock(block: NotionBlock, indent: number): string {
       return h1Text;
     }
     case "heading_2": {
-      const h2Title = richTextToMarkdown(block.heading_2.rich_text);
+      const h2Title = richTextToMarkdown(block.heading_2.rich_text, { singleLine: true });
       const h2Children = block.heading_2.children ?? [];
       if (block.heading_2.is_toggleable) {
         const childContent = h2Children.length > 0 ? `\n${renderBlocks(h2Children, indent)}` : "";
@@ -109,7 +138,7 @@ function renderBlock(block: NotionBlock, indent: number): string {
       return h2Text;
     }
     case "heading_3": {
-      const h3Title = richTextToMarkdown(block.heading_3.rich_text);
+      const h3Title = richTextToMarkdown(block.heading_3.rich_text, { singleLine: true });
       const h3Children = block.heading_3.children ?? [];
       if (block.heading_3.is_toggleable) {
         const childContent = h3Children.length > 0 ? `\n${renderBlocks(h3Children, indent)}` : "";
@@ -124,7 +153,7 @@ function renderBlock(block: NotionBlock, indent: number): string {
     case "paragraph":
       return `${prefix}${richTextToMarkdown(block.paragraph.rich_text)}`;
     case "toggle": {
-      const title = richTextToMarkdown(block.toggle.rich_text);
+      const title = richTextToMarkdown(block.toggle.rich_text, { singleLine: true });
       const children = block.toggle.children ?? [];
       const childContent = children.length > 0 ? `\n${renderBlocks(children, indent)}` : "";
       return `${prefix}+++ ${title}${childContent}\n${prefix}+++`;

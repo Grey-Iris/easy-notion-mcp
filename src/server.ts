@@ -1546,6 +1546,16 @@ type ToolDefinition = {
   transports?: readonly [ServerTransport, ...ServerTransport[]];
 };
 
+const PRESERVE_LINE_BREAKS_DESCRIPTION =
+  "Preserve single line breaks literally instead of collapsing them to spaces per CommonMark. Default false. Use for ASCII art or deliberately line-shaped text.";
+
+function preserveLineBreaksSchema() {
+  return {
+    type: "boolean",
+    description: PRESERVE_LINE_BREAKS_DESCRIPTION,
+  };
+}
+
 const tools = [
   {
     name: "create_page",
@@ -1561,6 +1571,7 @@ const tools = [
         },
         icon: { type: "string", description: "Optional emoji icon" },
         cover: { type: "string", description: "Optional cover image URL" },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["title", "markdown"],
     },
@@ -1592,6 +1603,7 @@ For supported markdown syntax, read resource easy-notion://docs/markdown. Return
           type: "string",
           description: "Parent page ID. Same resolution rules as create_page.",
         },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["title", "file_path"],
     },
@@ -1605,6 +1617,7 @@ For supported markdown syntax, read resource easy-notion://docs/markdown. Return
       properties: {
         page_id: { type: "string", description: "Page ID" },
         markdown: { type: "string", description: "Markdown to append" },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["page_id", "markdown"],
     },
@@ -1622,6 +1635,7 @@ Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \
         page_id: { type: "string", description: "Page ID" },
         markdown: { type: "string", description: "Replacement markdown content" },
         dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["page_id", "markdown"],
     },
@@ -1639,6 +1653,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         markdown: { type: "string", description: "Replacement markdown including the heading" },
         preserve_heading: { type: "boolean", description: "Preserve the existing heading block and replace only the section body. Default false." },
         dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["page_id", "heading", "markdown"],
     },
@@ -1718,6 +1733,7 @@ Update the body of one toggle by title from a page. Searches recursively and mat
         title: { type: "string", description: "Toggle title to find (case-insensitive)" },
         markdown: { type: "string", description: "Replacement markdown for the toggle body" },
         dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["page_id", "title", "markdown"],
     },
@@ -1774,6 +1790,7 @@ To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one 
           description: "Set true to delete the block (sends in_trash: true).",
         },
         dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["block_id"],
     },
@@ -2212,6 +2229,7 @@ Not writable from this tool:
       properties: {
         page_id: { type: "string", description: "Page ID" },
         text: { type: "string", description: "Comment text (supports markdown inline formatting)" },
+        preserve_line_breaks: preserveLineBreaksSchema(),
       },
       required: ["page_id", "text"],
     },
@@ -2367,16 +2385,20 @@ export function createServer(
       switch (name) {
         case "create_page": {
           const notion = notionClientFactory();
-          const { title, markdown, parent_page_id, icon, cover } = args as {
+          const { title, markdown, parent_page_id, icon, cover, preserve_line_breaks } = args as {
             title: string;
             markdown: string;
             parent_page_id?: string;
             icon?: string;
             cover?: string;
+            preserve_line_breaks?: boolean;
           };
 
           const parent = await resolveParent(notion, parent_page_id);
-          const parsedBlocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+          const parsedBlocks = markdownToBlocks(
+            await processFileUploads(notion, markdown, transport),
+            { preserveLineBreaks: preserve_line_breaks },
+          );
           const page = await createPage(
             notion,
             parent,
@@ -2410,15 +2432,18 @@ export function createServer(
             });
           }
           const notion = notionClientFactory();
-          const { title, file_path, parent_page_id } = args as {
+          const { title, file_path, parent_page_id, preserve_line_breaks } = args as {
             title: string;
             file_path: string;
             parent_page_id?: string;
+            preserve_line_breaks?: boolean;
           };
 
           const parent = await resolveParent(notion, parent_page_id);
           const markdown = await readMarkdownFile(file_path, workspaceRoot);
-          const parsedBlocks = markdownToBlocks(markdown);
+          const parsedBlocks = markdownToBlocks(markdown, {
+            preserveLineBreaks: preserve_line_breaks,
+          });
           const page = await createPage(
             notion,
             parent,
@@ -2446,8 +2471,15 @@ export function createServer(
         }
         case "append_content": {
           const notion = notionClientFactory();
-          const { page_id, markdown } = args as { page_id: string; markdown: string };
-          const blocks = markdownToBlocks(await processFileUploads(notion, markdown, transport));
+          const { page_id, markdown, preserve_line_breaks } = args as {
+            page_id: string;
+            markdown: string;
+            preserve_line_breaks?: boolean;
+          };
+          const blocks = markdownToBlocks(
+            await processFileUploads(notion, markdown, transport),
+            { preserveLineBreaks: preserve_line_breaks },
+          );
           const warnings: Array<Record<string, unknown>> = [];
           let result: Awaited<ReturnType<typeof appendBlocks>>;
 
@@ -2481,7 +2513,12 @@ export function createServer(
         }
         case "replace_content": {
           const notion = notionClientFactory();
-          const { page_id, markdown, dry_run } = args as { page_id: string; markdown: string; dry_run?: boolean };
+          const { page_id, markdown, dry_run, preserve_line_breaks } = args as {
+            page_id: string;
+            markdown: string;
+            dry_run?: boolean;
+            preserve_line_breaks?: boolean;
+          };
           if (dry_run === true) {
             assertDryRunMarkdownSafe(markdown);
           }
@@ -2489,7 +2526,9 @@ export function createServer(
             ? markdown
             : await processFileUploads(notion, markdown, transport);
           const { enhanced, warnings: translatorWarnings } =
-            translateGfmToEnhancedMarkdown(inputMarkdown);
+            translateGfmToEnhancedMarkdown(inputMarkdown, {
+              preserveLineBreaks: preserve_line_breaks,
+            });
           if (dry_run === true) {
             return textResponse({
               success: true,
@@ -2519,12 +2558,13 @@ export function createServer(
         }
         case "update_section": {
           const notion = notionClientFactory();
-          const { page_id, heading, markdown, preserve_heading, dry_run } = args as {
+          const { page_id, heading, markdown, preserve_heading, dry_run, preserve_line_breaks } = args as {
             page_id: string;
             heading: string;
             markdown: string;
             preserve_heading?: boolean;
             dry_run?: boolean;
+            preserve_line_breaks?: boolean;
           };
           const allBlocks = await listChildren(notion, page_id);
           const range = findSectionRange(allBlocks, heading);
@@ -2544,7 +2584,9 @@ export function createServer(
           const inputMarkdown = dry_run === true
             ? markdown
             : await processFileUploads(notion, markdown, transport);
-          const replacementBlocks = markdownToBlocks(inputMarkdown);
+          const replacementBlocks = markdownToBlocks(inputMarkdown, {
+            preserveLineBreaks: preserve_line_breaks,
+          });
 
           if (preserve_heading === true) {
             const replacementBodyBlocks = updateSectionPreserveHeadingBody(replacementBlocks, headingBlock);
@@ -2838,11 +2880,12 @@ export function createServer(
         }
         case "update_toggle": {
           const notion = notionClientFactory();
-          const { page_id, title, markdown, dry_run } = args as {
+          const { page_id, title, markdown, dry_run, preserve_line_breaks } = args as {
             page_id: string;
             title: string;
             markdown: string;
             dry_run?: boolean;
+            preserve_line_breaks?: boolean;
           };
           const result = await findToggleRecursive(notion, page_id, title);
           if (!result.block) {
@@ -2861,7 +2904,9 @@ export function createServer(
           const inputMarkdown = dry_run === true
             ? markdown
             : await processFileUploads(notion, markdown, transport);
-          const parsed = markdownToBlocks(inputMarkdown);
+          const parsed = markdownToBlocks(inputMarkdown, {
+            preserveLineBreaks: preserve_line_breaks,
+          });
           const replacementBlocks = replacementToggleBodyBlocks(parsed, getToggleTitle(result.block) ?? title);
           if (dry_run === true) {
             return textResponse({
@@ -2945,12 +2990,13 @@ export function createServer(
         }
         case "update_block": {
           const notion = notionClientFactory();
-          const { block_id, markdown, checked, archived, dry_run } = args as {
+          const { block_id, markdown, checked, archived, dry_run, preserve_line_breaks } = args as {
             block_id: string;
             markdown?: string;
             checked?: boolean;
             archived?: boolean;
             dry_run?: boolean;
+            preserve_line_breaks?: boolean;
           };
           if (!block_id || typeof block_id !== "string") {
             return textResponse({ error: "update_block: block_id is required." });
@@ -3013,7 +3059,9 @@ export function createServer(
           const inputMarkdown = dry_run === true
             ? markdown!
             : await processFileUploads(notion, markdown!, transport);
-          const parsed = markdownToBlocks(inputMarkdown);
+          const parsed = markdownToBlocks(inputMarkdown, {
+            preserveLineBreaks: preserve_line_breaks,
+          });
           const built = buildUpdateBlockPayload(parsed, existingType, { checked });
           if (!built.ok) {
             return textResponse({ error: built.error });
@@ -3546,8 +3594,16 @@ export function createServer(
         }
         case "add_comment": {
           const notion = notionClientFactory();
-          const { page_id, text } = args as { page_id: string; text: string };
-          const result = await addComment(notion, page_id, blockTextToRichText(text)) as any;
+          const { page_id, text, preserve_line_breaks } = args as {
+            page_id: string;
+            text: string;
+            preserve_line_breaks?: boolean;
+          };
+          const result = await addComment(
+            notion,
+            page_id,
+            blockTextToRichText(text, { preserveLineBreaks: preserve_line_breaks }),
+          ) as any;
           return textResponse({
             id: result.id,
             content: result.rich_text?.map((t: any) => t.plain_text).join("") ?? text,

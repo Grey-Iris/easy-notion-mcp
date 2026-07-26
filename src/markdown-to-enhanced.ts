@@ -1,4 +1,5 @@
-import { markdownToBlocks } from "./markdown-to-blocks.js";
+import { collapseToSpaces, emitHardBreaks } from "./blocks-to-markdown.js";
+import { markdownToBlocks, type ConversionOptions } from "./markdown-to-blocks.js";
 import type { NotionBlock, RichText } from "./types.js";
 
 /**
@@ -88,9 +89,14 @@ function richTextToEnhanced(
       let content = rt.text?.content ?? "";
       const annotations = rt.annotations ?? {};
       if (annotations.code) {
-        content = `\`${content}\``;
-      } else if (options.escapeBodyText) {
-        content = escapeBodyText(content);
+        // A backslash is literal inside a code span, so a break cannot be encoded.
+        content = `\`${collapseToSpaces(content)}\``;
+      } else {
+        if (options.escapeBodyText) {
+          content = escapeBodyText(content);
+        }
+        // Applied after escaping so the hard-break backslash is not itself escaped.
+        content = emitHardBreaks(content);
       }
       if (annotations.bold) content = `**${content}**`;
       if (annotations.italic) content = `*${content}*`;
@@ -307,12 +313,15 @@ function serializeBlock(
  * The output is suitable for `pages.updateMarkdown` with `replace_content`,
  * `insert_content`, or any other endpoint that consumes Enhanced Markdown.
  */
-export function translateGfmToEnhancedMarkdown(markdown: string): TranslateResult {
+export function translateGfmToEnhancedMarkdown(
+  markdown: string,
+  options: ConversionOptions = {},
+): TranslateResult {
   const warnings: TranslateWarning[] = [];
   if (!markdown.trim()) {
     return { enhanced: "", warnings };
   }
-  const blocks = markdownToBlocks(markdown);
+  const blocks = markdownToBlocks(markdown, options);
   const enhanced = serializeBlocks(blocks, 0, warnings, {
     escapeBodyText: false,
     calloutMetas: collectGfmAlertCalloutMetas(markdown),
