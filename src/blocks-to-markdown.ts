@@ -9,9 +9,14 @@ import type { NotionBlock, RichText, TextRichText } from "./types.js";
  * Emitting them as CommonMark hard breaks keeps them intact. The trailing
  * backslash form is used rather than two trailing spaces because trailing
  * whitespace is invisible and gets stripped by editors and agents.
+ *
+ * Only a lone newline needs the marker. A blank-line run is a paragraph break,
+ * which markdown already expresses on its own (inside a quote or callout it is
+ * the empty "> " line), and the write side keeps it. Marking those would emit a
+ * stray backslash on an otherwise blank line.
  */
 export function emitHardBreaks(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(/\n/g, "\\\n");
+  return text.replace(/\r\n/g, "\n").replace(/(?<!\n)\n(?!\n)/g, "\\\n");
 }
 
 /**

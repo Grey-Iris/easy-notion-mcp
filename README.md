@@ -483,6 +483,21 @@ easy-notion-mcp supports 24 Notion block types using standard markdown syntax ex
 | File upload (image) | `![alt](file:///path/to/image.png)` |
 | File upload (file) | `[name](file:///path/to/file.pdf)` |
 
+### Line breaks
+
+A single newline inside a paragraph is a soft wrap, per CommonMark, and becomes a single space. Markdown files that are hard wrapped at a fixed column (the convention in most repositories) therefore arrive in Notion as flowing paragraphs instead of ragged mid-sentence lines. A blank line still starts a new block, and newlines inside a fenced code block are kept exactly as written.
+
+To keep a line break, end the line with a backslash:
+
+```markdown
+first line\
+second line
+```
+
+Read tools emit real Notion line breaks in that same backslash form, so a read, edit, write round trip keeps them.
+
+Every markdown-writing tool also accepts `preserve_line_breaks: true`, which keeps every single newline literal. Use it for ASCII art or deliberately line-shaped text.
+
 ## Can I read and rewrite pages without losing formatting?
 
 Yes. Round-trip fidelity is a core design guarantee of easy-notion-mcp, not a side effect.

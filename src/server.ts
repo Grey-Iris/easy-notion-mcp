@@ -259,6 +259,14 @@ easy-notion-mcp accepts standard GitHub-flavored markdown plus a few Notion-spec
 
 File uploads are limited to 20 MB per file. HTTP transport rejects file:// paths because the server filesystem belongs to the host, not the caller; use HTTPS URLs instead.
 
+## Line breaks
+
+A single newline inside a paragraph is a soft wrap, per CommonMark, and becomes a single space. Source text that is hard wrapped at a fixed column therefore arrives in Notion as a flowing paragraph instead of ragged mid-sentence lines. A blank line still starts a new block, and newlines inside a fenced code block stay exactly as written.
+
+To keep a line break, end the line with a backslash (or with two spaces). Read tools emit real Notion line breaks in the backslash form, so a read, edit, write round trip keeps them.
+
+Every markdown-writing tool also accepts preserve_line_breaks: true, which keeps every single newline literal. Use it for ASCII art or deliberately line-shaped text.
+
 Read tools return the same markdown conventions. If a read response includes warnings, inspect them before round-tripping the markdown through a write tool.`,
   },
   {

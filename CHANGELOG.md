@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`preserve_line_breaks` on every markdown-writing tool.** Optional boolean,
+  default false. When true, every single newline is kept literal instead of
+  collapsing per CommonMark. Use it for ASCII art or deliberately line-shaped
+  text. Accepted by `create_page`, `create_page_from_file`, `append_content`,
+  `replace_content`, `update_section`, `update_toggle`, `update_block`, and
+  `add_comment`.
 - **notion-recipes cookbook.** A Claude Code skill (`skills/notion-recipes/`)
   plus a README cookbook section with two on-demand recipes that point a user's
   own agent at Notion over the existing MCP tools: meeting notes to a
@@ -20,6 +26,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cookbook now keys dedupe on the source block's stable Notion identity
   (`<pageId>:<blockId>`) instead of an LLM-derived text slug, so re-running over
   the same notes is idempotent. Docs only, no version bump.
+
+### Changed
+
+- **Single newlines inside a paragraph now collapse to a space, per CommonMark.**
+  Markdown hard wrapped at a fixed column (the convention in most repositories)
+  previously arrived in Notion with ragged mid-sentence line breaks, because
+  every source newline was written through literally. Blank lines still separate
+  blocks, newlines inside fenced code blocks are untouched, and hard breaks (a
+  trailing backslash or two trailing spaces) still produce a literal newline.
+  Migration: to keep literal newlines, pass `preserve_line_breaks: true` or use
+  backslash hard breaks.
+
+### Fixed
+
+- **Real Notion line breaks now survive a read, edit, write round trip.** Read
+  tools emit an intra-block newline (a shift-enter in Notion) as a CommonMark
+  hard break, the trailing backslash form, rather than as a bare newline. Writing
+  that markdown back preserves the break instead of collapsing it. Contexts that
+  cannot express a break, table cells and code spans, collapse it to a space.
 
 ## [1.0.1] - 2026-06-25
 
