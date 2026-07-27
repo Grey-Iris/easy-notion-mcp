@@ -589,6 +589,31 @@ async function getDataSourceId(client: Client, dbId: string): Promise<string> {
 }
 
 /**
+ * Normalize a Notion ID for comparison. Notion UUIDs appear both dashed and
+ * undashed, and in either case. Compare on the normalized form.
+ */
+function normalizeNotionId(id: string): string {
+  return id.replace(/-/g, "").toLowerCase();
+}
+
+/**
+ * True when Notion rejected a databases.retrieve because the ID names a page.
+ * Requires the structured error code and inspects both the response body
+ * message and the top-level message; unrelated errors return false so callers
+ * propagate them unchanged.
+ */
+function isPageNotDatabaseError(error: unknown): boolean {
+  const code = (error as any)?.body?.code ?? (error as any)?.code;
+  if (code !== "validation_error") {
+    return false;
+  }
+  const messages = [(error as any)?.body?.message, (error as any)?.message];
+  return messages.some(
+    (message) => typeof message === "string" && /is a page, not a database/i.test(message),
+  );
+}
+
+/**
  * Resolve page_id alias to a database_id.
  * When page_id is a page containing exactly one inline database, resolves to that database.
  * When page_id is already a database ID, passes through.
@@ -596,56 +621,69 @@ async function getDataSourceId(client: Client, dbId: string): Promise<string> {
  */
 export async function resolvePageIdAlias(
   client: Client,
-  args: { database_id?: string; page_id?: string },
+  args: { database_id?: unknown; page_id?: unknown },
 ): Promise<string> {
   const { database_id, page_id } = args;
+  const hasDatabaseId = database_id !== undefined;
+  const hasPageId = page_id !== undefined;
 
-  if (database_id && !page_id) {
-    return database_id;
+  if (!hasDatabaseId && !hasPageId) {
+    throw new Error("Pass exactly one of `database_id` or `page_id`.");
+  }
+  if (hasDatabaseId && (typeof database_id !== "string" || database_id.trim() === "")) {
+    throw new Error("`database_id` must be a non-empty string.");
+  }
+  if (hasPageId && (typeof page_id !== "string" || page_id.trim() === "")) {
+    throw new Error("`page_id` must be a non-empty string.");
   }
 
-  if (database_id && page_id) {
-    if (database_id.replace(/-/g, "") === page_id.replace(/-/g, "")) {
-      return database_id;
+  if (hasDatabaseId && hasPageId) {
+    if (normalizeNotionId(database_id as string) === normalizeNotionId(page_id as string)) {
+      return database_id as string;
     }
     throw new Error(
-      "database_id and page_id refer to different objects — pass one.",
+      "database_id and page_id refer to different objects. Pass exactly one.",
     );
   }
 
-  if (!page_id) {
-    throw new Error("Either database_id or page_id is required.");
+  if (hasDatabaseId) {
+    return database_id as string;
   }
 
-  const cached = pageIdResolutionCache.get(page_id);
+  const pageId = page_id as string;
+  const cacheKey = normalizeNotionId(pageId);
+  const cached = pageIdResolutionCache.get(cacheKey);
   if (cached && cached.expires > Date.now()) {
     return cached.dbId;
   }
 
   try {
-    await client.databases.retrieve({ database_id: page_id });
-    pageIdResolutionCache.set(page_id, { dbId: page_id, expires: Date.now() + SCHEMA_CACHE_TTL });
-    return page_id;
+    await client.databases.retrieve({ database_id: pageId });
+    pageIdResolutionCache.set(cacheKey, { dbId: pageId, expires: Date.now() + SCHEMA_CACHE_TTL });
+    return pageId;
   } catch (error: unknown) {
-    const msg = (error as any)?.message;
-    if (typeof msg !== "string" || !msg.includes("is a page, not a database")) {
+    if (!isPageNotDatabaseError(error)) {
       throw error;
     }
-    const kids = await client.blocks.children.list({ block_id: page_id, page_size: 100 }) as any;
-    const dbs = (kids?.results ?? []).filter((b: any) => b.type === "child_database");
+    // Drain every child block before deciding uniqueness. A single page of
+    // results can hide a database past child 100, and can make a page with
+    // two inline databases look unambiguous, which would cache the wrong
+    // target for the mutating tools.
+    const children = await listChildren(client, pageId);
+    const dbs = children.filter((block: any) => block?.type === "child_database");
     if (dbs.length === 1) {
       const resolvedId = dbs[0].id;
-      pageIdResolutionCache.set(page_id, { dbId: resolvedId, expires: Date.now() + SCHEMA_CACHE_TTL });
+      pageIdResolutionCache.set(cacheKey, { dbId: resolvedId, expires: Date.now() + SCHEMA_CACHE_TTL });
       return resolvedId;
     }
     if (dbs.length === 0) {
       throw new Error(
-        `ID ${page_id} is a page, not a database. The page contains no inline database — use list_databases to find the database container ID.`,
+        `ID ${pageId} is a page, not a database. The page contains no inline database. Use list_databases to find the database container ID.`,
       );
     }
     throw new Error(
-      `ID ${page_id} is a page, not a database. The page contains ${dbs.length} inline databases — pass one of: ` +
-        dbs.map((b: any) => b.id + " (" + (b.child_database?.title ?? "untitled") + ")").join(", ") +
+      `ID ${pageId} is a page, not a database. The page contains ${dbs.length} inline databases. Pass one of: ` +
+        dbs.map((block: any) => block.id + " (" + (block.child_database?.title ?? "untitled") + ")").join(", ") +
         ".",
     );
   }
