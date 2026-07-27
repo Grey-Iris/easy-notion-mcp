@@ -38,6 +38,7 @@ import {
   getDatabase,
   getMe,
   getView,
+  resolvePageIdAlias,
   getPage,
   listViews,
   listComments,
@@ -1944,11 +1945,12 @@ Updates a database's schema: rename properties, add or update property definitio
       type: "object",
       properties: {
         database_id: { type: "string", description: "Database ID" },
+        page_id: { type: "string", description: "Alias accepted when database_id is absent. If the ID is a page containing exactly one inline database, it resolves to that database. Providing both database_id and page_id with different values is an error." },
         title: { type: "string", description: "New database title" },
         properties: { type: "object", description: "Raw Notion property update map" },
         in_trash: { type: "boolean", description: "True to trash, false to restore" },
       },
-      required: ["database_id"],
+      anyOf: [{ required: ["database_id"] }, { required: ["page_id"] }],
     },
   },
   {
@@ -1958,8 +1960,9 @@ Updates a database's schema: rename properties, add or update property definitio
       type: "object",
       properties: {
         database_id: { type: "string", description: "Database ID" },
+        page_id: { type: "string", description: "Alias accepted when database_id is absent. If the ID is a page containing exactly one inline database, it resolves to that database. Providing both database_id and page_id with different values is an error." },
       },
-      required: ["database_id"],
+      anyOf: [{ required: ["database_id"] }, { required: ["page_id"] }],
     },
   },
   {
@@ -1979,6 +1982,7 @@ Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-valu
       type: "object",
       properties: {
         database_id: { type: "string", description: "Database ID" },
+        page_id: { type: "string", description: "Alias accepted when database_id is absent. If the ID is a page containing exactly one inline database, it resolves to that database. Providing both database_id and page_id with different values is an error." },
         filter: { type: "object", description: "Optional Notion filter object" },
         sorts: {
           type: "array",
@@ -1995,7 +1999,7 @@ Response shape: { results: Array<entry>, warnings?: Array<warning> }. Multi-valu
             "Max items returned per multi-value property (title, rich_text, relation, people). Default 75. Set to 0 for unlimited. Negative values rejected. When the cap is hit, the response includes a truncated_properties warning with a how_to_fetch_all hint.",
         },
       },
-      required: ["database_id"],
+      anyOf: [{ required: ["database_id"] }, { required: ["page_id"] }],
     },
   },
   {
@@ -2139,12 +2143,14 @@ Example: { "Name": "Buy groceries", "Status": "Todo", "Priority": "High", "Due":
       type: "object",
       properties: {
         database_id: { type: "string", description: "Database ID" },
+        page_id: { type: "string", description: "Alias accepted when database_id is absent. If the ID is a page containing exactly one inline database, it resolves to that database. Providing both database_id and page_id with different values is an error." },
         properties: {
           type: "object",
           description: "Key-value property map to convert using the database schema",
         },
       },
-      required: ["database_id", "properties"],
+      required: ["properties"],
+      anyOf: [{ required: ["database_id"] }, { required: ["page_id"] }],
     },
   },
   {
@@ -2154,13 +2160,15 @@ Example: { "Name": "Buy groceries", "Status": "Todo", "Priority": "High", "Due":
       type: "object",
       properties: {
         database_id: { type: "string", description: "Database ID" },
+        page_id: { type: "string", description: "Alias accepted when database_id is absent. If the ID is a page containing exactly one inline database, it resolves to that database. Providing both database_id and page_id with different values is an error." },
         entries: {
           type: "array",
           description: "Array of property objects, same format as add_database_entry",
           items: { type: "object" },
         },
       },
-      required: ["database_id", "entries"],
+      required: ["entries"],
+      anyOf: [{ required: ["database_id"] }, { required: ["page_id"] }],
     },
   },
   {
@@ -3249,15 +3257,17 @@ export function createServer(
         }
         case "update_data_source": {
           const notion = notionClientFactory();
-          const { database_id, title, properties, in_trash } = args as {
-            database_id: unknown;
+          const { database_id: rawDbId, page_id, title, properties, in_trash } = args as {
+            database_id?: unknown;
+            page_id?: unknown;
             title?: string;
             properties?: Parameters<typeof updateDataSource>[2]["properties"];
             in_trash?: boolean;
           };
-          if (typeof database_id !== "string") {
+          if (rawDbId !== undefined && typeof rawDbId !== "string") {
             throw new Error("update_data_source: `database_id` must be a string");
           }
+          const database_id = await resolvePageIdAlias(notion, { database_id: rawDbId, page_id });
           const { result, warnings } = await updateDataSource(notion, database_id, {
             title,
             properties,
@@ -3273,7 +3283,8 @@ export function createServer(
         }
         case "get_database": {
           const notion = notionClientFactory();
-          const { database_id } = args as { database_id: string };
+          const { database_id: rawDbId, page_id } = args as { database_id?: unknown; page_id?: unknown };
+          const database_id = await resolvePageIdAlias(notion, { database_id: rawDbId, page_id });
           const result = await getDatabase(notion, database_id);
           return textResponse(result);
         }
@@ -3288,13 +3299,15 @@ export function createServer(
         }
         case "query_database": {
           const notion = notionClientFactory();
-          const { database_id, filter, sorts, text, max_property_items } = args as {
-            database_id: string;
+          const { database_id: rawDbId, page_id, filter, sorts, text, max_property_items } = args as {
+            database_id?: unknown;
+            page_id?: unknown;
             filter?: Record<string, unknown>;
             sorts?: unknown[];
             text?: string;
             max_property_items?: unknown;
           };
+          const database_id = await resolvePageIdAlias(notion, { database_id: rawDbId, page_id });
           const cap = max_property_items === undefined ? 75 : max_property_items;
           if (
             typeof cap !== "number" ||
@@ -3492,19 +3505,23 @@ export function createServer(
         }
         case "add_database_entry": {
           const notion = notionClientFactory();
-          const { database_id, properties } = args as {
-            database_id: string;
+          const { database_id: rawDbId, page_id, properties } = args as {
+            database_id?: unknown;
+            page_id?: unknown;
             properties: Record<string, unknown>;
           };
+          const database_id = await resolvePageIdAlias(notion, { database_id: rawDbId, page_id });
           const result = await createDatabaseEntry(notion, database_id, properties) as any;
           return textResponse({ id: result.id, url: result.url });
         }
         case "add_database_entries": {
           const notion = notionClientFactory();
-          const { database_id, entries } = args as {
-            database_id: string;
+          const { database_id: rawDbId, page_id, entries } = args as {
+            database_id?: unknown;
+            page_id?: unknown;
             entries: Record<string, unknown>[];
           };
+          const database_id = await resolvePageIdAlias(notion, { database_id: rawDbId, page_id });
           await getCachedSchema(notion, database_id);
 
           const succeeded: { id: string; url: string }[] = [];
