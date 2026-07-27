@@ -655,7 +655,7 @@ function tokenToBlocks(token: any): NotionBlock[] {
 }
 
 export function markdownToBlocks(markdown: string): NotionBlock[] {
-  if (!markdown.trim()) {
+  if (!markdown || !markdown.trim()) {
     return [];
   }
 

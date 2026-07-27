@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Null guards on five internal entry points (issue #69).** `countOccurrences`,
+  `findSectionRange`, `markdownToBlocks`, `translateGfmToEnhancedMarkdown`, and
+  the recursive toggle finder no longer throw an unhandled `TypeError` when an
+  argument arrives as `undefined` (for example, a divider block causing Notion's
+  markdown API to return undefined markdown, or a caller passing the wrong
+  parameter name). Each guard returns the existing empty or not-found result
+  instead of crashing. No behavior change for well-formed calls; a regression
+  test covers each crash path.
+
 ### Added
 
 - **notion-recipes cookbook.** A Claude Code skill (`skills/notion-recipes/`)
