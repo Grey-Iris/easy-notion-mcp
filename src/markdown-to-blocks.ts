@@ -243,11 +243,24 @@ function inlineTokensToRichText(
   return richText;
 }
 
+/**
+ * The inline lexer keeps a newline at the very start or end of the string inside
+ * the first or last text token, where collapsing would turn it into a stray
+ * leading or trailing space. A newline at the edge of an inline string separates
+ * nothing, so it is dropped rather than collapsed.
+ *
+ * Only applied when collapsing is on: the default path stays byte-identical.
+ */
+function trimBoundaryNewlines(text: string): string {
+  return text.replace(/^[ \t]*(?:\r?\n[ \t]*)+/, "").replace(/(?:[ \t]*\r?\n)+[ \t]*$/, "");
+}
+
 export function blockTextToRichText(
   text: string,
   options: ConversionOptions = {},
 ): RichText[] {
-  return inlineTokensToRichText(marked.Lexer.lexInline(text) as any[], {}, undefined, options);
+  const input = options.collapseSoftWraps ? trimBoundaryNewlines(text) : text;
+  return inlineTokensToRichText(marked.Lexer.lexInline(input) as any[], {}, undefined, options);
 }
 
 function listItemToRichText(item: any, options: ConversionOptions): RichText[] {

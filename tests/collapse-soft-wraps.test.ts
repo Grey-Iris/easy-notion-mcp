@@ -218,5 +218,24 @@ describe("collapse_soft_wraps", () => {
         "comment line one\ncomment line two",
       );
     });
+
+    // A boundary newline separates nothing, so collapsing it to a space would
+    // just deposit a stray leading or trailing space in the comment.
+    it("drops a leading newline instead of collapsing it to a space when ON", () => {
+      expect(textOf(blockTextToRichText("\nhello", ON))).toBe("hello");
+    });
+
+    it("drops a trailing newline instead of collapsing it to a space when ON", () => {
+      expect(textOf(blockTextToRichText("hello\n", ON))).toBe("hello");
+    });
+
+    it("leaves boundary newlines exactly as they are by default", () => {
+      expect(textOf(blockTextToRichText("\nhello"))).toBe("\nhello");
+      expect(textOf(blockTextToRichText("hello\n"))).toBe("hello\n");
+    });
+
+    it("still collapses interior wraps while dropping boundary newlines", () => {
+      expect(textOf(blockTextToRichText("\nhello\nthere\n", ON))).toBe("hello there");
+    });
   });
 });
