@@ -724,7 +724,7 @@ export function markdownToBlocks(
   markdown: string,
   options: ConversionOptions = {},
 ): NotionBlock[] {
-  if (!markdown.trim()) {
+  if (!markdown || !markdown.trim()) {
     return [];
   }
 

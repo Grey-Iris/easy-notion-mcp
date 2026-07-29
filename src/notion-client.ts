@@ -427,6 +427,7 @@ const RAW_PROPERTY_SHAPE_KEYS = new Set([
 
 const schemaCache = new Map<string, { schema: any; expires: number }>();
 const dataSourceIdCache = new Map<string, { dsId: string; expires: number }>();
+const pageIdResolutionCache = new Map<string, { dbId: string; expires: number }>();
 const SCHEMA_CACHE_TTL = 5 * 60 * 1000;
 
 function isPaginatedPropertyType(type: unknown): type is PaginatedPropertyType {
@@ -585,6 +586,107 @@ async function getDataSourceId(client: Client, dbId: string): Promise<string> {
   }
   dataSourceIdCache.set(dbId, { dsId, expires: Date.now() + SCHEMA_CACHE_TTL });
   return dsId;
+}
+
+/**
+ * Normalize a Notion ID for comparison. Notion UUIDs appear both dashed and
+ * undashed, and in either case. Compare on the normalized form.
+ */
+function normalizeNotionId(id: string): string {
+  return id.replace(/-/g, "").toLowerCase();
+}
+
+/**
+ * True when Notion rejected a databases.retrieve because the ID names a page.
+ * Requires the structured error code and inspects both the response body
+ * message and the top-level message; unrelated errors return false so callers
+ * propagate them unchanged.
+ */
+function isPageNotDatabaseError(error: unknown): boolean {
+  const code = (error as any)?.body?.code ?? (error as any)?.code;
+  if (code !== "validation_error") {
+    return false;
+  }
+  const messages = [(error as any)?.body?.message, (error as any)?.message];
+  return messages.some(
+    (message) => typeof message === "string" && /is a page, not a database/i.test(message),
+  );
+}
+
+/**
+ * Resolve page_id alias to a database_id.
+ * When page_id is a page containing exactly one inline database, resolves to that database.
+ * When page_id is already a database ID, passes through.
+ * Caches resolution results with the same TTL as schema/dataSourceId caches.
+ */
+export async function resolvePageIdAlias(
+  client: Client,
+  args: { database_id?: unknown; page_id?: unknown },
+): Promise<string> {
+  const { database_id, page_id } = args;
+  const hasDatabaseId = database_id !== undefined;
+  const hasPageId = page_id !== undefined;
+
+  if (!hasDatabaseId && !hasPageId) {
+    throw new Error("Pass exactly one of `database_id` or `page_id`.");
+  }
+  if (hasDatabaseId && (typeof database_id !== "string" || database_id.trim() === "")) {
+    throw new Error("`database_id` must be a non-empty string.");
+  }
+  if (hasPageId && (typeof page_id !== "string" || page_id.trim() === "")) {
+    throw new Error("`page_id` must be a non-empty string.");
+  }
+
+  if (hasDatabaseId && hasPageId) {
+    if (normalizeNotionId(database_id as string) === normalizeNotionId(page_id as string)) {
+      return database_id as string;
+    }
+    throw new Error(
+      "database_id and page_id refer to different objects. Pass exactly one.",
+    );
+  }
+
+  if (hasDatabaseId) {
+    return database_id as string;
+  }
+
+  const pageId = page_id as string;
+  const cacheKey = normalizeNotionId(pageId);
+  const cached = pageIdResolutionCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return cached.dbId;
+  }
+
+  try {
+    await client.databases.retrieve({ database_id: pageId });
+    pageIdResolutionCache.set(cacheKey, { dbId: pageId, expires: Date.now() + SCHEMA_CACHE_TTL });
+    return pageId;
+  } catch (error: unknown) {
+    if (!isPageNotDatabaseError(error)) {
+      throw error;
+    }
+    // Drain every child block before deciding uniqueness. A single page of
+    // results can hide a database past child 100, and can make a page with
+    // two inline databases look unambiguous, which would cache the wrong
+    // target for the mutating tools.
+    const children = await listChildren(client, pageId);
+    const dbs = children.filter((block: any) => block?.type === "child_database");
+    if (dbs.length === 1) {
+      const resolvedId = dbs[0].id;
+      pageIdResolutionCache.set(cacheKey, { dbId: resolvedId, expires: Date.now() + SCHEMA_CACHE_TTL });
+      return resolvedId;
+    }
+    if (dbs.length === 0) {
+      throw new Error(
+        `ID ${pageId} is a page, not a database. The page contains no inline database. Use list_databases to find the database container ID.`,
+      );
+    }
+    throw new Error(
+      `ID ${pageId} is a page, not a database. The page contains ${dbs.length} inline databases. Pass one of: ` +
+        dbs.map((block: any) => block.id + " (" + (block.child_database?.title ?? "untitled") + ")").join(", ") +
+        ".",
+    );
+  }
 }
 
 /**

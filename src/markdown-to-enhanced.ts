@@ -312,7 +312,7 @@ export function translateGfmToEnhancedMarkdown(
   options: ConversionOptions = {},
 ): TranslateResult {
   const warnings: TranslateWarning[] = [];
-  if (!markdown.trim()) {
+  if (!markdown || !markdown.trim()) {
     return { enhanced: "", warnings };
   }
   const blocks = markdownToBlocks(markdown, options);
