@@ -42,8 +42,11 @@ export async function readMarkdownFile(
     realFilePath !== realWorkspaceRoot &&
     !realFilePath.startsWith(rootWithSep)
   ) {
+    // Name the resolved root: a caller that cannot see the root cannot correct
+    // its own path, and this error is unreachable from HTTP clients because
+    // create_page_from_file is stdio-only.
     throw new Error(
-      `create_page_from_file: file_path '${filePath}' resolves outside the allowed workspace root`,
+      `create_page_from_file: file_path '${filePath}' resolves outside the allowed workspace root '${realWorkspaceRoot}'. Set NOTION_MCP_WORKSPACE_ROOT to a directory containing your files, or move the file inside the root.`,
     );
   }
 

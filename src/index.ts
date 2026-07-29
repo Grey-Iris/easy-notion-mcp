@@ -25,6 +25,9 @@ async function main() {
       trustContent: process.env.NOTION_TRUST_CONTENT === "true",
       transport: "stdio",
       workspaceRoot: process.env.NOTION_MCP_WORKSPACE_ROOT || process.cwd(),
+      // Reported by get_config. Decided here because this is the only place
+      // that still knows which of the two the value came from.
+      workspaceRootSource: process.env.NOTION_MCP_WORKSPACE_ROOT ? "env" : "cwd_default",
     }
   );
 

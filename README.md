@@ -5,7 +5,7 @@
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
 
-42 tools · 24 block types · ~6–7× fewer response tokens vs official Notion MCP · Full round-trip fidelity
+43 tools · 24 block types · ~6–7× fewer response tokens vs official Notion MCP · Full round-trip fidelity
 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
@@ -34,7 +34,7 @@ npx easy-notion-mcp
 | **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
 | **Block types** | ✅ 24 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
 | **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
-| **Tools** | 42 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
+| **Tools** | 43 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
 | **Database entry format** | Simple `{"Status": "Done"}` key-value pairs | Simplified key-value pairs | Simplified key-value pairs |
@@ -341,7 +341,7 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 ## What tools does easy-notion-mcp provide?
 
-easy-notion-mcp includes 42 individually-named tools across 6 categories. Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
+easy-notion-mcp includes 43 individually-named tools across 7 categories (42 over HTTP, which excludes the stdio-only `create_page_from_file`). Tool descriptions keep safety-critical behavior inline and point to MCP resources for longer reference material such as markdown syntax, warning shapes, property pagination, and `update_data_source` examples.
 
 ### Pages (20 tools)
 
@@ -430,6 +430,14 @@ easy-notion-mcp fetches the database schema, maps values to Notion's property fo
 |---|---|
 | `list_users` | List workspace users |
 | `get_me` | Get the current bot user |
+
+### Server (1 tool)
+
+| Tool | Description |
+|---|---|
+| `get_config` | Report the server's own settings: version, transport, workspace root, and visible tool count |
+
+`get_config` is the tool to reach for when a file-path or configuration error leaves you guessing. `create_page_from_file` only accepts paths inside the workspace root, and when a path falls outside it, the rejection now names the resolved root. `get_config` lets you read that root directly instead of inferring it. In HTTP mode the workspace root does not apply, so the path fields are null and the status is `not_applicable`; the server never reports host paths to HTTP callers.
 
 ## What MCP resources are available?
 

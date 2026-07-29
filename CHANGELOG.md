@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`get_config` tool.** A read-only introspection tool, available on both
+  transports, that reports the server's own settings: `version`, `transport`,
+  `workspace_root_configured`, `workspace_root_resolved`,
+  `workspace_root_status`, `workspace_root_source`, `markdown_docs`, and
+  `visible_tools_count`. Reach for it when a file-path or configuration error
+  leaves you guessing at the server's actual settings. It makes no Notion API
+  call, never throws (a configured root that fails to resolve is reported as
+  `workspace_root_status: "invalid"` rather than raising), and never returns
+  credentials. In HTTP mode the workspace root does not apply, so both path
+  fields are `null` and the status and source are `"not_applicable"`; host paths
+  are never reported to HTTP callers. This brings the tool count to 43 on stdio
+  and 42 over HTTP, the difference being the stdio-only
+  `create_page_from_file`.
+
+### Changed
+
+- **The `create_page_from_file` containment error now names the allowed root.**
+  Rejecting a `file_path` that resolves outside the workspace root previously
+  reported only the attempted path, so a caller had no way to learn the root and
+  correct itself. The message now includes the resolved root and how to change
+  it. Error text is not part of the frozen contract, and the rejection itself is
+  unchanged: out-of-root paths are still refused.
+
 ### Fixed
 
 - **Null guards on five internal entry points (issue #69).** `countOccurrences`,
