@@ -2387,9 +2387,16 @@ export function createServer(
     );
   }
 
+  // Single source of truth for tool visibility. tools/list and get_config's
+  // visible_tools_count both read from this, so a change to the transport rule
+  // can never update one and leave the other reporting a stale count.
+  const visibleTools = (): readonly ToolDefinition[] =>
+    (tools as readonly ToolDefinition[]).filter(
+      (tool) => !tool.transports || tool.transports.includes(transport),
+    );
+
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const visible = (tools as readonly ToolDefinition[])
-      .filter((tool) => !tool.transports || tool.transports.includes(transport))
+    const visible = visibleTools()
       .map(({ name, description, inputSchema }) => ({
         name,
         description,
@@ -3717,8 +3724,11 @@ export function createServer(
             status = "not_applicable";
             source = "not_applicable";
           } else if (!workspaceRoot) {
+            // Unconditional: with no root there is no provenance to report, so a
+            // caller that passes a source anyway must not produce a
+            // self-contradictory answer like status unset with source env.
             status = "unset";
-            source = workspaceRootSource ?? "unset";
+            source = "unset";
           } else {
             configured = workspaceRoot;
             source = workspaceRootSource ?? "config";
@@ -3734,9 +3744,7 @@ export function createServer(
             }
           }
 
-          const visibleToolsCount = (tools as readonly ToolDefinition[]).filter(
-            (tool) => !tool.transports || tool.transports.includes(transport),
-          ).length;
+          const visibleToolsCount = visibleTools().length;
 
           return textResponse({
             version: PACKAGE_VERSION,

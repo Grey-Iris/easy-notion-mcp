@@ -116,6 +116,20 @@ describe("get_config", () => {
       expect(parsed.workspace_root_source).toBe("unset");
     });
 
+    it("forces source to unset when a caller supplies a source but no root", async () => {
+      // A source without a root is contradictory input. The answer must not
+      // repeat it back: with no root there is no provenance to report.
+      const { parsed } = await callGetConfig({
+        transport: "stdio",
+        workspaceRootSource: "env",
+      });
+
+      expect(parsed.workspace_root_status).toBe("unset");
+      expect(parsed.workspace_root_source).toBe("unset");
+      expect(parsed.workspace_root_configured).toBeNull();
+      expect(parsed.workspace_root_resolved).toBeNull();
+    });
+
     it("answers with status invalid instead of throwing when the root does not resolve", async () => {
       const missing = join(await makeTempDir(), "does-not-exist");
 

@@ -22,29 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are never reported to HTTP callers. This brings the tool count to 43 on stdio
   and 42 over HTTP, the difference being the stdio-only
   `create_page_from_file`.
-
-### Changed
-
-- **The `create_page_from_file` containment error now names the allowed root.**
-  Rejecting a `file_path` that resolves outside the workspace root previously
-  reported only the attempted path, so a caller had no way to learn the root and
-  correct itself. The message now includes the resolved root and how to change
-  it. Error text is not part of the frozen contract, and the rejection itself is
-  unchanged: out-of-root paths are still refused.
-
-### Fixed
-
-- **Null guards on five internal entry points (issue #69).** `countOccurrences`,
-  `findSectionRange`, `markdownToBlocks`, `translateGfmToEnhancedMarkdown`, and
-  the recursive toggle finder no longer throw an unhandled `TypeError` when an
-  argument arrives as `undefined` (for example, a divider block causing Notion's
-  markdown API to return undefined markdown, or a caller passing the wrong
-  parameter name). Each guard returns the existing empty or not-found result
-  instead of crashing. No behavior change for well-formed calls; a regression
-  test covers each crash path.
-
-### Added
-
 - **`collapse_soft_wraps` option on every markdown-writing tool.** Optional
   boolean, default false. When true, a single newline inside a paragraph is
   collapsed to a space per CommonMark, so markdown hard wrapped at a fixed
@@ -70,6 +47,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cookbook now keys dedupe on the source block's stable Notion identity
   (`<pageId>:<blockId>`) instead of an LLM-derived text slug, so re-running over
   the same notes is idempotent. Docs only, no version bump.
+
+### Changed
+
+- **The `create_page_from_file` containment error now names the allowed root.**
+  Rejecting a `file_path` that resolves outside the workspace root previously
+  reported only the attempted path, so a caller had no way to learn the root and
+  correct itself. The message now includes the resolved root and how to change
+  it. Error text is not part of the frozen contract, and the rejection itself is
+  unchanged: out-of-root paths are still refused.
+
+### Fixed
+
+- **Null guards on five internal entry points (issue #69).** `countOccurrences`,
+  `findSectionRange`, `markdownToBlocks`, `translateGfmToEnhancedMarkdown`, and
+  the recursive toggle finder no longer throw an unhandled `TypeError` when an
+  argument arrives as `undefined` (for example, a divider block causing Notion's
+  markdown API to return undefined markdown, or a caller passing the wrong
+  parameter name). Each guard returns the existing empty or not-found result
+  instead of crashing. No behavior change for well-formed calls; a regression
+  test covers each crash path.
 
 ## [1.0.1] - 2026-06-25
 
