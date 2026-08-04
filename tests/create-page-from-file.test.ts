@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "fs/promises";
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
@@ -142,6 +142,36 @@ describe("create_page_from_file", () => {
       await expect(realReadMarkdownFile(filePath, allowedRoot)).rejects.toThrow(/allowed root|outside/i);
     });
 
+    it("names the resolved root in the rejection so the caller can correct the path", async () => {
+      const allowedRoot = await makeTempDir("read-markdown-file-allowed-");
+      const otherRoot = await makeTempDir("read-markdown-file-other-");
+      const filePath = join(otherRoot, "outside.md");
+      const resolvedRoot = await realpath(allowedRoot);
+
+      await writeFile(filePath, "# Outside");
+
+      // The whole point: an agent cannot fix a path it cannot see the root for.
+      await expect(realReadMarkdownFile(filePath, allowedRoot)).rejects.toThrow(resolvedRoot);
+      await expect(realReadMarkdownFile(filePath, allowedRoot)).rejects.toThrow(
+        /NOTION_MCP_WORKSPACE_ROOT/,
+      );
+    });
+
+    it("succeeds on a re-run once the file is inside the named root", async () => {
+      const allowedRoot = await makeTempDir("read-markdown-file-allowed-");
+      const otherRoot = await makeTempDir("read-markdown-file-other-");
+      const outsidePath = join(otherRoot, "outside.md");
+
+      await writeFile(outsidePath, "# Recoverable");
+      await expect(realReadMarkdownFile(outsidePath, allowedRoot)).rejects.toThrow(/outside/i);
+
+      // Same content, now placed inside the root the error named.
+      const insidePath = join(allowedRoot, "outside.md");
+      await writeFile(insidePath, "# Recoverable");
+
+      await expect(realReadMarkdownFile(insidePath, allowedRoot)).resolves.toBe("# Recoverable");
+    });
+
     it("rejects non-existent files with a clean error", async () => {
       const rootDir = await makeTempDir("read-markdown-file-root-");
       const filePath = join(rootDir, "missing.md");
@@ -227,7 +257,7 @@ describe("create_page_from_file", () => {
         const toolNames = result.tools.map((tool) => tool.name);
 
         expect(toolNames).toContain("create_page_from_file");
-        expect(result.tools).toHaveLength(42);
+        expect(result.tools).toHaveLength(43);
       } finally {
         await close();
       }
@@ -241,7 +271,7 @@ describe("create_page_from_file", () => {
         const toolNames = result.tools.map((tool) => tool.name);
 
         expect(toolNames).not.toContain("create_page_from_file");
-        expect(result.tools).toHaveLength(41);
+        expect(result.tools).toHaveLength(42);
       } finally {
         await close();
       }

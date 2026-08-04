@@ -1,4 +1,6 @@
 import { createRequire } from "node:module";
+import { realpath } from "node:fs/promises";
+import { resolve as pathResolve } from "node:path";
 import type { Client } from "@notionhq/client";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
@@ -2307,9 +2309,25 @@ Not writable from this tool:
       properties: {},
     },
   },
+  {
+    name: "get_config",
+    description: "Report this server's own settings: version, transport, the workspace root that bounds create_page_from_file file paths, and how many tools are visible. Call this when a file-path or configuration error occurs and you need the server's actual settings rather than a guess. Read-only, makes no Notion API call, and never returns credentials. Returns { version, transport, workspace_root_configured, workspace_root_resolved, workspace_root_status, workspace_root_source, markdown_docs, visible_tools_count }.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
 ] as const satisfies readonly ToolDefinition[];
 
 export type ServerTransport = "stdio" | "http";
+
+/**
+ * Where `workspaceRoot` came from. Passed in explicitly rather than inferred:
+ * the stdio entry point collapses the env var and the cwd default into one
+ * value before this factory sees it, so `createServer` cannot tell them apart
+ * on its own, and reading `process.env` back here would be a guess.
+ */
+export type WorkspaceRootSource = "env" | "cwd_default" | "config" | "unset" | "not_applicable";
 
 export interface CreateServerConfig {
   rootPageId?: string;
@@ -2317,6 +2335,7 @@ export interface CreateServerConfig {
   allowWorkspaceParent?: boolean;
   transport?: ServerTransport;
   workspaceRoot?: string;
+  workspaceRootSource?: WorkspaceRootSource;
 }
 
 export function createServer(
@@ -2329,6 +2348,7 @@ export function createServer(
     allowWorkspaceParent = false,
     transport = "stdio",
     workspaceRoot,
+    workspaceRootSource,
   } = config;
   let stickyParentPageId: string | undefined;
 
@@ -2367,9 +2387,16 @@ export function createServer(
     );
   }
 
+  // Single source of truth for tool visibility. tools/list and get_config's
+  // visible_tools_count both read from this, so a change to the transport rule
+  // can never update one and leave the other reporting a stale count.
+  const visibleTools = (): readonly ToolDefinition[] =>
+    (tools as readonly ToolDefinition[]).filter(
+      (tool) => !tool.transports || tool.transports.includes(transport),
+    );
+
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const visible = (tools as readonly ToolDefinition[])
-      .filter((tool) => !tool.transports || tool.transports.includes(transport))
+    const visible = visibleTools()
       .map(({ name, description, inputSchema }) => ({
         name,
         description,
@@ -3682,6 +3709,53 @@ export function createServer(
           const notion = notionClientFactory();
           const me = await getMe(notion) as any;
           return textResponse({ id: me.id, name: me.name, type: me.type });
+        }
+        case "get_config": {
+          // Read-only introspection. Never calls Notion, never throws, and never
+          // reports a host path over HTTP, where the workspace root does not
+          // apply and the filesystem belongs to the operator, not the caller.
+          const isHttp = transport === "http";
+          let configured: string | null = null;
+          let resolved: string | null = null;
+          let status: "ok" | "not_applicable" | "unset" | "invalid";
+          let source: WorkspaceRootSource;
+
+          if (isHttp) {
+            status = "not_applicable";
+            source = "not_applicable";
+          } else if (!workspaceRoot) {
+            // Unconditional: with no root there is no provenance to report, so a
+            // caller that passes a source anyway must not produce a
+            // self-contradictory answer like status unset with source env.
+            status = "unset";
+            source = "unset";
+          } else {
+            configured = workspaceRoot;
+            source = workspaceRootSource ?? "config";
+            try {
+              resolved = await realpath(pathResolve(workspaceRoot));
+              status = "ok";
+            } catch {
+              // A configured root that does not resolve is exactly the case an
+              // agent needs reported, so answer with status invalid rather than
+              // failing the call.
+              resolved = null;
+              status = "invalid";
+            }
+          }
+
+          const visibleToolsCount = visibleTools().length;
+
+          return textResponse({
+            version: PACKAGE_VERSION,
+            transport,
+            workspace_root_configured: configured,
+            workspace_root_resolved: resolved,
+            workspace_root_status: status,
+            workspace_root_source: source,
+            markdown_docs: "easy-notion://docs/markdown",
+            visible_tools_count: visibleToolsCount,
+          });
         }
         default:
           return textResponse({ error: `Unknown tool: ${name}` });
