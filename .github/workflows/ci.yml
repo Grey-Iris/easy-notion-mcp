@@ -45,7 +45,16 @@ jobs:
           # qs / body-parser / express (qs carriers):
           #   GHSA-q8mj-m7cp-5q26 (qs.stringify DoS) — qs.stringify never called; only
           #   express.json() mounted (urlencoded path inactive); Express uses qs.parse.
-          KNOWN_ALLOWLIST="hono @hono/node-server @modelcontextprotocol/sdk qs body-parser express"
+          # fast-uri / ajv (fast-uri carrier):
+          #   GHSA-7p8r-x3mc-p8w7 (host confusion via backslash authority introducer).
+          #   fast-uri runs twice per server, at ajv construction, on ajv's constant
+          #   meta-schema id (ajv/dist/ajv.js:9). Instrumented runs of both transports:
+          #   0 attacker bytes reach it, and our host checks use the Node WHATWG parser
+          #   (src/markdown-to-blocks.ts:49-84), so no two-parser split can form.
+          #   npm audit reports ajv.via = ["fast-uri"]; ajv carries no advisory of its
+          #   own, and ajv 8.20.0 still pins fast-uri ^3.0.1 so a bump is no fix.
+          #   Writeup: .meta/audits/dep-vuln-exploitability-2026-08-04.md
+          KNOWN_ALLOWLIST="hono @hono/node-server @modelcontextprotocol/sdk qs body-parser express fast-uri ajv"
           AUDIT=$(npm audit --omit=dev --json 2>/dev/null) || true
           VULN_KEYS=$(echo "$AUDIT" | jq -r '.vulnerabilities | keys[]' 2>/dev/null)
           if [ -z "$VULN_KEYS" ]; then
