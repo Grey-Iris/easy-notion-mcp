@@ -45,6 +45,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`collapse_soft_wraps` option on every markdown-writing tool.** Optional
+  boolean, default false. When true, a single newline inside a paragraph is
+  collapsed to a space per CommonMark, so markdown hard wrapped at a fixed
+  column (the convention in most repositories) arrives in Notion as flowing
+  paragraphs instead of keeping its source line breaks. Blank lines and fenced
+  code blocks are unaffected. Accepted by `create_page`,
+  `create_page_from_file`, `append_content`, `replace_content`,
+  `update_section`, `update_toggle`, `update_block`, and `add_comment`, with a
+  matching `--collapse-soft-wraps` flag on the equivalent CLI commands.
+  **Default behavior is unchanged**: without the option, line breaks are written
+  through exactly as before. Note that `replace_content` renders an
+  in-paragraph line break as a separate paragraph regardless of this option,
+  because Notion's Enhanced Markdown import treats a raw newline as a paragraph
+  split.
 - **notion-recipes cookbook.** A Claude Code skill (`skills/notion-recipes/`)
   plus a README cookbook section with two on-demand recipes that point a user's
   own agent at Notion over the existing MCP tools: meeting notes to a

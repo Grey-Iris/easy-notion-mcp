@@ -1,4 +1,4 @@
-import { markdownToBlocks } from "./markdown-to-blocks.js";
+import { markdownToBlocks, type ConversionOptions } from "./markdown-to-blocks.js";
 import type { NotionBlock, RichText } from "./types.js";
 
 /**
@@ -307,12 +307,15 @@ function serializeBlock(
  * The output is suitable for `pages.updateMarkdown` with `replace_content`,
  * `insert_content`, or any other endpoint that consumes Enhanced Markdown.
  */
-export function translateGfmToEnhancedMarkdown(markdown: string): TranslateResult {
+export function translateGfmToEnhancedMarkdown(
+  markdown: string,
+  options: ConversionOptions = {},
+): TranslateResult {
   const warnings: TranslateWarning[] = [];
   if (!markdown || !markdown.trim()) {
     return { enhanced: "", warnings };
   }
-  const blocks = markdownToBlocks(markdown);
+  const blocks = markdownToBlocks(markdown, options);
   const enhanced = serializeBlocks(blocks, 0, warnings, {
     escapeBodyText: false,
     calloutMetas: collectGfmAlertCalloutMetas(markdown),

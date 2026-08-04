@@ -491,6 +491,27 @@ easy-notion-mcp supports 24 Notion block types using standard markdown syntax ex
 | File upload (image) | `![alt](file:///path/to/image.png)` |
 | File upload (file) | `[name](file:///path/to/file.pdf)` |
 
+### Line breaks and `collapse_soft_wraps`
+
+By default, a single newline inside a paragraph is written through as it is. Markdown that is hard wrapped at a fixed column (the convention in most repositories) therefore arrives in Notion carrying those line breaks. That default has not changed.
+
+Every markdown-writing tool accepts an optional `collapse_soft_wraps: true`, which applies CommonMark soft-wrap semantics instead: a single newline inside a paragraph becomes a space, so a hard-wrapped file arrives as flowing paragraphs. Blank lines still separate blocks and fenced code blocks are untouched in both modes.
+
+```bash
+easy-notion page create-from-file --title "Design notes" --file ./NOTES.md --collapse-soft-wraps
+```
+
+Do not use it when re-uploading content you read back from Notion, or intentional line breaks will be lost.
+
+Explicit hard breaks (a trailing backslash or two trailing spaces) behave identically whether or not the option is set, but they differ by write path:
+
+| Write path | Hard break behavior |
+|---|---|
+| `create_page`, `create_page_from_file`, `append_content`, `update_section`, `update_toggle`, `update_block` | Kept inside the block |
+| `replace_content` | Notion's Enhanced Markdown import renders an in-paragraph line break as a separate paragraph, so a hard break arrives as a paragraph split |
+
+That difference is a property of the import path, not of `collapse_soft_wraps`.
+
 ## Can I read and rewrite pages without losing formatting?
 
 Yes. Round-trip fidelity is a core design guarantee of easy-notion-mcp, not a side effect.
