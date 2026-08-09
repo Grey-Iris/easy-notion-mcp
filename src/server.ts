@@ -1576,7 +1576,7 @@ function collapseSoftWrapsSchema(description = COLLAPSE_SOFT_WRAPS_DESCRIPTION) 
 const tools = [
   {
     name: "create_page",
-    description: "Create a Notion page from markdown, converted server-side to native Notion blocks (not flat text). The server auto-handles Notion's limits (100-block batching, 2000-char splitting, deep nesting); send large trees in one call, no pre-chunking. Supports stdio-only file:// uploads. Syntax guide: resource easy-notion://docs/markdown. Returns { id, title, url } only (no block count or per-block IDs).",
+    description: "Create a Notion page from markdown as native Notion blocks. Server handles 100-block batching, 2000-char splitting, and deep nesting, so no pre-chunking. Supports stdio-only file:// uploads. Syntax: easy-notion://docs/markdown. Mentions: @[Title](notion-url). Returns { id, title, url, success: true }, note for workspace-parent pages, plus block_map for top-level created blocks when present.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1607,7 +1607,7 @@ Restrictions:
 - File must be valid UTF-8
 - Symlinks are resolved and the resolved path must still be inside the workspace root
 
-For supported markdown syntax, read resource easy-notion://docs/markdown. Returns: { id, title, url }, plus note only when created at the workspace root. There is no block count and no per-block IDs in the receipt.`,
+For supported markdown syntax, read resource easy-notion://docs/markdown. Page mentions: @[Title](notion-url). Returns: { id, title, url, success: true }, plus note only when created as a private workspace page, plus block_map for top-level created blocks when present.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1628,7 +1628,7 @@ For supported markdown syntax, read resource easy-notion://docs/markdown. Return
   },
   {
     name: "append_content",
-    description: "Append markdown content to an existing page. The server converts markdown into native Notion blocks, not flat/plain text. The server automatically handles Notion API limits: batches more than 100 child blocks, splits rich text over 2000 characters, and writes deeply nested blocks in additional passes, so callers can append large documents in one call with no need to pre-chunk or pre-split. Supports the same syntax as create_page; read resource easy-notion://docs/markdown for the full syntax guide. Returns: { success: true, blocks_added: <number> }.",
+    description: "Append markdown content to an existing page. The server converts markdown into native Notion blocks, not flat/plain text. The server automatically handles Notion API limits: batches more than 100 child blocks, splits rich text over 2000 characters, and writes deeply nested blocks in additional passes, so callers can append large documents in one call with no need to pre-chunk or pre-split. Supports the same syntax as create_page; read resource easy-notion://docs/markdown for the full syntax guide. Page mentions: @[Title](notion-url); a mention the integration cannot resolve is downgraded to a plain link and reported with a mention_target_unresolved warning. Returns: { success: true, blocks_added: <number> }, plus block_map for top-level appended blocks when present and warnings when present.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1643,9 +1643,9 @@ For supported markdown syntax, read resource easy-notion://docs/markdown. Return
     name: "replace_content",
     description: `Replaces all page content with the provided markdown atomically (one Notion API call). Notion's atomic markdown endpoint converts the markdown to native Notion blocks in that one API call. On matched blocks Notion preserves the original block IDs, so deep-link anchors (\`#block-id\`) and inline-comment threads attached to those blocks survive the edit. Unmatched blocks (returned in \`warnings\` with code \`unmatched_blocks\`) are replaced with new IDs.
 
-NOT preserved across replace_content: \`child_page\` subpages, \`synced_block\` instances, \`child_database\` views, and \`link_to_page\` references on the source page — Enhanced Markdown has no input form for these, so they are dropped from the new page content. If the source contains them, use duplicate_page first or edit those types via the Notion UI.
+NOT preserved across replace_content: \`child_page\` subpages, \`synced_block\` instances, \`child_database\` views, and \`link_to_page\` references on the source page. Enhanced Markdown has no input form for these, so they are dropped from the new page content. If the source contains them, use duplicate_page first or edit those types via the Notion UI. For an inline page mention, use @[Title](notion-url); that is a separate construct from the \`link_to_page\` block type.
 
-Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \`bookmark_lost_on_atomic_replace\` warning so callers know the rich-bookmark UI is lost. For supported markdown syntax and warning details, read resources easy-notion://docs/markdown and easy-notion://docs/warnings. Returns: { success: true }, optionally truncated: true, optionally warnings with entries such as { code: "unmatched_blocks", block_ids: [...] }.`,
+Bookmarks and embeds are written as bare URLs (Notion auto-links) and surface a \`bookmark_lost_on_atomic_replace\` or \`embed_lost_on_atomic_replace\` warning so callers know the rich preview is lost. For supported markdown syntax and warning details, read resources easy-notion://docs/markdown and easy-notion://docs/warnings. Returns: { success: true }, optionally truncated: true, optionally warnings with entries such as { code: "unmatched_blocks", block_ids: [...] }, plus block_map for the resulting top-level blocks when present. A dry run returns { success: true, dry_run: true, operation, page_id, would_update: true } and optionally warnings.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1659,9 +1659,9 @@ Bookmarks and embeds round-trip as bare URLs (Notion auto-links) and surface a \
   },
   {
     name: "update_section",
-    description: `DESTRUCTIVE — no rollback: this tool deletes blocks in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied; for most sections the heading anchor is deleted, so a retry can fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
+    description: `DESTRUCTIVE, no rollback: this tool deletes blocks in the section, then writes new blocks. If the write fails mid-call, the section is left partially or fully emptied; for most sections the heading anchor is deleted, so a retry can fail with "heading not found." For irreplaceable sections, duplicate_page the target first so you have a restore point.
 
-Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. If the section starts at the first block, the replacement markdown must start with the same heading type so following sections stay in place. With preserve_heading:true, the existing heading block ID, text, type, comments, and toggleable state are preserved, but the section body blocks and existing toggleable-heading children are still destructively replaced; replacement markdown is treated as body-only, and a leading matching heading is stripped for compatibility. More efficient than replace_content for editing one section of a large page.`,
+Update a section of a page by heading name. Finds the heading, replaces everything from that heading to the next section boundary. For H1 headings, the section extends to the next heading of any level. For H2/H3 headings, it extends to the next heading of the same or higher level. Include the heading itself in the markdown. If the section starts at the first block, the replacement markdown must start with the same heading type so following sections stay in place. With preserve_heading:true, the existing heading block ID, text, type, comments, and toggleable state are preserved, but the section body blocks and existing toggleable-heading children are still destructively replaced; replacement markdown is treated as body-only, and a leading matching heading is stripped for compatibility. More efficient than replace_content for editing one section of a large page. Page mentions: @[Title](notion-url). Returns { deleted, appended }, plus deleted_blocks for the deleted top-level blocks when present and block_map for the top-level appended blocks when present. A dry run instead returns { success: true, dry_run: true, operation, page_id, heading, target_block_id, target_block_type, preserve_heading, deleted, appended, would_delete_block_ids, append_parent_id }.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1740,9 +1740,9 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
   },
   {
     name: "update_toggle",
-    description: `DESTRUCTIVE — no rollback: this tool preserves the matched toggle container block ID, then deletes its body children and appends replacement body blocks. Child block IDs inside the body change, and if the write fails mid-call the toggle can be left partially or fully emptied. For irreplaceable content, duplicate_page the target first so you have a restore point.
+    description: `DESTRUCTIVE, no rollback: this tool preserves the matched toggle container block ID, then deletes its body children and appends replacement body blocks. Child block IDs inside the body change, and if the write fails mid-call the toggle can be left partially or fully emptied. For irreplaceable content, duplicate_page the target first so you have a restore point.
 
-Update the body of one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. The markdown is replacement body content, not a wrapper that renames the toggle, and the server converts it into native Notion blocks, not flat/plain text. The server automatically handles Notion API limits: batches more than 100 child blocks, splits rich text over 2000 characters, and writes deeply nested blocks in additional passes, so callers can send a full multi-section toggle tree in one call with no need to pre-chunk or pre-split. If the markdown parses as one matching top-level toggle or toggleable heading wrapper, that wrapper is ignored and only its children are used as the replacement body. For supported markdown syntax, read resource easy-notion://docs/markdown. Returns: { success: true, block_id, type, deleted, appended }, where deleted and appended are counts.`,
+Update the body of one toggle by title from a page. Searches recursively and matches plain toggle blocks plus toggleable heading_1, heading_2, and heading_3 blocks using case-insensitive trimmed text. The markdown is replacement body content, not a wrapper that renames the toggle, and the server converts it into native Notion blocks, not flat/plain text. The server automatically handles Notion API limits: batches more than 100 child blocks, splits rich text over 2000 characters, and writes deeply nested blocks in additional passes, so callers can send a full multi-section toggle tree in one call with no need to pre-chunk or pre-split. If the markdown parses as one matching top-level toggle or toggleable heading wrapper, that wrapper is ignored and only its children are used as the replacement body. For supported markdown syntax, read resource easy-notion://docs/markdown. Page mentions: @[Title](notion-url). Returns: { success: true, block_id, type, deleted, appended }, where deleted and appended are counts, plus deleted_blocks for the deleted top-level body blocks when present and block_map for the top-level appended body blocks when present. A dry run instead returns { success: true, dry_run: true, operation, page_id, title, block_id, type, deleted, appended, would_delete_block_ids, append_parent_id }.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -1784,9 +1784,9 @@ Update the body of one toggle by title from a page. Searches recursively and mat
     name: "update_block",
     description: `Update a single block in place by ID. Preserves the block's identity (deep-link anchors and inline-comment threads attached to the block survive the edit). Use this for surgical edits: fixing a heading, toggling a checkbox, rewriting one paragraph. For multi-block edits, use append_content, replace_content, or update_section.
 
-Type lock-in: the markdown must parse to the same block type as the existing block. update_block cannot change a block's type — Notion's API forbids it. To change a block's type, use replace_content or delete + append.
+Type lock-in: the markdown must parse to the same block type as the existing block. update_block cannot change a block's type, because Notion's API forbids it. To change a block's type, use replace_content or delete + append.
 
-Updatable types: paragraph, heading_1, heading_2, heading_3, toggle, bulleted_list_item, numbered_list_item, quote, callout, to_do, code, equation. Container blocks (toggle, callout) update first-level content only — children stay untouched. Non-updatable types (divider, table, image, bookmark, etc.) accept only \`archived: true\` to delete the block.
+Updatable types: paragraph, heading_1, heading_2, heading_3, toggle, bulleted_list_item, numbered_list_item, quote, callout, to_do, code, equation. Container blocks (toggle, callout) update first-level content only, and children stay untouched. Non-updatable types (divider, table, image, bookmark, etc.) accept only \`archived: true\` to delete the block. Page mentions: @[Title](notion-url).
 
 To delete a block, pass \`archived: true\` instead of \`markdown\`. Exactly one of \`markdown\` or \`archived\` is required.`,
     inputSchema: {
@@ -2247,7 +2247,7 @@ Not writable from this tool:
   },
   {
     name: "add_comment",
-    description: "Add a comment to a page.",
+    description: "Add a comment to a page. Supports inline markdown and page mentions with @[Title](notion-url). Unlike append_content, a mention the integration cannot resolve is not downgraded to a plain link and returns no warning, so the call can fail. Returns { id, content }.",
     inputSchema: {
       type: "object",
       properties: {

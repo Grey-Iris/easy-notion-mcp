@@ -50,6 +50,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Tool descriptions now state their full return receipt.** `create_page`,
+  `create_page_from_file`, `append_content`, `replace_content`,
+  `update_section`, and `update_toggle` previously understated what they return.
+  Their descriptions now name `success`, the conditional `note`, `block_map`,
+  and `deleted_blocks` where the handler emits them, and say that the maps cover
+  top-level blocks and are omitted when empty. `create_page` and
+  `create_page_from_file` no longer claim the response carries no per-block IDs,
+  which had been untrue since the identity-bearing receipts shipped in 1.0.0.
+  Descriptions only: no response shape or behavior changed.
+- **Page-mention syntax is discoverable from the write tools.** The
+  `@[Title](notion-url)` convention shipped in 1.0.0 but was documented only in
+  the markdown resource. It is now named in the descriptions of `create_page`,
+  `create_page_from_file`, `append_content`, `replace_content`,
+  `update_section`, `update_block`, `update_toggle`, and `add_comment`.
+  `add_comment` also records that it does not downgrade an unresolvable mention
+  to a plain link the way `append_content` does, so such a call can fail.
+- **README round-trip and security claims are bounded to what the code does.**
+  Round-trip wording is now bounded: it states the block-type coverage and
+  points to the documented caveats, rather than claiming completeness or a
+  design guarantee. The limitations section now records the degradations that
+  carry no warning: `file`, `audio`, and `video` blocks reduce to bare URLs on
+  the `replace_content` path, and underline and colored-text annotations are
+  dropped. Prompt-injection copy says hardening rather than prevention, since
+  the outcome depends on the model and client.
+- **The `replace_content` description names the right embed warning.** It cited
+  `bookmark_lost_on_atomic_replace` for both bookmarks and embeds; embeds emit
+  `embed_lost_on_atomic_replace`.
 - **The `create_page_from_file` containment error now names the allowed root.**
   Rejecting a `file_path` that resolves outside the workspace root previously
   reported only the attempted path, so a caller had no way to learn the root and
