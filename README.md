@@ -5,7 +5,7 @@
 **Markdown-first MCP server that connects AI agents to Notion.**<br>
 Agents write markdown — easy-notion-mcp converts it to Notion's block API and back again.
 
-43 tools · 24 block types · ~6–7× fewer response tokens vs official Notion MCP · Full round-trip fidelity
+43 tools · 24 block types · ~6–7× fewer response tokens vs official Notion MCP · Documented round-trip support
 
 [![npm](https://img.shields.io/npm/v/easy-notion-mcp)](https://www.npmjs.com/package/easy-notion-mcp)
 [![license](https://img.shields.io/npm/l/easy-notion-mcp)](LICENSE)
@@ -25,7 +25,7 @@ npx easy-notion-mcp
 
 ---
 
-**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [MCP resources](#what-mcp-resources-are-available) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-without-losing-formatting) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Cookbook](#cookbook-recipes-for-your-own-agent) · [Security](#what-about-security-and-prompt-injection) · [Stability](#stability-and-versioning) · [FAQ](#frequently-asked-questions) · [Community](#community)
+**Contents:** [Comparison](#how-does-easy-notion-mcp-compare-to-other-notion-mcp-servers) · [Setup](#how-do-i-set-up-easy-notion-mcp) · [CLI profiles](#cli-profiles-for-low-context-notion-access) · [Config](#configuration) · [Why markdown](#why-markdown-first) · [How it works](#how-does-easy-notion-mcp-work) · [Tools](#what-tools-does-easy-notion-mcp-provide) · [MCP resources](#what-mcp-resources-are-available) · [Block types](#what-block-types-does-easy-notion-mcp-support) · [Round-trip](#can-i-read-and-rewrite-pages-with-formatting-preserved) · [Databases](#how-does-easy-notion-mcp-handle-databases) · [Cookbook](#cookbook-recipes-for-your-own-agent) · [Security](#what-about-security-and-prompt-injection) · [Stability](#stability-and-versioning) · [FAQ](#frequently-asked-questions) · [Community](#community)
 
 ## How does easy-notion-mcp compare to other Notion MCP servers?
 
@@ -33,7 +33,7 @@ npx easy-notion-mcp
 |---|---|---|---|
 | **Content format** | ✅ Standard GFM markdown | ❌ Raw Notion API JSON | ⚠️ Markdown (limited block types) |
 | **Block types** | ✅ 24 (toggles, columns, callouts, equations, embeds, tables, file uploads, task lists) | ⚠️ All (as raw JSON) | ⚠️ ~7 (headings, paragraphs, lists, code, quotes, dividers) |
-| **Round-trip fidelity** | ✅ Full — read markdown, modify, write back | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
+| **Round-trip support** | ✅ 24 block types, documented caveats | ❌ Raw JSON requires block reconstruction | ⚠️ Unsupported blocks silently dropped |
 | **Tools** | 43 individually-named tools | 18 auto-generated from OpenAPI | 9 composite tools (39 actions) |
 | **File uploads** | ✅ `file:///path` in markdown | ❌ [Open feature request](https://github.com/makenotion/notion-mcp-server/issues/191) | ✅ 5-step lifecycle |
 | **Prompt injection defense** | ✅ Content notice prefix + URL sanitization | ❌ | ❌ |
@@ -44,7 +44,7 @@ npx easy-notion-mcp
 
 Reading a page's content costs about **6–7× fewer response tokens** than the official Notion MCP server, because Notion's raw block JSON carries per-block metadata (block IDs, timestamps, author objects) that an agent reading for content never needs. Typically ~5–7×, ranging from ~3× on code-heavy pages to ~15× on rich pages, with ≥94% of the page's content preserved. Measured against the official raw-JSON server; roughly on par with other markdown-based servers.
 
-The win is metadata omission, not encoding efficiency. At equal information the two formats cost about the same (the common intermediate-representation ratio is ~1.0–1.06× on lossless page shapes, and 1.32× on typical prose), so the saving is the per-block metadata (block UUIDs, timestamps, author objects, annotation wrappers) that raw JSON carries and a content read never uses. Database queries show a similar ~7× win at full content completeness.
+The win is metadata omission, not encoding efficiency. At equal information the two formats cost about the same (the common intermediate-representation ratio is ~1.0–1.06× on fully represented page shapes, and 1.32× on typical prose), so the saving is the per-block metadata (block UUIDs, timestamps, author objects, annotation wrappers) that raw JSON carries and a content read never uses. Database queries show a similar ~7× win at full content completeness.
 
 Methodology, per-class results, and every caveat: [`.meta/research/token-bench-results-2026-06-13.md`](.meta/research/token-bench-results-2026-06-13.md) (re-run via `scripts/bench/lib/recompute-tiers.ts`).
 
@@ -297,7 +297,7 @@ The official Notion MCP npm package returns raw API JSON — deeply nested block
 
 easy-notion-mcp uses standard GFM markdown that agents already know. There's nothing new to learn, no custom tag syntax, no block objects to construct. The agent writes markdown, easy-notion-mcp handles the conversion to Notion's block API — and back again, with 24 block types preserved.
 
-This means agents can **edit existing content**. Read a page, get markdown back, modify the string, write it back. Nothing is lost. Agents edit Notion pages the same way they edit code — as text.
+This means agents can **edit existing content**. Read a page, get markdown back, modify the string, write it back. Supported formatting and structure are preserved for the block types this server represents, and the known omissions and degradations are documented below. Agents edit Notion pages the same way they edit code, as text.
 
 ## How does easy-notion-mcp work?
 
@@ -335,7 +335,7 @@ No property type objects, no nested `{ select: { name: "Done" } }` wrappers. eas
 
 **Errors tell you how to fix them.** A wrong heading name returns the available headings. A missing page suggests sharing it with the integration. A bad filter tells you to call `get_database` first. Agents can self-correct without asking the user for help.
 
-**Complex content works.** Nested toggles inside toggles, columns with mixed content types (lists + code blocks + blockquotes), deep list nesting, and full unicode (Japanese, Chinese, Arabic, emoji) all round-trip cleanly. `update_section` heading search is case-insensitive and returns available headings on miss. `add_database_entries` handles partial failures — succeeded and failed entries are returned separately so agents can retry just the failures.
+**Complex content works.** Nested toggles inside toggles, columns with mixed content types (lists + code blocks + blockquotes), deep list nesting, and full unicode (Japanese, Chinese, Arabic, emoji) are covered by round-trip tests. `update_section` heading search is case-insensitive and returns available headings on miss. `add_database_entries` handles partial failures, and succeeded and failed entries are returned separately so agents can retry just the failures.
 
 ![](assets/papercraft-divider.png)
 
@@ -512,17 +512,19 @@ Explicit hard breaks (a trailing backslash or two trailing spaces) behave identi
 
 That difference is a property of the import path, not of `collapse_soft_wraps`.
 
-## Can I read and rewrite pages without losing formatting?
+## Can I read and rewrite pages with formatting preserved?
 
-Yes. Round-trip fidelity is a core design guarantee of easy-notion-mcp, not a side effect.
+Yes, for the markdown conventions this server represents. Round-trip support covers 24 block types. Known omissions and degradations are documented, and many are reported with explicit warnings.
 
-What you write is what you read back. `read_page` returns the exact same markdown syntax that `create_page` accepts — headings, lists, tables, callouts, toggles, columns, equations, all of it.
+`read_page` returns the markdown conventions that `create_page` accepts: headings, lists, tables, callouts, toggles, columns, equations, and page mentions.
 
-When a page contains Notion block types this server does not yet represent, such as `synced_block`, `child_database`, `child_page`, or `link_to_page`, `read_page` includes a `warnings` field with code `omitted_block_types` listing the omitted block IDs and types. Round-tripping that markdown through `replace_content` would delete those blocks, so the warning lets agents avoid unsafe rewrites.
+When a page contains Notion block types this server does not yet represent, such as `synced_block`, `child_database`, `child_page`, or `link_to_page`, `read_page` includes a `warnings` field with code `omitted_block_types` listing the omitted block IDs and types. Writing that markdown back through `replace_content` would delete those blocks, so the warning lets agents avoid unsafe rewrites. For an inline page mention, use `@[Title](notion-url)`, which is a separate construct from the `link_to_page` block type.
 
-Notion AI meeting-notes (and deprecated `transcription`) blocks are rendered as a synthetic toggle containing the title, an optional recording timestamp, and `## Summary` / `## Notes` sections; transcripts are included only with `read_page include_transcript: true`. These render reads emit a `read_only_block_rendered` warning to flag that round-tripping replaces the native meeting block with ordinary blocks.
+Notion AI meeting-notes (and deprecated `transcription`) blocks are rendered as a synthetic toggle containing the title, an optional recording timestamp, and `## Summary` / `## Notes` sections; transcripts are included only with `read_page include_transcript: true`. These render reads emit a `read_only_block_rendered` warning to flag that writing the markdown back replaces the native meeting block with ordinary blocks.
 
-easy-notion-mcp enables agents to read a page, modify the markdown string, and write it back without losing formatting, structure, or content. No format translation. No block reconstruction. Agents edit Notion pages the same way they edit code — as text.
+Some degradations are not reported by a warning. On the `replace_content` path, bookmarks and embeds are written as bare URLs (these do warn), while `file`, `audio`, and `video` blocks are reduced to their URLs silently. Underline and colored-text annotations are not represented in markdown and are dropped silently on read and on write.
+
+easy-notion-mcp enables agents to read a page, modify the markdown string, and write it back while preserving supported formatting, structure, and content. No format translation. No block reconstruction. Agents edit Notion pages the same way they edit code, as text.
 
 ### What's the difference between find_replace and replace_content?
 
@@ -636,7 +638,7 @@ For page-body find-replace:
 
 easy-notion-mcp includes two layers of security for production deployments:
 
-**Prompt injection defense:** Markdown read responses (`read_page`, `read_section`, `read_block`, and `read_toggle`) include a content notice prefix instructing the agent to treat Notion data as content, not instructions. `search_in_page` returns raw snippets/text that should be treated the same way. This prevents page content from hijacking agent behavior. Set `NOTION_TRUST_CONTENT=true` to disable the markdown notice if you control the workspace.
+**Prompt-injection hardening:** Markdown read responses (`read_page`, `read_section`, `read_block`, and `read_toggle`) include a content notice prefix instructing the agent to treat Notion data as content, not instructions. `search_in_page` returns raw snippets/text that should be treated the same way. This reduces the risk of page content steering agent behavior; ultimate behavior depends on the model and client. Set `NOTION_TRUST_CONTENT=true` to disable the markdown notice if you control the workspace.
 
 **URL sanitization:** `javascript:`, `data:`, and other unsafe URL protocols are stripped and rendered as plain text. Only `http:`, `https:`, and `mailto:` are allowed.
 
@@ -662,7 +664,7 @@ history.
 
 ### How is easy-notion-mcp different from the official Notion MCP server?
 
-The official Notion MCP npm package (`@notionhq/notion-mcp-server`) is a raw API proxy — it returns unmodified Notion JSON, so reading a page costs roughly 6–7× more response tokens than easy-notion-mcp's markdown. easy-notion-mcp converts everything to standard GFM markdown that agents already know, supports 24 block types with round-trip fidelity, and includes prompt injection defense. Notion also offers a separate hosted remote MCP server (OAuth-based) that uses a custom HTML-tag-based markdown format — easy-notion-mcp uses standard markdown syntax instead.
+The official Notion MCP npm package (`@notionhq/notion-mcp-server`) is a raw API proxy that returns unmodified Notion JSON, so reading a page costs roughly 6–7× more response tokens than easy-notion-mcp's markdown. easy-notion-mcp converts everything to standard GFM markdown that agents already know, supports 24 block types with documented round-trip caveats, and includes prompt-injection hardening. Notion also offers a separate hosted remote MCP server (OAuth-based) that uses a custom HTML-tag-based markdown format, whereas easy-notion-mcp uses standard markdown syntax.
 
 ### What MCP clients does easy-notion-mcp work with?
 
@@ -674,7 +676,7 @@ Yes. easy-notion-mcp supports file uploads using the `file:///` protocol in mark
 
 ### Does easy-notion-mcp handle nested and complex content?
 
-Yes. Nested toggles inside toggles, columns with mixed content types (lists, blockquotes, and code blocks in different columns), nested bullet and numbered lists, and full unicode support including Japanese, Chinese, Russian, Arabic, and emoji — all round-tripping cleanly.
+Yes. Nested toggles inside toggles, columns with mixed content types (lists, blockquotes, and code blocks in different columns), nested bullet and numbered lists, and full unicode support including Japanese, Chinese, Russian, Arabic, and emoji are covered by round-trip tests for these supported shapes.
 
 ### Does easy-notion-mcp handle partial failures in batch operations?
 
