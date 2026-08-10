@@ -73,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carry no warning: `file`, `audio`, and `video` blocks reduce to bare URLs on
   the `replace_content` path, and underline and colored-text annotations are
   dropped. Prompt-injection copy says hardening rather than prevention, since
-  the outcome depends on the model and client.
+  the outcome depends on the model and client. The registry manifest
+  (`server.json`) carried the same unbounded phrase and now matches the README.
 - **The `replace_content` description names the right embed warning.** It cited
   `bookmark_lost_on_atomic_replace` for both bookmarks and embeds; embeds emit
   `embed_lost_on_atomic_replace`.
