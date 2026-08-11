@@ -86,12 +86,23 @@ function makeMockClient(options: { retrieve?: any; children?: any } = {}) {
 /**
  * Values that sit just outside the two forms the normalizer folds. Each pair
  * differs only by hexadecimal case, or by case and dash placement, so any
- * loosening of the normalizer (a length other than exactly 32, a dropped `^`
- * or `$`, an added `m` flag, or an added trim) would fold the pair together.
- * With the scope kept exact, both members stay opaque and stay distinct.
+ * loosening of the normalizer would fold the pair together. Between them the
+ * rows cover a bare length other than exactly 32, a loosened dashed group
+ * length, a dropped `^` or `$`, an added `m` flag on either expression, a
+ * character class widened past hexadecimal, and an added trim. With the scope
+ * kept exact, both members stay opaque and stay distinct.
+ *
+ * A row only pins a loosening if that loosening makes its two members collide,
+ * so each pair is chosen to be symmetric with respect to the mutation it
+ * targets. Every value is distinct across rows as well, because the resolution
+ * cache is module level and persists for the whole file.
  */
 const UPPER_UUID = "0A1B2C3D-4E5F-6A7B-8C9D-0E1F2A3B4C5D";
 const LOWER_BARE_UUID = "0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d";
+// A second bare UUID, distinct from LOWER_BARE_UUID so that the bare newline
+// row below cannot be served from a cache entry an earlier row already wrote.
+const UPPER_BARE_ALT = "1F2E3D4C5B6A7988776655443322110F";
+const LOWER_BARE_ALT = "1f2e3d4c5b6a7988776655443322110f";
 
 const OPAQUE_BOUNDARY_PAIRS: Array<{ label: string; a: string; b: string }> = [
   {
@@ -115,9 +126,19 @@ const OPAQUE_BOUNDARY_PAIRS: Array<{ label: string; a: string; b: string }> = [
     b: `${LOWER_BARE_UUID}z`,
   },
   {
-    label: "canonical UUID with a trailing newline",
+    // Pins the m flag on the dashed expression: only the dashed member can
+    // start matching, and it then folds onto the bare member.
+    label: "dashed UUID with a trailing newline against the bare form",
     a: `${UPPER_UUID}\n`,
     b: `${LOWER_BARE_UUID}\n`,
+  },
+  {
+    // Pins the m flag on the bare expression. The row above cannot: its bare
+    // member is already lowercase, so folding it changes nothing and the pair
+    // stays distinct even when the bare expression starts matching.
+    label: "bare UUID with a trailing newline, differing only by case",
+    a: `${UPPER_BARE_ALT}\n`,
+    b: `${LOWER_BARE_ALT}\n`,
   },
   {
     label: "canonical UUID with trailing whitespace",
@@ -128,6 +149,20 @@ const OPAQUE_BOUNDARY_PAIRS: Array<{ label: string; a: string; b: string }> = [
     label: "URL containing a UUID",
     a: `https://www.notion.so/Page-${UPPER_UUID}`,
     b: `https://www.notion.so/Page-${LOWER_BARE_UUID}`,
+  },
+  {
+    // Pins the character class. Exactly 32 characters, so only a class widened
+    // past hexadecimal can start matching these.
+    label: "32 non-hexadecimal alphanumeric characters, differing only by case",
+    a: "GHIJKLMNOPQRSTUVWXYZ012345678901",
+    b: "ghijklmnopqrstuvwxyz012345678901",
+  },
+  {
+    // Pins the dashed group lengths. The final group holds 11 characters, so
+    // only a loosened group length such as {11,13} can start matching these.
+    label: "dashed UUID with an 11 character final group, differing only by case",
+    a: "0A1B2C3D-4E5F-6A7B-8C9D-0E1F2A3B4C5",
+    b: "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5",
   },
 ];
 
