@@ -89,8 +89,12 @@ function makeMockClient(options: { retrieve?: any; children?: any } = {}) {
  * loosening of the normalizer would fold the pair together. Between them the
  * rows cover a bare length other than exactly 32, a loosened dashed group
  * length, a dropped `^` or `$`, an added `m` flag on either expression, a
- * character class widened past hexadecimal, and an added trim. With the scope
- * kept exact, both members stay opaque and stay distinct.
+ * character class widened past hexadecimal on either expression, and an added
+ * trim. With the scope kept exact, both members stay opaque and stay distinct.
+ *
+ * Coverage of the two expressions is tracked per expression, not in aggregate.
+ * A row shaped like one form can never pin a loosening of the other, so the
+ * `m` flag and the character class each need a bare row and a dashed row.
  *
  * A row only pins a loosening if that loosening makes its two members collide,
  * so each pair is chosen to be symmetric with respect to the mutation it
@@ -99,8 +103,11 @@ function makeMockClient(options: { retrieve?: any; children?: any } = {}) {
  */
 const UPPER_UUID = "0A1B2C3D-4E5F-6A7B-8C9D-0E1F2A3B4C5D";
 const LOWER_BARE_UUID = "0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d";
-// A second bare UUID, distinct from LOWER_BARE_UUID so that the bare newline
-// row below cannot be served from a cache entry an earlier row already wrote.
+// A second bare UUID for the bare newline row below. It has to differ from
+// LOWER_BARE_UUID specifically: the dashed newline row already resolves and
+// caches `${LOWER_BARE_UUID}\n`, so reusing that exact value as the bare row's
+// second member would serve the lookup from cache and leave one retrieve call
+// instead of two. Any other 32-hex value is fine.
 const UPPER_BARE_ALT = "1F2E3D4C5B6A7988776655443322110F";
 const LOWER_BARE_ALT = "1f2e3d4c5b6a7988776655443322110f";
 
@@ -151,11 +158,20 @@ const OPAQUE_BOUNDARY_PAIRS: Array<{ label: string; a: string; b: string }> = [
     b: `https://www.notion.so/Page-${LOWER_BARE_UUID}`,
   },
   {
-    // Pins the character class. Exactly 32 characters, so only a class widened
-    // past hexadecimal can start matching these.
+    // Pins the character class of the bare expression. Exactly 32 characters,
+    // so only a bare class widened past hexadecimal can start matching these.
+    // It has no dashes, so it can never pin the dashed expression's class.
     label: "32 non-hexadecimal alphanumeric characters, differing only by case",
     a: "GHIJKLMNOPQRSTUVWXYZ012345678901",
     b: "ghijklmnopqrstuvwxyz012345678901",
+  },
+  {
+    // The dashed counterpart of the row above. Exact 8-4-4-4-12 shape with one
+    // non-hexadecimal character, so only a dashed class widened past
+    // hexadecimal can start matching these.
+    label: "dashed UUID containing a non-hexadecimal character, differing only by case",
+    a: "G1234567-1234-1234-1234-123456789ABC",
+    b: "g1234567-1234-1234-1234-123456789abc",
   },
   {
     // Pins the dashed group lengths. The final group holds 11 characters, so
