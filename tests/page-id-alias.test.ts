@@ -29,6 +29,27 @@ function bodyOnlyPageNotDatabaseError(id: string) {
   return error;
 }
 
+/**
+ * The shape the installed @notionhq/client actually throws. `APIResponseError`
+ * carries `code` and `message` at the top level and keeps `body` as the raw
+ * JSON response text, so `body?.code` and `body?.message` are both undefined
+ * and only the top-level fallback can match.
+ */
+function sdkPageNotDatabaseError(id: string) {
+  const message = `${id} is a page, not a database.`;
+  const error: any = new Error(message);
+  error.name = "APIResponseError";
+  error.code = "validation_error";
+  error.status = 400;
+  error.body = JSON.stringify({
+    object: "error",
+    status: 400,
+    code: "validation_error",
+    message,
+  });
+  return error;
+}
+
 function paragraphs(count: number, prefix: string) {
   return Array.from({ length: count }, (_, index) => ({
     type: "paragraph",
@@ -61,6 +82,105 @@ function makeMockClient(options: { retrieve?: any; children?: any } = {}) {
     },
   };
 }
+
+/**
+ * Values that sit just outside the two forms the normalizer folds. Each pair
+ * differs only by hexadecimal case, or by case and dash placement, so any
+ * loosening of the normalizer would fold the pair together. Between them the
+ * rows cover a bare length other than exactly 32, a loosened dashed group
+ * length, a dropped `^` or `$`, an added `m` flag on either expression, a
+ * character class widened past hexadecimal on either expression, and an added
+ * trim. With the scope kept exact, both members stay opaque and stay distinct.
+ *
+ * Coverage of the two expressions is tracked per expression, not in aggregate.
+ * A row shaped like one form can never pin a loosening of the other, so the
+ * `m` flag and the character class each need a bare row and a dashed row.
+ *
+ * A row only pins a loosening if that loosening makes its two members collide,
+ * so each pair is chosen to be symmetric with respect to the mutation it
+ * targets. Every value is distinct across rows as well, because the resolution
+ * cache is module level and persists for the whole file.
+ */
+const UPPER_UUID = "0A1B2C3D-4E5F-6A7B-8C9D-0E1F2A3B4C5D";
+const LOWER_BARE_UUID = "0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d";
+// A second bare UUID for the bare newline row below. It has to differ from
+// LOWER_BARE_UUID specifically: the dashed newline row already resolves and
+// caches `${LOWER_BARE_UUID}\n`, so reusing that exact value as the bare row's
+// second member would serve the lookup from cache and leave one retrieve call
+// instead of two. Any other 32-hex value is fine.
+const UPPER_BARE_ALT = "1F2E3D4C5B6A7988776655443322110F";
+const LOWER_BARE_ALT = "1f2e3d4c5b6a7988776655443322110f";
+
+const OPAQUE_BOUNDARY_PAIRS: Array<{ label: string; a: string; b: string }> = [
+  {
+    label: "31 hexadecimal characters, differing only by case",
+    a: "ABCDEF0123456789ABCDEF012345678",
+    b: "abcdef0123456789abcdef012345678",
+  },
+  {
+    label: "33 hexadecimal characters, differing only by case",
+    a: "ABCDEF0123456789ABCDEF0123456789A",
+    b: "abcdef0123456789abcdef0123456789a",
+  },
+  {
+    label: "canonical UUID with one leading character",
+    a: `z${UPPER_UUID}`,
+    b: `z${LOWER_BARE_UUID}`,
+  },
+  {
+    label: "canonical UUID with one trailing character",
+    a: `${UPPER_UUID}z`,
+    b: `${LOWER_BARE_UUID}z`,
+  },
+  {
+    // Pins the m flag on the dashed expression: only the dashed member can
+    // start matching, and it then folds onto the bare member.
+    label: "dashed UUID with a trailing newline against the bare form",
+    a: `${UPPER_UUID}\n`,
+    b: `${LOWER_BARE_UUID}\n`,
+  },
+  {
+    // Pins the m flag on the bare expression. The row above cannot: its bare
+    // member is already lowercase, so folding it changes nothing and the pair
+    // stays distinct even when the bare expression starts matching.
+    label: "bare UUID with a trailing newline, differing only by case",
+    a: `${UPPER_BARE_ALT}\n`,
+    b: `${LOWER_BARE_ALT}\n`,
+  },
+  {
+    label: "canonical UUID with trailing whitespace",
+    a: `${UPPER_UUID} `,
+    b: `${LOWER_BARE_UUID} `,
+  },
+  {
+    label: "URL containing a UUID",
+    a: `https://www.notion.so/Page-${UPPER_UUID}`,
+    b: `https://www.notion.so/Page-${LOWER_BARE_UUID}`,
+  },
+  {
+    // Pins the character class of the bare expression. Exactly 32 characters,
+    // so only a bare class widened past hexadecimal can start matching these.
+    // It has no dashes, so it can never pin the dashed expression's class.
+    label: "32 non-hexadecimal alphanumeric characters, differing only by case",
+    a: "GHIJKLMNOPQRSTUVWXYZ012345678901",
+    b: "ghijklmnopqrstuvwxyz012345678901",
+  },
+  {
+    // The dashed counterpart of the row above. Exact 8-4-4-4-12 shape with one
+    // non-hexadecimal character, so only a dashed class widened past
+    // hexadecimal can start matching these.
+    label: "dashed UUID containing a non-hexadecimal character, differing only by case",
+    a: "G1234567-1234-1234-1234-123456789ABC",
+    b: "g1234567-1234-1234-1234-123456789abc",
+  },
+  {
+    // Pins the dashed group lengths. The final group holds 11 characters, so
+    // only a loosened group length such as {11,13} can start matching these.
+    label: "dashed UUID with an 11 character final group, differing only by case",
+    a: "0A1B2C3D-4E5F-6A7B-8C9D-0E1F2A3B4C5",
+    b: "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5",
+  },
+];
 
 // --- resolvePageIdAlias unit tests ---
 
@@ -169,6 +289,25 @@ describe("resolvePageIdAlias", () => {
     });
     expect(result).toBe("12345678-1234-1234-1234-123456789ABC");
     expect(client.databases.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("non-UUID values differing only by a dash conflict", async () => {
+    const client = makeMockClient();
+    await expect(
+      resolvePageIdAlias(client as any, { database_id: "db-1", page_id: "db1" }),
+    ).rejects.toThrow("database_id and page_id refer to different objects. Pass exactly one.");
+    expect(client.databases.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("values just outside the UUID forms are not folded together by the conflict check", async () => {
+    for (const { label, a, b } of OPAQUE_BOUNDARY_PAIRS) {
+      const client = makeMockClient();
+      const outcome = await resolvePageIdAlias(client as any, { database_id: a, page_id: b }).then(
+        (value) => `resolved to ${value}`,
+        (error: Error) => error.message,
+      );
+      expect(outcome, label).toContain("database_id and page_id refer to different objects");
+    }
   });
 
   it("both provided and different: loud error", async () => {
@@ -290,6 +429,40 @@ describe("resolvePageIdAlias", () => {
     expect(client.databases.retrieve).toHaveBeenCalledTimes(1);
   });
 
+  it("a misplaced-dash value cannot reuse a canonical UUID's cached resolution", async () => {
+    const canonical = "11111111-2222-3333-4444-555555555555";
+    const misplaced = "111111112222-3333-4444-555555555555";
+    const client = makeMockClient({
+      retrieve: vi.fn().mockRejectedValue(pageNotDatabaseError(canonical)),
+      children: paginatedChildren([[
+        { type: "child_database", id: "misplaced-db", child_database: { title: "Misplaced" } },
+      ]]),
+    });
+    expect(await resolvePageIdAlias(client as any, { page_id: canonical })).toBe("misplaced-db");
+    expect(client.databases.retrieve).toHaveBeenCalledTimes(1);
+    expect(await resolvePageIdAlias(client as any, { page_id: misplaced })).toBe("misplaced-db");
+    expect(client.databases.retrieve).toHaveBeenCalledTimes(2);
+    expect(client.databases.retrieve).toHaveBeenLastCalledWith({ database_id: misplaced });
+  });
+
+  it("values just outside the UUID forms do not share a resolution-cache entry", async () => {
+    for (const { label, a, b } of OPAQUE_BOUNDARY_PAIRS) {
+      const client = makeMockClient({
+        retrieve: vi.fn().mockRejectedValue(pageNotDatabaseError(a)),
+        children: paginatedChildren([[
+          { type: "child_database", id: "boundary-db", child_database: { title: "Boundary" } },
+        ]]),
+      });
+      expect(await resolvePageIdAlias(client as any, { page_id: a }), label).toBe("boundary-db");
+      expect(await resolvePageIdAlias(client as any, { page_id: b }), label).toBe("boundary-db");
+      // A shared cache key would serve the second call from cache and leave one
+      // retrieve. Two calls prove the keys stayed distinct, and the last call
+      // proves the value reached the API exactly as it was written.
+      expect(client.databases.retrieve, label).toHaveBeenCalledTimes(2);
+      expect(client.databases.retrieve, label).toHaveBeenLastCalledWith({ database_id: b });
+    }
+  });
+
   // --- error-shape robustness ---
 
   it("resolves when only the error body carries the code and message", async () => {
@@ -300,6 +473,16 @@ describe("resolvePageIdAlias", () => {
       ]]),
     });
     expect(await resolvePageIdAlias(client as any, { page_id: "page-body" })).toBe("body-db");
+  });
+
+  it("resolves from the SDK top-level code and message when body is raw JSON text", async () => {
+    const client = makeMockClient({
+      retrieve: vi.fn().mockRejectedValue(sdkPageNotDatabaseError("page-sdk")),
+      children: paginatedChildren([[
+        { type: "child_database", id: "sdk-db", child_database: { title: "Sdk" } },
+      ]]),
+    });
+    expect(await resolvePageIdAlias(client as any, { page_id: "page-sdk" })).toBe("sdk-db");
   });
 
   it("non-page-vs-database errors propagate unchanged", async () => {

@@ -95,6 +95,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parameter name). Each guard returns the existing empty or not-found result
   instead of crashing. No behavior change for well-formed calls; a regression
   test covers each crash path.
+- **`page_id` alias ID comparison no longer strips dashes from arbitrary
+  strings.** The internal normalizer used by the `database_id` / `page_id`
+  conflict check and by the `page_id` resolution cache removed every dash from
+  every value, so unrelated identifiers such as `db-1` and `db1` compared equal
+  and a UUID with misplaced dashes could reuse a canonical UUID's cache entry.
+  Dash and case folding now applies only to canonical dashed UUIDs
+  (8-4-4-4-12 hexadecimal) and bare 32-character hexadecimal IDs; every other
+  value is compared as written. The documented alias forms behave exactly as
+  before, and tests cover both the dash conflict and the cache separation.
 
 ## [1.0.1] - 2026-06-25
 
