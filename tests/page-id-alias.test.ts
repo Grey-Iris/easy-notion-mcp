@@ -83,6 +83,54 @@ function makeMockClient(options: { retrieve?: any; children?: any } = {}) {
   };
 }
 
+/**
+ * Values that sit just outside the two forms the normalizer folds. Each pair
+ * differs only by hexadecimal case, or by case and dash placement, so any
+ * loosening of the normalizer (a length other than exactly 32, a dropped `^`
+ * or `$`, an added `m` flag, or an added trim) would fold the pair together.
+ * With the scope kept exact, both members stay opaque and stay distinct.
+ */
+const UPPER_UUID = "0A1B2C3D-4E5F-6A7B-8C9D-0E1F2A3B4C5D";
+const LOWER_BARE_UUID = "0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d";
+
+const OPAQUE_BOUNDARY_PAIRS: Array<{ label: string; a: string; b: string }> = [
+  {
+    label: "31 hexadecimal characters, differing only by case",
+    a: "ABCDEF0123456789ABCDEF012345678",
+    b: "abcdef0123456789abcdef012345678",
+  },
+  {
+    label: "33 hexadecimal characters, differing only by case",
+    a: "ABCDEF0123456789ABCDEF0123456789A",
+    b: "abcdef0123456789abcdef0123456789a",
+  },
+  {
+    label: "canonical UUID with one leading character",
+    a: `z${UPPER_UUID}`,
+    b: `z${LOWER_BARE_UUID}`,
+  },
+  {
+    label: "canonical UUID with one trailing character",
+    a: `${UPPER_UUID}z`,
+    b: `${LOWER_BARE_UUID}z`,
+  },
+  {
+    label: "canonical UUID with a trailing newline",
+    a: `${UPPER_UUID}\n`,
+    b: `${LOWER_BARE_UUID}\n`,
+  },
+  {
+    label: "canonical UUID with trailing whitespace",
+    a: `${UPPER_UUID} `,
+    b: `${LOWER_BARE_UUID} `,
+  },
+  {
+    label: "URL containing a UUID",
+    a: `https://www.notion.so/Page-${UPPER_UUID}`,
+    b: `https://www.notion.so/Page-${LOWER_BARE_UUID}`,
+  },
+];
+
 // --- resolvePageIdAlias unit tests ---
 
 describe("resolvePageIdAlias", () => {
@@ -198,6 +246,17 @@ describe("resolvePageIdAlias", () => {
       resolvePageIdAlias(client as any, { database_id: "db-1", page_id: "db1" }),
     ).rejects.toThrow("database_id and page_id refer to different objects. Pass exactly one.");
     expect(client.databases.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("values just outside the UUID forms are not folded together by the conflict check", async () => {
+    for (const { label, a, b } of OPAQUE_BOUNDARY_PAIRS) {
+      const client = makeMockClient();
+      const outcome = await resolvePageIdAlias(client as any, { database_id: a, page_id: b }).then(
+        (value) => `resolved to ${value}`,
+        (error: Error) => error.message,
+      );
+      expect(outcome, label).toContain("database_id and page_id refer to different objects");
+    }
   });
 
   it("both provided and different: loud error", async () => {
@@ -333,6 +392,24 @@ describe("resolvePageIdAlias", () => {
     expect(await resolvePageIdAlias(client as any, { page_id: misplaced })).toBe("misplaced-db");
     expect(client.databases.retrieve).toHaveBeenCalledTimes(2);
     expect(client.databases.retrieve).toHaveBeenLastCalledWith({ database_id: misplaced });
+  });
+
+  it("values just outside the UUID forms do not share a resolution-cache entry", async () => {
+    for (const { label, a, b } of OPAQUE_BOUNDARY_PAIRS) {
+      const client = makeMockClient({
+        retrieve: vi.fn().mockRejectedValue(pageNotDatabaseError(a)),
+        children: paginatedChildren([[
+          { type: "child_database", id: "boundary-db", child_database: { title: "Boundary" } },
+        ]]),
+      });
+      expect(await resolvePageIdAlias(client as any, { page_id: a }), label).toBe("boundary-db");
+      expect(await resolvePageIdAlias(client as any, { page_id: b }), label).toBe("boundary-db");
+      // A shared cache key would serve the second call from cache and leave one
+      // retrieve. Two calls prove the keys stayed distinct, and the last call
+      // proves the value reached the API exactly as it was written.
+      expect(client.databases.retrieve, label).toHaveBeenCalledTimes(2);
+      expect(client.databases.retrieve, label).toHaveBeenLastCalledWith({ database_id: b });
+    }
   });
 
   // --- error-shape robustness ---
