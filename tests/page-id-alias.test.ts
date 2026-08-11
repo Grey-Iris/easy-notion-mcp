@@ -29,6 +29,27 @@ function bodyOnlyPageNotDatabaseError(id: string) {
   return error;
 }
 
+/**
+ * The shape the installed @notionhq/client actually throws. `APIResponseError`
+ * carries `code` and `message` at the top level and keeps `body` as the raw
+ * JSON response text, so `body?.code` and `body?.message` are both undefined
+ * and only the top-level fallback can match.
+ */
+function sdkPageNotDatabaseError(id: string) {
+  const message = `${id} is a page, not a database.`;
+  const error: any = new Error(message);
+  error.name = "APIResponseError";
+  error.code = "validation_error";
+  error.status = 400;
+  error.body = JSON.stringify({
+    object: "error",
+    status: 400,
+    code: "validation_error",
+    message,
+  });
+  return error;
+}
+
 function paragraphs(count: number, prefix: string) {
   return Array.from({ length: count }, (_, index) => ({
     type: "paragraph",
@@ -171,6 +192,14 @@ describe("resolvePageIdAlias", () => {
     expect(client.databases.retrieve).not.toHaveBeenCalled();
   });
 
+  it("non-UUID values differing only by a dash conflict", async () => {
+    const client = makeMockClient();
+    await expect(
+      resolvePageIdAlias(client as any, { database_id: "db-1", page_id: "db1" }),
+    ).rejects.toThrow("database_id and page_id refer to different objects. Pass exactly one.");
+    expect(client.databases.retrieve).not.toHaveBeenCalled();
+  });
+
   it("both provided and different: loud error", async () => {
     const client = makeMockClient();
     await expect(
@@ -290,6 +319,22 @@ describe("resolvePageIdAlias", () => {
     expect(client.databases.retrieve).toHaveBeenCalledTimes(1);
   });
 
+  it("a misplaced-dash value cannot reuse a canonical UUID's cached resolution", async () => {
+    const canonical = "11111111-2222-3333-4444-555555555555";
+    const misplaced = "111111112222-3333-4444-555555555555";
+    const client = makeMockClient({
+      retrieve: vi.fn().mockRejectedValue(pageNotDatabaseError(canonical)),
+      children: paginatedChildren([[
+        { type: "child_database", id: "misplaced-db", child_database: { title: "Misplaced" } },
+      ]]),
+    });
+    expect(await resolvePageIdAlias(client as any, { page_id: canonical })).toBe("misplaced-db");
+    expect(client.databases.retrieve).toHaveBeenCalledTimes(1);
+    expect(await resolvePageIdAlias(client as any, { page_id: misplaced })).toBe("misplaced-db");
+    expect(client.databases.retrieve).toHaveBeenCalledTimes(2);
+    expect(client.databases.retrieve).toHaveBeenLastCalledWith({ database_id: misplaced });
+  });
+
   // --- error-shape robustness ---
 
   it("resolves when only the error body carries the code and message", async () => {
@@ -300,6 +345,16 @@ describe("resolvePageIdAlias", () => {
       ]]),
     });
     expect(await resolvePageIdAlias(client as any, { page_id: "page-body" })).toBe("body-db");
+  });
+
+  it("resolves from the SDK top-level code and message when body is raw JSON text", async () => {
+    const client = makeMockClient({
+      retrieve: vi.fn().mockRejectedValue(sdkPageNotDatabaseError("page-sdk")),
+      children: paginatedChildren([[
+        { type: "child_database", id: "sdk-db", child_database: { title: "Sdk" } },
+      ]]),
+    });
+    expect(await resolvePageIdAlias(client as any, { page_id: "page-sdk" })).toBe("sdk-db");
   });
 
   it("non-page-vs-database errors propagate unchanged", async () => {

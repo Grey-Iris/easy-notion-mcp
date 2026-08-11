@@ -588,12 +588,27 @@ async function getDataSourceId(client: Client, dbId: string): Promise<string> {
   return dsId;
 }
 
+/** Canonical dashed Notion UUID: 8-4-4-4-12 hexadecimal characters. */
+const DASHED_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The same UUID with the dashes removed. */
+const BARE_UUID_RE = /^[0-9a-f]{32}$/i;
+
 /**
  * Normalize a Notion ID for comparison. Notion UUIDs appear both dashed and
- * undashed, and in either case. Compare on the normalized form.
+ * undashed, and in either case, so the two forms of one ID must compare equal.
+ * Only those two forms are normalized. Any other string is returned unchanged,
+ * so values that merely look ID-like stay distinct: `db-1` and `db1` remain
+ * different keys, and a UUID with misplaced dashes cannot collide with a
+ * canonical UUID's resolution-cache entry.
  */
 function normalizeNotionId(id: string): string {
-  return id.replace(/-/g, "").toLowerCase();
+  if (DASHED_UUID_RE.test(id)) {
+    return id.replace(/-/g, "").toLowerCase();
+  }
+  if (BARE_UUID_RE.test(id)) {
+    return id.toLowerCase();
+  }
+  return id;
 }
 
 /**
