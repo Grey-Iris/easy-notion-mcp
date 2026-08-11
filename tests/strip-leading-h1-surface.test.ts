@@ -37,6 +37,11 @@ const EXPECTED_CLI_COMMANDS = ["page create", "page create-from-file"];
 // create_page's tool description is pinned byte for byte. The brief forbids
 // growing it, and a fixed string is the direct proof that this change left it
 // alone: the parameter documentation lives on the schema instead.
+// The parameter copy is pinned whole, so shipped wording cannot drift into
+// conditional semantics the feature does not implement.
+const STRIP_LEADING_H1_DESCRIPTION =
+  "Remove the document's leading H1 heading. Applies only when the first converted top-level block is a plain (non-toggleable) heading_1. Useful when title is also passed and the file begins with the same heading. Default false.";
+
 const CREATE_PAGE_DESCRIPTION =
   "Create a Notion page from markdown as native Notion blocks. Server handles 100-block batching, 2000-char splitting, and deep nesting, so no pre-chunking. Supports stdio-only file:// uploads. Syntax: easy-notion://docs/markdown. Mentions: @[Title](notion-url). Returns { id, title, url, success: true }, note for workspace-parent pages, plus block_map for top-level created blocks when present.";
 
@@ -51,13 +56,21 @@ const BLOCKS_WITHOUT_H1 = [
   { type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: "body" } }] } },
 ];
 
+function parseToolResult(result: { content?: Array<{ type: string; text?: string }> }) {
+  const text = result.content?.find((item) => item.type === "text")?.text;
+  if (!text) {
+    throw new Error("Expected text content in tool result");
+  }
+  return JSON.parse(text) as Record<string, unknown>;
+}
+
 type TestServerConfig = CreateServerConfig & {
   transport?: "stdio" | "http";
   workspaceRoot?: string;
 };
 
 async function withClient<T>(
-  fn: (client: McpClient) => Promise<T>,
+  fn: (client: McpClient, notion: unknown) => Promise<T>,
   config: TestServerConfig = { transport: "stdio", workspaceRoot: "/tmp" },
 ) {
   const notion = {
@@ -72,7 +85,7 @@ async function withClient<T>(
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
   try {
-    return await fn(client);
+    return await fn(client, notion);
   } finally {
     await Promise.all([clientTransport.close(), serverTransport.close()]);
   }
@@ -104,17 +117,17 @@ describe("strip_leading_h1 parameter surface", () => {
     }
   });
 
-  it("documents the unconditional first-block semantics on the parameter schema", async () => {
+  it("ships the approved parameter copy byte for byte on both tools", async () => {
     const result = await withClient((client) => client.listTools());
 
     for (const name of EXPECTED_MCP_TOOLS) {
       const tool = result.tools.find((candidate) => candidate.name === name);
       const description = (tool?.inputSchema as any).properties.strip_leading_h1.description;
 
-      expect(description).toContain("first converted top-level block");
-      expect(description).toContain("non-toggleable");
-      expect(description).toContain("heading_1");
-      expect(description).toContain("Default false");
+      // Pinned as a whole string rather than by fragments. Fragment matching
+      // would still pass copy that added a condition the feature does not have,
+      // such as "only when it matches title".
+      expect(description).toBe(STRIP_LEADING_H1_DESCRIPTION);
       expect(description).not.toContain("—");
     }
   });
@@ -143,18 +156,27 @@ describe("create_page handler", () => {
     } as any);
   });
 
-  async function callCreatePage(args: Record<string, unknown>) {
-    await withClient((client) =>
-      client.callTool({
+  /** Calls the tool and pins the whole mocked operation call, argument zero included. */
+  async function expectCreatePageCall(args: Record<string, unknown>, blocks: unknown) {
+    const { notion, response } = await withClient(async (client, notionClient) => {
+      const result = await client.callTool({
         name: "create_page",
         arguments: { title: "Doc", markdown: MARKDOWN, parent_page_id: "parent-123", ...args },
-      }),
-    );
-  }
+      });
+      return { notion: notionClient, response: parseToolResult(result) };
+    });
 
-  function expectExactlyOneCallWith(blocks: unknown) {
+    // A handler that wrote correctly and then returned an error must not pass.
+    expect(response).toEqual({
+      id: "page-123",
+      title: "Doc",
+      url: "https://notion.so/page",
+      success: true,
+    });
+
     expect(createPage).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(createPage).mock.calls[0].slice(1)).toEqual([
+    expect(vi.mocked(createPage).mock.calls[0]).toEqual([
+      notion,
       { type: "page_id", page_id: "parent-123" },
       "Doc",
       blocks,
@@ -164,18 +186,15 @@ describe("create_page handler", () => {
   }
 
   it("sends the H1 through when strip_leading_h1 is absent", async () => {
-    await callCreatePage({});
-    expectExactlyOneCallWith(BLOCKS_WITH_H1);
+    await expectCreatePageCall({}, BLOCKS_WITH_H1);
   });
 
   it("sends the H1 through when strip_leading_h1 is explicitly false", async () => {
-    await callCreatePage({ strip_leading_h1: false });
-    expectExactlyOneCallWith(BLOCKS_WITH_H1);
+    await expectCreatePageCall({ strip_leading_h1: false }, BLOCKS_WITH_H1);
   });
 
   it("removes the H1 when strip_leading_h1 is true", async () => {
-    await callCreatePage({ strip_leading_h1: true });
-    expectExactlyOneCallWith(BLOCKS_WITHOUT_H1);
+    await expectCreatePageCall({ strip_leading_h1: true }, BLOCKS_WITHOUT_H1);
   });
 });
 
@@ -190,9 +209,9 @@ describe("create_page_from_file handler", () => {
     mockReadMarkdownFile.mockResolvedValue(MARKDOWN);
   });
 
-  async function callCreateFromFile(args: Record<string, unknown>) {
-    await withClient((client) =>
-      client.callTool({
+  async function expectCreateFromFileCall(args: Record<string, unknown>, blocks: unknown) {
+    const { notion, response } = await withClient(async (client, notionClient) => {
+      const result = await client.callTool({
         name: "create_page_from_file",
         arguments: {
           title: "Doc",
@@ -200,15 +219,22 @@ describe("create_page_from_file handler", () => {
           parent_page_id: "parent-123",
           ...args,
         },
-      }),
-    );
-  }
+      });
+      return { notion: notionClient, response: parseToolResult(result) };
+    });
 
-  function expectExactlyOneCallWith(blocks: unknown) {
+    expect(response).toEqual({
+      id: "page-123",
+      title: "Doc",
+      url: "https://notion.so/page",
+      success: true,
+    });
+
     expect(createPage).toHaveBeenCalledTimes(1);
     // This handler calls createPage with exactly four arguments: no icon, no
     // cover. Pinning the whole call keeps that shape from drifting.
-    expect(vi.mocked(createPage).mock.calls[0].slice(1)).toEqual([
+    expect(vi.mocked(createPage).mock.calls[0]).toEqual([
+      notion,
       { type: "page_id", page_id: "parent-123" },
       "Doc",
       blocks,
@@ -216,18 +242,15 @@ describe("create_page_from_file handler", () => {
   }
 
   it("sends the H1 through when strip_leading_h1 is absent", async () => {
-    await callCreateFromFile({});
-    expectExactlyOneCallWith(BLOCKS_WITH_H1);
+    await expectCreateFromFileCall({}, BLOCKS_WITH_H1);
   });
 
   it("sends the H1 through when strip_leading_h1 is explicitly false", async () => {
-    await callCreateFromFile({ strip_leading_h1: false });
-    expectExactlyOneCallWith(BLOCKS_WITH_H1);
+    await expectCreateFromFileCall({ strip_leading_h1: false }, BLOCKS_WITH_H1);
   });
 
   it("removes the H1 when strip_leading_h1 is true", async () => {
-    await callCreateFromFile({ strip_leading_h1: true });
-    expectExactlyOneCallWith(BLOCKS_WITHOUT_H1);
+    await expectCreateFromFileCall({ strip_leading_h1: true }, BLOCKS_WITHOUT_H1);
   });
 });
 
@@ -239,9 +262,10 @@ describe("--strip-leading-h1 CLI flag", () => {
       profiles: { rw: { token_env: "WORK_TOKEN", mode: "readwrite" } },
     });
 
+    const notionClient = { marker: "cli-notion-client" };
     const createPageOp = vi.fn(async () => ({ id: "page-1", url: "https://notion.so/page-1" }));
     const ops = {
-      createClient: vi.fn(() => ({}) as any),
+      createClient: vi.fn(() => notionClient as any),
       processFileUploads: vi.fn(async (_client: unknown, markdown: string) => markdown),
       createPage: createPageOp,
     };
@@ -256,15 +280,18 @@ describe("--strip-leading-h1 CLI flag", () => {
 
     const code = await runCli(argv, io as any, { configDir, ops: ops as any });
     expect(code).toBe(0);
-    return createPageOp;
+    return { createPageOp, notionClient };
   }
+
+  type CreateRun = Awaited<ReturnType<typeof runCreate>>;
 
   describe("page create", () => {
     const base = ["page", "create", "--title", "Doc", "--parent", "parent-123", "--markdown", MARKDOWN];
 
-    function expectExactlyOneCallWith(op: ReturnType<typeof vi.fn>, blocks: unknown) {
-      expect(op).toHaveBeenCalledTimes(1);
-      expect(op.mock.calls[0].slice(1)).toEqual([
+    function expectExactlyOneCallWith(run: CreateRun, blocks: unknown) {
+      expect(run.createPageOp).toHaveBeenCalledTimes(1);
+      expect(run.createPageOp.mock.calls[0]).toEqual([
+        run.notionClient,
         { type: "page_id", page_id: "parent-123" },
         "Doc",
         blocks,
@@ -292,9 +319,10 @@ describe("--strip-leading-h1 CLI flag", () => {
       await writeFile(markdownFile, MARKDOWN, "utf8");
     });
 
-    function expectExactlyOneCallWith(op: ReturnType<typeof vi.fn>, blocks: unknown) {
-      expect(op).toHaveBeenCalledTimes(1);
-      expect(op.mock.calls[0].slice(1)).toEqual([
+    function expectExactlyOneCallWith(run: CreateRun, blocks: unknown) {
+      expect(run.createPageOp).toHaveBeenCalledTimes(1);
+      expect(run.createPageOp.mock.calls[0]).toEqual([
+        run.notionClient,
         { type: "page_id", page_id: "parent-123" },
         "Doc",
         blocks,
@@ -302,18 +330,18 @@ describe("--strip-leading-h1 CLI flag", () => {
     }
 
     it("sends the H1 through when the flag is absent", async () => {
-      const op = await runCreate([
+      const run = await runCreate([
         "page", "create-from-file", "--title", "Doc", "--parent", "parent-123", "--file", markdownFile,
       ]);
-      expectExactlyOneCallWith(op, BLOCKS_WITH_H1);
+      expectExactlyOneCallWith(run, BLOCKS_WITH_H1);
     });
 
     it("removes the H1 when the flag is present", async () => {
-      const op = await runCreate([
+      const run = await runCreate([
         "page", "create-from-file", "--title", "Doc", "--parent", "parent-123", "--file", markdownFile,
         "--strip-leading-h1",
       ]);
-      expectExactlyOneCallWith(op, BLOCKS_WITHOUT_H1);
+      expectExactlyOneCallWith(run, BLOCKS_WITHOUT_H1);
     });
   });
 
