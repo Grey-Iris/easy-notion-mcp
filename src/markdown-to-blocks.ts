@@ -720,6 +720,42 @@ function tokenToBlocks(token: any, options: ConversionOptions): NotionBlock[] {
   }
 }
 
+/**
+ * Removes a document's leading H1 when a page-creation caller opts in, so a file
+ * whose first line repeats the page title does not put that title on the page
+ * twice.
+ *
+ * Deliberately NOT a `ConversionOptions` field. `markdownToBlocks` forwards its
+ * options object into the recursive conversions for toggle bodies and columns,
+ * so a converter option would strip H1s inside those containers too. Keeping the
+ * behavior outside the converter means no recursive path and no non-creation
+ * surface can reach it.
+ *
+ * Apply it exactly once, to the OUTER document's block array, and only at a
+ * page-creation call site. Never pass it a nested `children` array.
+ *
+ * Only index 0 is examined. It is removed only when it is a `heading_1` whose
+ * `is_toggleable` is not true; a toggleable heading is a container, not a
+ * duplicated title. When index 0 fails either test the array is returned
+ * unchanged and nothing further is inspected, so a later H1 is never promoted
+ * into the candidate slot.
+ */
+export function stripLeadingH1(blocks: NotionBlock[], enabled?: boolean): NotionBlock[] {
+  if (!enabled) {
+    return blocks;
+  }
+
+  const first = blocks[0];
+  if (!first || first.type !== "heading_1") {
+    return blocks;
+  }
+  if (first.heading_1.is_toggleable === true) {
+    return blocks;
+  }
+
+  return blocks.slice(1);
+}
+
 export function markdownToBlocks(
   markdown: string,
   options: ConversionOptions = {},
