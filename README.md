@@ -512,6 +512,14 @@ Explicit hard breaks (a trailing backslash or two trailing spaces) behave identi
 
 That difference is a property of the import path, not of `collapse_soft_wraps`.
 
+### Title and leading H1 duplication
+
+`create_page` and `create_page_from_file` accept an optional `strip_leading_h1: true`, which removes the document's leading H1 so a file that opens with the same heading you pass as `title` does not put that heading on the page twice. It applies only when the first converted top-level block is a plain (non-toggleable) `heading_1`, and defaults to false.
+
+```bash
+easy-notion page create-from-file --title "Design notes" --file ./NOTES.md --strip-leading-h1
+```
+
 ## Can I read and rewrite pages with formatting preserved?
 
 Yes, for the markdown conventions this server represents. Round-trip support covers 24 block types. Known omissions and degradations are documented, and many are reported with explicit warnings.

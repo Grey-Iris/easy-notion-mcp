@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { Client } from "@notionhq/client";
 import { blocksToMarkdown } from "../blocks-to-markdown.js";
 import { detectFileUploadReferences, DRY_RUN_FILE_UPLOAD_ERROR, processFileUploads } from "../file-upload.js";
-import { blockTextToRichText, markdownToBlocks } from "../markdown-to-blocks.js";
+import { blockTextToRichText, markdownToBlocks, stripLeadingH1 } from "../markdown-to-blocks.js";
 import { translateGfmToEnhancedMarkdown } from "../markdown-to-enhanced.js";
 import {
   addComment,
@@ -253,8 +253,8 @@ function helpText(): string {
     "  user list",
     "  search <query> [--filter pages|databases]",
     "  page read <page> [--include-metadata] [--include-transcript] [--max-blocks <n>] [--max-property-items <n>]",
-    "  page create --title <title> [--parent <page_id>] [--icon <emoji>] [--cover <url>] [--collapse-soft-wraps] (--markdown <text>|--markdown-file <path>|--stdin)",
-    "  page create-from-file --title <title> --file <path> [--parent <page_id>] [--collapse-soft-wraps]",
+    "  page create --title <title> [--parent <page_id>] [--icon <emoji>] [--cover <url>] [--collapse-soft-wraps] [--strip-leading-h1] (--markdown <text>|--markdown-file <path>|--stdin)",
+    "  page create-from-file --title <title> --file <path> [--parent <page_id>] [--collapse-soft-wraps] [--strip-leading-h1]",
     "  page duplicate <page_id> [--title <title>] [--parent <page_id>]",
     "  page share <page_id>",
     "  page list-children <parent_page_id>",
@@ -989,7 +989,10 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
       client,
       parent,
       title,
-      markdownToBlocks(processedMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") }),
+      stripLeadingH1(
+        markdownToBlocks(processedMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") }),
+        hasFlag(args, "--strip-leading-h1"),
+      ),
       icon,
       cover,
     ) as any;
@@ -1016,7 +1019,10 @@ async function handlePage(args: string[], options: GlobalOptions, io: CliIO, con
       client,
       parent,
       title,
-      markdownToBlocks(processedMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") }),
+      stripLeadingH1(
+        markdownToBlocks(processedMarkdown, { collapseSoftWraps: hasFlag(args, "--collapse-soft-wraps") }),
+        hasFlag(args, "--strip-leading-h1"),
+      ),
     ) as any;
     return success(mapMutationResultPage(page, title));
   }

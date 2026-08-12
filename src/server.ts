@@ -19,6 +19,7 @@ import {
   downgradeMentionsToLinks,
   isMentionTargetError,
   markdownToBlocks,
+  stripLeadingH1,
 } from "./markdown-to-blocks.js";
 import { translateGfmToEnhancedMarkdown } from "./markdown-to-enhanced.js";
 import { readMarkdownFile } from "./read-markdown-file.js";
@@ -1573,6 +1574,16 @@ function collapseSoftWrapsSchema(description = COLLAPSE_SOFT_WRAPS_DESCRIPTION) 
   return { type: "boolean" as const, description };
 }
 
+// Offered only by the two tools that set a page title and import a body in the
+// same call, since those are the only places a title can be duplicated by a
+// leading heading.
+const STRIP_LEADING_H1_DESCRIPTION =
+  "Remove the document's leading H1 heading. Applies only when the first converted top-level block is a plain (non-toggleable) heading_1. Useful when title is also passed and the file begins with the same heading. Default false.";
+
+function stripLeadingH1Schema() {
+  return { type: "boolean" as const, description: STRIP_LEADING_H1_DESCRIPTION };
+}
+
 const tools = [
   {
     name: "create_page",
@@ -1589,6 +1600,7 @@ const tools = [
         icon: { type: "string", description: "Optional emoji icon" },
         cover: { type: "string", description: "Optional cover image URL" },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
+        strip_leading_h1: stripLeadingH1Schema(),
       },
       required: ["title", "markdown"],
     },
@@ -1621,6 +1633,7 @@ For supported markdown syntax, read resource easy-notion://docs/markdown. Page m
           description: "Parent page ID. Same resolution rules as create_page.",
         },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
+        strip_leading_h1: stripLeadingH1Schema(),
       },
       required: ["title", "file_path"],
     },
@@ -2434,19 +2447,23 @@ export function createServer(
       switch (name) {
         case "create_page": {
           const notion = notionClientFactory();
-          const { title, markdown, parent_page_id, icon, cover, collapse_soft_wraps } = args as {
+          const { title, markdown, parent_page_id, icon, cover, collapse_soft_wraps, strip_leading_h1 } = args as {
             title: string;
             markdown: string;
             parent_page_id?: string;
             icon?: string;
             cover?: string;
             collapse_soft_wraps?: boolean;
+            strip_leading_h1?: boolean;
           };
 
           const parent = await resolveParent(notion, parent_page_id);
-          const parsedBlocks = markdownToBlocks(
-            await processFileUploads(notion, markdown, transport),
-            { collapseSoftWraps: collapse_soft_wraps },
+          const parsedBlocks = stripLeadingH1(
+            markdownToBlocks(
+              await processFileUploads(notion, markdown, transport),
+              { collapseSoftWraps: collapse_soft_wraps },
+            ),
+            strip_leading_h1,
           );
           const page = await createPage(
             notion,
@@ -2481,18 +2498,20 @@ export function createServer(
             });
           }
           const notion = notionClientFactory();
-          const { title, file_path, parent_page_id, collapse_soft_wraps } = args as {
+          const { title, file_path, parent_page_id, collapse_soft_wraps, strip_leading_h1 } = args as {
             title: string;
             file_path: string;
             parent_page_id?: string;
             collapse_soft_wraps?: boolean;
+            strip_leading_h1?: boolean;
           };
 
           const parent = await resolveParent(notion, parent_page_id);
           const markdown = await readMarkdownFile(file_path, workspaceRoot);
-          const parsedBlocks = markdownToBlocks(markdown, {
-            collapseSoftWraps: collapse_soft_wraps,
-          });
+          const parsedBlocks = stripLeadingH1(
+            markdownToBlocks(markdown, { collapseSoftWraps: collapse_soft_wraps }),
+            strip_leading_h1,
+          );
           const page = await createPage(
             notion,
             parent,

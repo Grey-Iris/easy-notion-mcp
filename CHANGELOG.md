@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`strip_leading_h1` option on `create_page` and `create_page_from_file`.**
+  Optional boolean, default false. When true, the document's leading H1 heading
+  is removed, so a file that opens with the same heading you pass as `title` no
+  longer produces that heading twice on the created page. The removal is
+  unconditional: it never compares the heading text to `title`. Only the first
+  converted top-level block is examined, and only a plain `heading_1` is removed.
+  A collapsible toggle heading (`+++ # Title`) is a container rather than a
+  duplicated title, so it is kept, and a later H1 is never removed in its place.
+  When the first block is anything else the option does nothing. The two CLI
+  creation commands take the same option as `--strip-leading-h1`. Pages created
+  without the option are byte for byte unchanged.
 - **`get_config` tool.** A read-only introspection tool, available on both
   transports, that reports the server's own settings: `version`, `transport`,
   `workspace_root_configured`, `workspace_root_resolved`,
