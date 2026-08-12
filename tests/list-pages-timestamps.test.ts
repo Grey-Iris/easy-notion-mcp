@@ -133,8 +133,8 @@ function makeNotion(listPages: Array<Record<string, unknown>>) {
       delete: vi.fn(),
     },
     pages: { retrieve: vi.fn(), create: vi.fn(), update: vi.fn() },
-    databases: { retrieve: vi.fn(), query: vi.fn(), create: vi.fn() },
-    dataSources: { retrieve: vi.fn(), query: vi.fn() },
+    databases: { retrieve: vi.fn(), query: vi.fn(), create: vi.fn(), update: vi.fn() },
+    dataSources: { retrieve: vi.fn(), query: vi.fn(), create: vi.fn(), update: vi.fn() },
     users: { list: vi.fn(), me: vi.fn() },
     comments: { list: vi.fn(), create: vi.fn() },
     fileUploads: { create: vi.fn(), send: vi.fn() },
@@ -169,26 +169,31 @@ async function callListPages(notion: unknown, parentId = "parent-1") {
   }
 }
 
-/** Every Notion call surface except the child-block listing. */
-function otherCallSurfaces(notion: ReturnType<typeof makeNotion>) {
-  return [
-    ["blocks.children.append", notion.blocks.children.append],
-    ["blocks.retrieve", notion.blocks.retrieve],
-    ["blocks.update", notion.blocks.update],
-    ["blocks.delete", notion.blocks.delete],
-    ["pages.retrieve", notion.pages.retrieve],
-    ["pages.create", notion.pages.create],
-    ["pages.update", notion.pages.update],
-    ["databases.retrieve", notion.databases.retrieve],
-    ["databases.query", notion.databases.query],
-    ["dataSources.retrieve", notion.dataSources.retrieve],
-    ["dataSources.query", notion.dataSources.query],
-    ["users.list", notion.users.list],
-    ["users.me", notion.users.me],
-    ["comments.list", notion.comments.list],
-    ["comments.create", notion.comments.create],
-    ["search", notion.search],
-  ] as const;
+/**
+ * Every Notion call surface on the mock except the child-block listing.
+ *
+ * Derived by walking the mock rather than hand-listing, so a surface added to
+ * makeNotion cannot be silently left out of the zero-extra-calls assertion.
+ */
+function otherCallSurfaces(notion: ReturnType<typeof makeNotion>): Array<[string, ReturnType<typeof vi.fn>]> {
+  const found: Array<[string, ReturnType<typeof vi.fn>]> = [];
+
+  const walk = (value: any, path: string) => {
+    if (!value || typeof value !== "object") return;
+    for (const [key, child] of Object.entries(value)) {
+      const next = path ? `${path}.${key}` : key;
+      if (typeof child === "function") {
+        if (next !== "blocks.children.list") {
+          found.push([next, child as ReturnType<typeof vi.fn>]);
+        }
+      } else {
+        walk(child, next);
+      }
+    }
+  };
+
+  walk(notion, "");
+  return found;
 }
 
 describe("list_pages timestamps", () => {
@@ -232,7 +237,11 @@ describe("list_pages timestamps", () => {
 
     await callListPages(notion);
 
-    for (const [name, spy] of otherCallSurfaces(notion)) {
+    const surfaces = otherCallSurfaces(notion);
+    // Guard against a walk that silently found nothing.
+    expect(surfaces.length).toBeGreaterThan(10);
+
+    for (const [name, spy] of surfaces) {
       expect(spy, `${name} should not be called`).not.toHaveBeenCalled();
     }
   });
@@ -319,7 +328,7 @@ describe("search is deliberately different and is not changed by this brief", ()
           id: "page-1",
           url: "https://notion.so/page-1",
           parent: { type: "page_id", page_id: "parent-1" },
-          properties: {},
+          properties: { Name: { type: "title", title: [{ plain_text: "Some Page" }] } },
           last_edited_time: "2026-05-06T07:08:00.000Z",
         },
       ],
@@ -333,8 +342,26 @@ describe("search is deliberately different and is not changed by this brief", ()
         await client.callTool({ name: "search", arguments: { query: "anything" } }),
       );
 
-      expect(rows[0].last_edited).toBe("2026-05-06");
+      // Whole-row equality, not just the timestamp field, so a change to any
+      // other part of the search row shape fails here too.
+      expect(rows).toEqual([
+        {
+          id: "page-1",
+          type: "page",
+          title: "Some Page",
+          url: "https://notion.so/page-1",
+          parent: "parent-1",
+          last_edited: "2026-05-06",
+        },
+      ]);
+      expect(Object.keys(rows[0])).toEqual(["id", "type", "title", "url", "parent", "last_edited"]);
       expect(rows[0]).not.toHaveProperty("last_edited_time");
+      expect(rows[0]).not.toHaveProperty("created_time");
+
+      expect(notion.search).toHaveBeenCalledTimes(1);
+      expect(notion.search.mock.calls[0]).toEqual([
+        { query: "anything", start_cursor: undefined, page_size: 100 },
+      ]);
     } finally {
       await close();
     }
