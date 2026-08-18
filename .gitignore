@@ -50,3 +50,4 @@ openclaw-notion-research.md
 
 # additional local HTTP-server env files (Iris etc.) - never commit
 .env.http*
+.meta/probes/
