@@ -28,17 +28,41 @@ const LIST_PAGES_DESCRIPTION =
  * passed.
  *
  * These four fixtures are chosen so that no single-key sort can reproduce the
- * order the mock serves them in. With the source order below, every one of
- * these sorts yields something different, in BOTH directions:
+ * order the mock serves them in, in either direction. Source order is
  *
- *   source order       Alpha, Gamma Roadmap, Beta Notes, Delta Briefing Doc
- *   by title      asc  Alpha, Beta Notes, Delta Briefing Doc, Gamma Roadmap
- *   by title len  asc  Alpha, Beta Notes, Gamma Roadmap, Delta Briefing Doc
- *   by id         asc  Alpha, Beta Notes, Gamma Roadmap, Delta Briefing Doc
- *   by created    asc  Alpha, Delta Briefing Doc, Beta Notes, Gamma Roadmap
- *   by edited     asc  Gamma Roadmap, Alpha, Beta Notes, Delta Briefing Doc
- *   by in_trash   asc  Gamma Roadmap, Beta Notes, Delta Briefing Doc, Alpha
- *   by has_child  asc  Gamma Roadmap, Beta Notes, Delta Briefing Doc, Alpha
+ *   Alpha, Gamma Roadmap, Beta Notes, Delta Briefing Doc
+ *
+ * and no cell below matches it:
+ *
+ *   key           ascending                    descending
+ *   title         A, Be, D, G                  G, D, Be, A
+ *   title length  A, Be, G, D                  D, G, Be, A
+ *   id            A, Be, G, D                  D, G, Be, A
+ *   created       A, D, Be, G                  G, Be, D, A
+ *   edited        G, A, Be, D                  D, Be, A, G
+ *   in_trash      G, D, A, Be                  A, Be, G, D
+ *   has_children  A, Be, G, D                  G, D, A, Be
+ *
+ * (A = Alpha, Be = Beta Notes, G = Gamma Roadmap, D = Delta Briefing Doc.)
+ *
+ * Descending here means a real descending comparator, which is STABLE: tied
+ * rows keep their source order rather than being flipped. That distinction is
+ * the whole ballgame for the two boolean keys. An earlier version of this file
+ * had one trashed row at the head of the source order and modelled descending
+ * as reverse(ascending). Reversing flips the tied group, so the guard "proved"
+ * something the mutation would never do, while a genuine stable in_trash
+ * descending sort in production reproduced the source order exactly and
+ * survived the whole suite at zero failures.
+ *
+ * So both boolean sequences are deliberately non-monotonic:
+ *
+ *   in_trash      true, false, true, false
+ *   has_children  false, true, false, true
+ *
+ * A boolean sequence reproduces source order under a stable ascending sort
+ * whenever every false precedes every true, and under a stable descending sort
+ * whenever every true precedes every false. Alternating defeats both. The same
+ * has to hold for page one on its own, so the first three values alternate too.
  *
  * The four contract fields (title, id, created_time, last_edited_time) each
  * produce a DIFFERENT order, so no two of them are interchangeable either.
@@ -66,10 +90,11 @@ const CHILD_PAGES = {
     child_page: { title: "Alpha" },
     created_time: "2026-01-02T03:04:00.000Z",
     last_edited_time: "2026-06-07T08:09:00.000Z",
-    has_children: true,
+    has_children: false,
     // Trashed rows were included before this change and must stay included; a
     // new in_trash filter would be a behavior change this brief does not
-    // authorize.
+    // authorize. Two rows are trashed, alternating with the untrashed ones, so
+    // that neither direction of an in_trash sort reproduces the source order.
     in_trash: true,
   },
   gamma: {
@@ -79,7 +104,7 @@ const CHILD_PAGES = {
     child_page: { title: "Gamma Roadmap" },
     created_time: "2026-04-05T06:07:00.000Z",
     last_edited_time: "2026-05-06T07:08:00.000Z",
-    has_children: false,
+    has_children: true,
     in_trash: false,
   },
   beta: {
@@ -90,7 +115,7 @@ const CHILD_PAGES = {
     created_time: "2026-03-04T05:06:00.000Z",
     last_edited_time: "2026-07-08T09:10:00.000Z",
     has_children: false,
-    in_trash: false,
+    in_trash: true,
   },
   delta: {
     object: "block",
@@ -99,7 +124,7 @@ const CHILD_PAGES = {
     child_page: { title: "Delta Briefing Doc" },
     created_time: "2026-02-03T04:05:00.000Z",
     last_edited_time: "2026-08-09T10:11:00.000Z",
-    has_children: false,
+    has_children: true,
     in_trash: false,
   },
 };
@@ -419,9 +444,9 @@ describe("list_pages timestamps", () => {
   });
 
   it("returns a single row without needing a second page", async () => {
-    const notion = onePage(CHILD_PAGES.beta);
+    const notion = onePage(CHILD_PAGES.gamma);
 
-    expect(await callListPages(notion)).toEqual([EXPECTED.beta]);
+    expect(await callListPages(notion)).toEqual([EXPECTED.gamma]);
     expect(notion.blocks.children.list).toHaveBeenCalledTimes(1);
   });
 
@@ -429,6 +454,12 @@ describe("list_pages timestamps", () => {
     const notion = onePage(CHILD_PAGES.alpha);
 
     expect(await callListPages(notion)).toEqual([EXPECTED.alpha]);
+
+    // Both trashed fixtures survive a full drain too, so the guarantee is not
+    // resting on a single-row listing.
+    const drained = await callListPages(makeNotion([PAGE_ONE, PAGE_TWO]));
+    expect(drained).toEqual(EXPECTED_ROWS);
+    expect(SOURCE_FIXTURES.filter((block) => block.in_trash)).toHaveLength(2);
   });
 });
 
@@ -514,15 +545,35 @@ describe("list_pages builds every row property unconditionally", () => {
 describe("list_pages preserves Notion's row order", () => {
   const titlesOf = (blocks: any[]) => blocks.map((block) => block.child_page.title);
 
-  // Always clone before sorting: Array.prototype.sort mutates in place, and
-  // sorting the shared fixture array would corrupt the source-order reference
-  // this whole guard is measured against.
-  const sortedBy = (blocks: any[], key: (block: any) => string | number) =>
+  /*
+   * Sort the way a mutation would actually sort.
+   *
+   * Descending must be a real descending comparator, NOT reverse(ascending).
+   * Array.prototype.sort is stable, so a descending comparator leaves tied rows
+   * in their source order while reversing an ascending sort flips them. For any
+   * key with tied values the two differ, and modelling descending as a reversal
+   * makes this guard test a sort no mutation would ever write.
+   *
+   * That is not hypothetical: it is the exact hole that let a stable in_trash
+   * descending sort survive the whole suite at zero failures. Both boolean keys
+   * are all ties apart from the grouping, so they are the worst case, but the
+   * rule is applied to every probe key rather than special-cased for booleans.
+   *
+   * Always clone before sorting too: sort mutates in place, and sorting the
+   * shared fixture array would corrupt the source-order reference this whole
+   * guard is measured against.
+   */
+  type Direction = "ascending" | "descending";
+
+  const sortedBy = (blocks: any[], key: (block: any) => string | number, direction: Direction) =>
     [...blocks].sort((a, b) => {
       const x = key(a);
       const y = key(b);
-      return x < y ? -1 : x > y ? 1 : 0;
+      const ordered = x < y ? -1 : x > y ? 1 : 0;
+      return direction === "ascending" ? ordered : -ordered;
     });
+
+  const DIRECTIONS: Direction[] = ["ascending", "descending"];
 
   const ORDER_PROBES: Array<[string, (block: any) => string | number]> = [
     ["title", (block) => block.child_page.title],
@@ -564,7 +615,7 @@ describe("list_pages preserves Notion's row order", () => {
    * applied to each API page separately is caught as well as one applied to the
    * flattened result.
    */
-  it("uses fixtures no single-key sort can reproduce, in either direction", () => {
+  it("uses fixtures no single-key sort can reproduce, in any direction", () => {
     const pageOne = PAGE_ONE.results.filter((block: any) => block.type === "child_page");
 
     for (const [label, slice] of [
@@ -574,11 +625,53 @@ describe("list_pages preserves Notion's row order", () => {
       const source = titlesOf(slice).join(" | ");
 
       for (const [name, key] of ORDER_PROBES) {
-        const ascending = titlesOf(sortedBy(slice, key)).join(" | ");
-        const descending = titlesOf(sortedBy(slice, key).reverse()).join(" | ");
+        for (const direction of DIRECTIONS) {
+          const sorted = titlesOf(sortedBy(slice, key, direction)).join(" | ");
 
-        expect(ascending, `ascending ${name} sort reproduces ${label}`).not.toBe(source);
-        expect(descending, `descending ${name} sort reproduces ${label}`).not.toBe(source);
+          expect(sorted, `a stable ${direction} ${name} sort reproduces ${label}`)
+            .not.toBe(source);
+        }
+
+        // A sort-then-reverse mutation is a third shape, distinct from both
+        // stable directions whenever the key has ties. Cover it explicitly
+        // rather than conflating it with descending, which was the original
+        // mistake.
+        const reversedAscending = titlesOf(sortedBy(slice, key, "ascending").reverse()).join(" | ");
+
+        expect(reversedAscending, `reversing an ascending ${name} sort reproduces ${label}`)
+          .not.toBe(source);
+      }
+    }
+  });
+
+  /*
+   * Stated directly rather than left implicit in the probe loop above, because
+   * this is the structural property that makes the boolean probes meaningful.
+   *
+   * A boolean sequence is reproduced by a stable ascending sort exactly when
+   * every false precedes every true, and by a stable descending sort exactly
+   * when every true precedes every false. Either shape hands a sorting mutation
+   * a free pass. Alternating values defeat both, and the check runs on page one
+   * as well because a per-page sort only ever sees one page's values.
+   */
+  it("keeps both boolean fixture sequences non-monotonic, on every page", () => {
+    const pageOne = PAGE_ONE.results.filter((block: any) => block.type === "child_page");
+
+    for (const [label, slice] of [
+      ["the drained listing", SOURCE_FIXTURES],
+      ["page one alone", pageOne],
+    ] as Array<[string, any[]]>) {
+      for (const field of ["in_trash", "has_children"]) {
+        const values: boolean[] = slice.map((block) => Boolean(block[field]));
+
+        expect(values.includes(true), `${field} has no true value in ${label}`).toBe(true);
+        expect(values.includes(false), `${field} has no false value in ${label}`).toBe(true);
+
+        const allFalsesFirst = values.indexOf(true) > values.lastIndexOf(false);
+        const allTruesFirst = values.indexOf(false) > values.lastIndexOf(true);
+
+        expect(allFalsesFirst, `${field} is already ascending in ${label}`).toBe(false);
+        expect(allTruesFirst, `${field} is already descending in ${label}`).toBe(false);
       }
     }
   });
@@ -586,8 +679,10 @@ describe("list_pages preserves Notion's row order", () => {
   it("gives each of the four row fields a distinct ordering", () => {
     const orders = ROW_KEYS.map((key) =>
       titlesOf(
-        sortedBy(SOURCE_FIXTURES, (block) =>
-          key === "title" ? block.child_page.title : block[key],
+        sortedBy(
+          SOURCE_FIXTURES,
+          (block) => (key === "title" ? block.child_page.title : block[key]),
+          "ascending",
         ),
       ).join(" | "),
     );
