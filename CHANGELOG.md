@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`created_time` and `last_edited_time` on every `list_pages` row.** Each row
+  now returns `id`, `title`, `created_time`, and `last_edited_time` instead of
+  `id` and `title` alone, so a caller listing child pages can tell active pages
+  from stale ones without a round trip per page. Both values are the full
+  ISO-8601 strings Notion returns, rounded to the minute, and are read from the
+  child-page blocks the tool already lists, so the change costs no extra API
+  calls. `last_edited_time` advances on page content and property edits. The
+  existing `id` and `title` fields are unchanged, and row order is still the
+  order Notion returns. Note the deliberate difference from `search`, which
+  reports `last_edited` as a date only; that field is unchanged.
 - **`strip_leading_h1` option on `create_page` and `create_page_from_file`.**
   Optional boolean, default false. When true, the document's leading H1 heading
   is removed, so a file that opens with the same heading you pass as `title` no

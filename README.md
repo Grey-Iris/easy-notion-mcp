@@ -384,9 +384,11 @@ available.
 
 | Tool | Description |
 |---|---|
-| `list_pages` | List child pages under a parent |
+| `list_pages` | List child pages under a parent, with `created_time` and `last_edited_time` per row |
 | `search` | Search pages and databases |
 | `share_page` | Get the shareable URL |
+
+Each `list_pages` row returns `id`, `title`, `created_time`, and `last_edited_time`, so an agent can tell active pages from stale ones without a per-page round trip. The timestamps come straight from Notion, rounded to the minute, and `last_edited_time` advances on page content and property edits. Note the deliberate difference from `search`, which returns `last_edited` as a date only, while `list_pages` returns `last_edited_time` as a full ISO-8601 timestamp.
 
 ### Databases (9 tools)
 

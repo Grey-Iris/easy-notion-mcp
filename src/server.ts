@@ -1919,7 +1919,7 @@ Long titles are paginated with max_property_items. For markdown conventions, war
   },
   {
     name: "list_pages",
-    description: "List child pages under a parent page.",
+    description: "List child pages under a parent page. Each row returns id, title, created_time, and last_edited_time. Timestamps are full ISO-8601 values from Notion, rounded to the minute, and last_edited_time advances on page content and property edits.",
     inputSchema: {
       type: "object",
       properties: {
@@ -3321,6 +3321,8 @@ export function createServer(
             .map((block: any) => ({
               id: block.id,
               title: block.child_page?.title,
+              created_time: block.created_time,
+              last_edited_time: block.last_edited_time,
             }));
           return textResponse(pages);
         }
