@@ -1584,6 +1584,13 @@ function stripLeadingH1Schema() {
   return { type: "boolean" as const, description: STRIP_LEADING_H1_DESCRIPTION };
 }
 
+const RETURN_BLOCK_MAP_DESCRIPTION =
+  "Include block_map in the response. Default true. Set false to skip the per-block id list when you do not plan to edit individual blocks.";
+
+function returnBlockMapSchema() {
+  return { type: "boolean" as const, description: RETURN_BLOCK_MAP_DESCRIPTION };
+}
+
 const tools = [
   {
     name: "create_page",
@@ -1601,6 +1608,7 @@ const tools = [
         cover: { type: "string", description: "Optional cover image URL" },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
         strip_leading_h1: stripLeadingH1Schema(),
+        return_block_map: returnBlockMapSchema(),
       },
       required: ["title", "markdown"],
     },
@@ -1634,6 +1642,7 @@ For supported markdown syntax, read resource easy-notion://docs/markdown. Page m
         },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
         strip_leading_h1: stripLeadingH1Schema(),
+        return_block_map: returnBlockMapSchema(),
       },
       required: ["title", "file_path"],
     },
@@ -1648,6 +1657,7 @@ For supported markdown syntax, read resource easy-notion://docs/markdown. Page m
         page_id: { type: "string", description: "Page ID" },
         markdown: { type: "string", description: "Markdown to append" },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
+        return_block_map: returnBlockMapSchema(),
       },
       required: ["page_id", "markdown"],
     },
@@ -1666,6 +1676,7 @@ Bookmarks and embeds are written as bare URLs (Notion auto-links) and surface a 
         markdown: { type: "string", description: "Replacement markdown content" },
         dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
+        return_block_map: returnBlockMapSchema(),
       },
       required: ["page_id", "markdown"],
     },
@@ -1684,6 +1695,7 @@ Update a section of a page by heading name. Finds the heading, replaces everythi
         preserve_heading: { type: "boolean", description: "Preserve the existing heading block and replace only the section body. Default false." },
         dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
+        return_block_map: returnBlockMapSchema(),
       },
       required: ["page_id", "heading", "markdown"],
     },
@@ -1764,6 +1776,7 @@ Update the body of one toggle by title from a page. Searches recursively and mat
         markdown: { type: "string", description: "Replacement markdown for the toggle body" },
         dry_run: { type: "boolean", description: "Preview validation and planned effect without mutating Notion. Default false." },
         collapse_soft_wraps: collapseSoftWrapsSchema(),
+        return_block_map: returnBlockMapSchema(),
       },
       required: ["page_id", "title", "markdown"],
     },
@@ -2447,7 +2460,16 @@ export function createServer(
       switch (name) {
         case "create_page": {
           const notion = notionClientFactory();
-          const { title, markdown, parent_page_id, icon, cover, collapse_soft_wraps, strip_leading_h1 } = args as {
+          const {
+            title,
+            markdown,
+            parent_page_id,
+            icon,
+            cover,
+            collapse_soft_wraps,
+            strip_leading_h1,
+            return_block_map,
+          } = args as {
             title: string;
             markdown: string;
             parent_page_id?: string;
@@ -2455,7 +2477,9 @@ export function createServer(
             cover?: string;
             collapse_soft_wraps?: boolean;
             strip_leading_h1?: boolean;
+            return_block_map?: boolean;
           };
+          const includeBlockMap = return_block_map !== false;
 
           const parent = await resolveParent(notion, parent_page_id);
           const parsedBlocks = stripLeadingH1(
@@ -2482,7 +2506,7 @@ export function createServer(
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
           }
-          if (parsedBlocks.length > 0) {
+          if (includeBlockMap && parsedBlocks.length > 0) {
             const created = await listChildren(notion, page.id);
             const block_map = blockMapFromBlocks(created);
             if (block_map.length > 0) {
@@ -2498,13 +2522,22 @@ export function createServer(
             });
           }
           const notion = notionClientFactory();
-          const { title, file_path, parent_page_id, collapse_soft_wraps, strip_leading_h1 } = args as {
+          const {
+            title,
+            file_path,
+            parent_page_id,
+            collapse_soft_wraps,
+            strip_leading_h1,
+            return_block_map,
+          } = args as {
             title: string;
             file_path: string;
             parent_page_id?: string;
             collapse_soft_wraps?: boolean;
             strip_leading_h1?: boolean;
+            return_block_map?: boolean;
           };
+          const includeBlockMap = return_block_map !== false;
 
           const parent = await resolveParent(notion, parent_page_id);
           const markdown = await readMarkdownFile(file_path, workspaceRoot);
@@ -2528,7 +2561,7 @@ export function createServer(
           if (parent.type === "workspace") {
             response.note = "Created as a private workspace page. Use move_page to relocate.";
           }
-          if (parsedBlocks.length > 0) {
+          if (includeBlockMap && parsedBlocks.length > 0) {
             const created = await listChildren(notion, page.id);
             const block_map = blockMapFromBlocks(created);
             if (block_map.length > 0) {
@@ -2539,11 +2572,13 @@ export function createServer(
         }
         case "append_content": {
           const notion = notionClientFactory();
-          const { page_id, markdown, collapse_soft_wraps } = args as {
+          const { page_id, markdown, collapse_soft_wraps, return_block_map } = args as {
             page_id: string;
             markdown: string;
             collapse_soft_wraps?: boolean;
+            return_block_map?: boolean;
           };
+          const includeBlockMap = return_block_map !== false;
           const blocks = markdownToBlocks(
             await processFileUploads(notion, markdown, transport),
             { collapseSoftWraps: collapse_soft_wraps },
@@ -2575,18 +2610,22 @@ export function createServer(
           return textResponse({
             success: true,
             blocks_added: result.length,
-            ...(result.length > 0 ? { block_map: blockMapFromBlocks(result) } : {}),
+            ...(includeBlockMap && result.length > 0
+              ? { block_map: blockMapFromBlocks(result) }
+              : {}),
             ...(warnings.length > 0 ? { warnings } : {}),
           });
         }
         case "replace_content": {
           const notion = notionClientFactory();
-          const { page_id, markdown, dry_run, collapse_soft_wraps } = args as {
+          const { page_id, markdown, dry_run, collapse_soft_wraps, return_block_map } = args as {
             page_id: string;
             markdown: string;
             dry_run?: boolean;
             collapse_soft_wraps?: boolean;
+            return_block_map?: boolean;
           };
+          const includeBlockMap = return_block_map !== false;
           if (dry_run === true) {
             assertDryRunMarkdownSafe(markdown);
           }
@@ -2615,8 +2654,9 @@ export function createServer(
           if (unmatched.length > 0) {
             warnings.push({ code: "unmatched_blocks", block_ids: unmatched });
           }
-          const current = await listChildren(notion, page_id);
-          const block_map = blockMapFromBlocks(current);
+          const block_map = includeBlockMap
+            ? blockMapFromBlocks(await listChildren(notion, page_id))
+            : [];
           return textResponse({
             success: true,
             ...(result.truncated ? { truncated: true } : {}),
@@ -2626,14 +2666,24 @@ export function createServer(
         }
         case "update_section": {
           const notion = notionClientFactory();
-          const { page_id, heading, markdown, preserve_heading, dry_run, collapse_soft_wraps } = args as {
+          const {
+            page_id,
+            heading,
+            markdown,
+            preserve_heading,
+            dry_run,
+            collapse_soft_wraps,
+            return_block_map,
+          } = args as {
             page_id: string;
             heading: string;
             markdown: string;
             preserve_heading?: boolean;
             dry_run?: boolean;
             collapse_soft_wraps?: boolean;
+            return_block_map?: boolean;
           };
+          const includeBlockMap = return_block_map !== false;
           const allBlocks = await listChildren(notion, page_id);
           const range = findSectionRange(allBlocks, heading);
 
@@ -2704,7 +2754,7 @@ export function createServer(
               deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
               appended: appended.length,
               ...(deleted_blocks.length > 0 ? { deleted_blocks } : {}),
-              ...(block_map.length > 0 ? { block_map } : {}),
+              ...(includeBlockMap && block_map.length > 0 ? { block_map } : {}),
             });
           }
 
@@ -2773,7 +2823,7 @@ export function createServer(
               deleted: sectionBlocks.length - 1 + existingHeadingChildren.length,
               appended: appendedHeadingChildren.length + appended.length,
               ...(deleted_blocks.length > 0 ? { deleted_blocks } : {}),
-              ...(block_map.length > 0 ? { block_map } : {}),
+              ...(includeBlockMap && block_map.length > 0 ? { block_map } : {}),
             });
           }
 
@@ -2812,7 +2862,7 @@ export function createServer(
             deleted: sectionBlocks.length,
             appended: appended.length,
             ...(deleted_blocks.length > 0 ? { deleted_blocks } : {}),
-            ...(block_map.length > 0 ? { block_map } : {}),
+            ...(includeBlockMap && block_map.length > 0 ? { block_map } : {}),
           });
         }
         case "read_section": {
@@ -2948,13 +2998,15 @@ export function createServer(
         }
         case "update_toggle": {
           const notion = notionClientFactory();
-          const { page_id, title, markdown, dry_run, collapse_soft_wraps } = args as {
+          const { page_id, title, markdown, dry_run, collapse_soft_wraps, return_block_map } = args as {
             page_id: string;
             title: string;
             markdown: string;
             dry_run?: boolean;
             collapse_soft_wraps?: boolean;
+            return_block_map?: boolean;
           };
+          const includeBlockMap = return_block_map !== false;
           const result = await findToggleRecursive(notion, page_id, title);
           if (!result.block) {
             return textResponse({
@@ -3006,7 +3058,9 @@ export function createServer(
             deleted: existingChildren.length,
             appended: appended.length,
             ...(existingChildren.length > 0 ? { deleted_blocks: blockMapFromBlocks(existingChildren) } : {}),
-            ...(appended.length > 0 ? { block_map: blockMapFromBlocks(appended) } : {}),
+            ...(includeBlockMap && appended.length > 0
+              ? { block_map: blockMapFromBlocks(appended) }
+              : {}),
           });
         }
         case "archive_toggle": {

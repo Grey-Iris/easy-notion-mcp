@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   When the first block is anything else the option does nothing. The two CLI
   creation commands take the same option as `--strip-leading-h1`. Pages created
   without the option are byte for byte unchanged.
+- **Declinable `block_map` receipts on six write tools.** `create_page`,
+  `create_page_from_file`, `append_content`, `replace_content`,
+  `update_section`, and `update_toggle` now accept `return_block_map: false` to
+  omit the map. The option defaults to true, so the default is unchanged. When
+  false, it also skips the readback that `create_page`,
+  `create_page_from_file`, and `replace_content` performed only to build the
+  map, so a failed readback after a successful write no longer fails the call
+  when false.
 - **`get_config` tool.** A read-only introspection tool, available on both
   transports, that reports the server's own settings: `version`, `transport`,
   `workspace_root_configured`, `workspace_root_resolved`,
