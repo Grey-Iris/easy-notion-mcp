@@ -94,11 +94,20 @@ function makeNotion(options: {
   const journal: JournalEntry[] = [];
   let appendAttempt = 0;
 
+  // Every mocked operation writes to the one shared journal, including the
+  // operations no handler under test should ever reach, so a journal equality
+  // pin also proves zero calls to everything outside the expected sequence.
+  const journaled = (name: string) =>
+    vi.fn(async (args: any) => {
+      journal.push([name, args]);
+      return {};
+    });
+
   const notion = {
-    databases: { retrieve: vi.fn(), create: vi.fn() },
-    dataSources: { retrieve: vi.fn() },
+    databases: { retrieve: journaled("databases.retrieve"), create: journaled("databases.create") },
+    dataSources: { retrieve: journaled("dataSources.retrieve") },
     pages: {
-      retrieve: vi.fn(),
+      retrieve: journaled("pages.retrieve"),
       create: vi.fn(async (args: any) => {
         journal.push(["pages.create", args]);
         return { id: "page-created", url: "https://notion.so/page-created" };
@@ -150,10 +159,10 @@ function makeNotion(options: {
         }),
       },
     },
-    users: { list: vi.fn(), me: vi.fn() },
-    search: vi.fn(),
-    comments: { list: vi.fn(), create: vi.fn() },
-    fileUploads: { create: vi.fn(), send: vi.fn() },
+    users: { list: journaled("users.list"), me: journaled("users.me") },
+    search: journaled("search"),
+    comments: { list: journaled("comments.list"), create: journaled("comments.create") },
+    fileUploads: { create: journaled("fileUploads.create"), send: journaled("fileUploads.send") },
     journal,
   };
 
@@ -641,7 +650,7 @@ describe("return_block_map dry runs", () => {
   it("has no effect on replace_content dry runs", async () => {
     const expected = "{\"success\":true,\"dry_run\":true,\"operation\":\"replace_content\",\"page_id\":\"page-1\",\"would_update\":true}";
 
-    for (const state of ["absent", "false"] as const) {
+    for (const state of STATES) {
       const notion = makeNotion();
       const raw = await callRaw(notion, "replace_content", {
         page_id: "page-1",
@@ -652,13 +661,15 @@ describe("return_block_map dry runs", () => {
 
       expect(raw).toBe(expected);
       expect(notion.journal).toEqual([]);
+      expect(notion.pages.updateMarkdown).toHaveBeenCalledTimes(0);
+      expect(notion.blocks.children.list).toHaveBeenCalledTimes(0);
     }
   });
 
   it("has no effect on update_section dry runs", async () => {
     const expected = "{\"success\":true,\"dry_run\":true,\"operation\":\"update_section\",\"page_id\":\"page-1\",\"heading\":\"Target\",\"target_block_id\":\"h2-target\",\"target_block_type\":\"heading_2\",\"preserve_heading\":false,\"deleted\":2,\"appended\":1,\"would_delete_block_ids\":[\"h2-target\",\"old-body\"],\"append_parent_id\":\"page-1\",\"append_after_block_id\":\"intro\"}";
 
-    for (const state of ["absent", "false"] as const) {
+    for (const state of STATES) {
       const notion = makeNotion({
         tree: {
           "page-1": [
@@ -679,13 +690,16 @@ describe("return_block_map dry runs", () => {
 
       expect(raw).toBe(expected);
       expect(notion.journal).toEqual([["blocks.children.list", listed("page-1")]]);
+      expect(notion.blocks.delete).toHaveBeenCalledTimes(0);
+      expect(notion.blocks.update).toHaveBeenCalledTimes(0);
+      expect(notion.blocks.children.append).toHaveBeenCalledTimes(0);
     }
   });
 
   it("has no effect on update_toggle dry runs", async () => {
     const expected = "{\"success\":true,\"dry_run\":true,\"operation\":\"update_toggle\",\"page_id\":\"page-1\",\"title\":\"Details\",\"block_id\":\"toggle-1\",\"type\":\"toggle\",\"deleted\":1,\"appended\":1,\"would_delete_block_ids\":[\"old-toggle-child\"],\"append_parent_id\":\"toggle-1\"}";
 
-    for (const state of ["absent", "false"] as const) {
+    for (const state of STATES) {
       const notion = makeNotion({
         tree: {
           "page-1": [toggle("toggle-1", "Details")],
@@ -705,6 +719,8 @@ describe("return_block_map dry runs", () => {
         ["blocks.children.list", listed("page-1")],
         ["blocks.children.list", listed("toggle-1")],
       ]);
+      expect(notion.blocks.delete).toHaveBeenCalledTimes(0);
+      expect(notion.blocks.children.append).toHaveBeenCalledTimes(0);
     }
   });
 });
