@@ -1,0 +1,36 @@
+# Build artifacts and installed trees: rebuilt inside the image.
+node_modules
+dist
+
+# Version control and CI.
+.git
+.gitattributes
+.gitignore
+.github
+
+# Credentials must never enter the build context.
+.env
+.env.*
+.mcpregistry_*
+
+# Tests, benchmarks, tooling and docs exhaust: not part of the runtime image.
+tests
+benchmarks
+scripts
+docs
+assets
+vitest.config.ts
+
+# Internal / session exhaust planes.
+.meta
+.planning
+.tasuku
+.mcp-agents
+.claude
+internal
+tmp
+
+# Local noise.
+*.log
+Dockerfile
+.dockerignore
