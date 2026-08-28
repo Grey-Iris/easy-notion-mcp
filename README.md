@@ -522,6 +522,8 @@ That difference is a property of the import path, not of `collapse_soft_wraps`.
 easy-notion page create-from-file --title "Design notes" --file ./NOTES.md --strip-leading-h1
 ```
 
+`create_page`, `create_page_from_file`, `append_content`, `replace_content`, `update_section`, and `update_toggle` accept `return_block_map: false` to omit `block_map` when it is not needed; the default remains true and is unchanged.
+
 ## Can I read and rewrite pages with formatting preserved?
 
 Yes, for the markdown conventions this server represents. Round-trip support covers 24 block types. Known omissions and degradations are documented, and many are reported with explicit warnings.
