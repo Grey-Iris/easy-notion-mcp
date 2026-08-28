@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-08-27
 
 ### Added
 
@@ -133,6 +133,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (8-4-4-4-12 hexadecimal) and bare 32-character hexadecimal IDs; every other
   value is compared as written. The documented alias forms behave exactly as
   before, and tests cover both the dash conflict and the cache separation.
+- **Server manifest declares `NOTION_ROOT_PAGE_ID` as optional.** The
+  `server.json` environment-variable entry sets `isRequired: false`, matching
+  the documented behavior that the variable falls back to the workspace root in
+  OAuth mode. The previously published registry entry marked it required.
 
 ## [1.0.1] - 2026-06-25
 
