@@ -189,7 +189,7 @@ async function createTestFiles() {
   <rect width="800" height="200" fill="url(#bg)" rx="16"/>
   <text x="400" y="90" text-anchor="middle" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="bold">easy-notion-mcp</text>
   <text x="400" y="135" text-anchor="middle" fill="#a78bfa" font-family="system-ui, -apple-system, sans-serif" font-size="22">Markdown-first Notion MCP server</text>
-  <text x="400" y="170" text-anchor="middle" fill="#6ee7b7" font-family="system-ui, -apple-system, sans-serif" font-size="16">87% fewer tokens per operation</text>
+  <text x="400" y="170" text-anchor="middle" fill="#6ee7b7" font-family="system-ui, -apple-system, sans-serif" font-size="16">~6–7× fewer response tokens</text>
 </svg>`;
 
   const readme = `# easy-notion-mcp
