@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.misterwigglesworth/easy-notion",
-  "description": "Markdown-first Notion MCP server. 43 tools, ~6-7x fewer response tokens vs the official Notion MCP, documented round-trip support.",
+  "description": "Markdown-first Notion MCP server. ~6-7x fewer response tokens vs official Notion MCP. 43 tools.",
   "repository": {
     "url": "https://github.com/Grey-Iris/easy-notion-mcp",
     "source": "github"
