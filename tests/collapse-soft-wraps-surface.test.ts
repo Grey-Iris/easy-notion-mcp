@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import { runCli } from "../src/cli/run.js";
 import { saveProfileConfig } from "../src/cli/profile-config.js";
 import { createServer } from "../src/server.js";
+import { appendResponseFixture } from "./helpers/append-response-fixture.js";
 
 async function withClient<T>(fn: (client: McpClient) => Promise<T>) {
   const server = createServer(() => ({}) as any, {});
@@ -167,5 +168,130 @@ describe("--collapse-soft-wraps CLI flag", () => {
       expect(line, `${command} usage line missing`).toBeDefined();
       expect(line, `${command} does not advertise the flag`).toContain("--collapse-soft-wraps");
     }
+  });
+
+  it("test 8 reports only created rows through the real positioned CLI append seam", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "easy-notion-append-receipt-"));
+    await saveProfileConfig(configDir, {
+      default: "rw",
+      profiles: { rw: { token_env: "WORK_TOKEN", mode: "readwrite" } },
+    });
+    const pageRows = [
+      {
+        id: "intro",
+        type: "paragraph",
+        paragraph: { rich_text: [{ plain_text: "Intro", text: { content: "Intro" } }] },
+      },
+      {
+        id: "h2-target",
+        type: "heading_2",
+        heading_2: { rich_text: [{ plain_text: "Target", text: { content: "Target" } }] },
+      },
+      {
+        id: "old-body",
+        type: "paragraph",
+        paragraph: { rich_text: [{ plain_text: "Old body", text: { content: "Old body" } }] },
+      },
+      {
+        id: "h2-next",
+        type: "heading_2",
+        heading_2: { rich_text: [{ plain_text: "Next", text: { content: "Next" } }] },
+      },
+    ];
+    const trailingRows = [
+      {
+        id: "t8-trail-1",
+        type: "paragraph",
+        paragraph: { rich_text: [{ plain_text: "Trailing one", text: { content: "Trailing one" } }] },
+      },
+      {
+        id: "t8-trail-2",
+        type: "paragraph",
+        paragraph: { rich_text: [{ plain_text: "Trailing two", text: { content: "Trailing two" } }] },
+      },
+    ];
+    const fixedCreatedRows = [{
+      id: "t8-created-1",
+      type: "paragraph",
+      paragraph: { rich_text: [{ type: "text", text: { content: "Replacement body" } }] },
+    }];
+    const fixedLowLevelResponse = {
+      results: [...fixedCreatedRows, ...trailingRows],
+      has_more: false,
+      next_cursor: null,
+    };
+    const list = vi.fn(async () => ({
+      results: pageRows,
+      has_more: false,
+      next_cursor: null,
+    }));
+    const deleteBlock = vi.fn(async ({ block_id }: any) => ({ id: block_id }));
+    const observedResponses: unknown[] = [];
+    const append = vi.fn(async (args: any) => {
+      const response = appendResponseFixture({
+        mode: "realistic-capped",
+        children: args.children,
+        createdIds: ["t8-created-1"],
+        trailingRows,
+      });
+      observedResponses.push(response);
+      return response;
+    });
+    const lowLevelClient = {
+      blocks: {
+        delete: deleteBlock,
+        children: { list, append },
+      },
+    };
+    const createClient = vi.fn(() => lowLevelClient as any);
+    let stdout = "";
+    const io = {
+      env: { WORK_TOKEN: "secret-token-value" },
+      stdout: { write: (chunk: string) => { stdout += chunk; } },
+      stderr: { write: () => {} },
+      stdin: Readable.from([]) as NodeJS.ReadStream,
+      cwd: process.cwd(),
+    };
+
+    const code = await runCli(
+      [
+        "content",
+        "update-section",
+        "page-1",
+        "--heading",
+        "Target",
+        "--markdown",
+        "Replacement body",
+      ],
+      io as any,
+      { configDir, ops: { createClient } as any },
+    );
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      ok: true,
+      result: { deleted: 2, appended: 1 },
+    });
+    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(createClient).toHaveBeenCalledWith("secret-token-value");
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledWith({
+      block_id: "page-1",
+      start_cursor: undefined,
+      page_size: 100,
+    });
+    expect(deleteBlock).toHaveBeenCalledTimes(2);
+    expect(deleteBlock).toHaveBeenNthCalledWith(1, { block_id: "h2-target" });
+    expect(deleteBlock).toHaveBeenNthCalledWith(2, { block_id: "old-body" });
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(append).toHaveBeenCalledWith({
+      block_id: "page-1",
+      children: [{
+        type: "paragraph",
+        paragraph: { rich_text: [{ type: "text", text: { content: "Replacement body" } }] },
+      }],
+      position: { type: "after_block", after_block: { id: "intro" } },
+    });
+    expect(observedResponses).toEqual([fixedLowLevelResponse]);
   });
 });
