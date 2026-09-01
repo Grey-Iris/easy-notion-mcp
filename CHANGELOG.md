@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Positioned `update_section` receipts previously counted trailing sibling
+  blocks returned with the created rows, inflating `appended` and the MCP
+  `block_map`. Receipts now count only the created blocks, with shared append
+  receipt handling hardened by validating response counts and block-type order.
+
 ## [1.1.0] - 2026-08-27
 
 ### Added
