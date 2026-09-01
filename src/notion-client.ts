@@ -322,17 +322,33 @@ async function appendPreparedBlocks(
         : {}),
     };
     const response = await client.blocks.children.append(appendRequest);
-    results.push(...response.results);
+    const n = chunk.length;
+    const r = response.results;
+    if (r.length < n) {
+      throw new Error(
+        `Notion append returned fewer results than blocks sent (sent ${n}, returned ${r.length})`,
+      );
+    }
+    for (let offset = 0; offset < n; offset += 1) {
+      const returnedType = (r[offset] as any)?.type;
+      if (returnedType !== chunk[offset].type) {
+        throw new Error(
+          `Notion append results do not match sent block types (index ${offset}: sent ${chunk[offset].type}, returned ${returnedType})`,
+        );
+      }
+    }
+    const created = r.slice(0, n);
+    results.push(...created);
 
-    if (response.results.length > 0) {
-      afterBlockId = (response.results[response.results.length - 1] as any).id;
+    if (created.length > 0) {
+      afterBlockId = (created[n - 1] as any).id;
     }
 
     for (let offset = 0; offset < chunk.length; offset += 1) {
       if (!needsDeferredChildWrites(chunk[offset])) {
         continue;
       }
-      const createdBlockId = (response.results[offset] as any)?.id;
+      const createdBlockId = (created[offset] as any)?.id;
       if (typeof createdBlockId !== "string" || createdBlockId.length === 0) {
         throw new Error("Notion append returned no id for child block");
       }

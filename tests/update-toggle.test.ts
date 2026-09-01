@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { createServer } from "../src/server.js";
+import { appendResponseFixture } from "./helpers/append-response-fixture.js";
 
 type Raw = Record<string, any> & { id: string; type: string; has_children?: boolean };
 
@@ -275,6 +276,94 @@ describe("update_toggle handler", () => {
       expect(mutations).toEqual([]);
       expect(notion.blocks.delete).not.toHaveBeenCalled();
       expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("test 7 reports only created rows from a synthetic over-returning update_toggle append", async () => {
+    const notion = makeNotion({
+      "page-1": [toggle("toggle-1", "Details", false)],
+    });
+    const trailingRows = [
+      { id: "t7-trail-1", type: "paragraph", paragraph: { rich_text: richText("Trailing one") } },
+      { id: "t7-trail-2", type: "paragraph", paragraph: { rich_text: richText("Trailing two") } },
+    ];
+    const fixedCreatedRows = [
+      {
+        id: "t7-created-1",
+        type: "paragraph",
+        paragraph: { rich_text: [{ type: "text", text: { content: "New body" } }] },
+      },
+      {
+        id: "t7-created-2",
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: [{ type: "text", text: { content: "item" } }] },
+      },
+    ];
+    const fixedLowLevelResponse = {
+      results: [...fixedCreatedRows, ...trailingRows],
+      has_more: false,
+      next_cursor: null,
+    };
+    const fixedExpectedReceipt = {
+      success: true,
+      block_id: "toggle-1",
+      type: "toggle",
+      deleted: 0,
+      appended: 2,
+      block_map: [
+        { block_id: "t7-created-1", type: "paragraph", text_preview: "New body" },
+        { block_id: "t7-created-2", type: "bulleted_list_item", text_preview: "item" },
+      ],
+    };
+    const observedResponses: unknown[] = [];
+    notion.blocks.children.append.mockImplementation(async (args: any) => {
+      // This is a mutation discriminator for source behavior unavailable in the retained observations and is not a model of those observations.
+      const response = appendResponseFixture({
+        mode: "synthetic-overreturn",
+        children: args.children,
+        createdIds: ["t7-created-1", "t7-created-2"],
+        trailingRows,
+      });
+      observedResponses.push(response);
+      return response;
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "update_toggle",
+        arguments: {
+          page_id: "page-1",
+          title: "Details",
+          markdown: "New body\n\n- item",
+        },
+      }));
+
+      expect(response).toEqual(fixedExpectedReceipt);
+      expect(response.appended).toBe(2);
+      expect(response.block_map).toEqual([
+        { block_id: "t7-created-1", type: "paragraph", text_preview: "New body" },
+        { block_id: "t7-created-2", type: "bulleted_list_item", text_preview: "item" },
+      ]);
+      expect(JSON.stringify(response)).not.toContain("t7-trail-1");
+      expect(JSON.stringify(response)).not.toContain("t7-trail-2");
+      expect(observedResponses).toEqual([fixedLowLevelResponse]);
+      expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+      expect(notion.blocks.children.append).toHaveBeenCalledWith({
+        block_id: "toggle-1",
+        children: [
+          {
+            type: "paragraph",
+            paragraph: { rich_text: [{ type: "text", text: { content: "New body" } }] },
+          },
+          {
+            type: "bulleted_list_item",
+            bulleted_list_item: { rich_text: [{ type: "text", text: { content: "item" } }] },
+          },
+        ],
+      });
     } finally {
       await close();
     }
