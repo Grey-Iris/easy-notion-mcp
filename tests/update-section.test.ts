@@ -2,6 +2,7 @@ import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
 import { createServer } from "../src/server.js";
+import { appendResponseFixture } from "./helpers/append-response-fixture.js";
 
 function parseToolText(result: { content?: Array<{ type: string; text?: string }> }) {
   const text = result.content?.find((item) => item.type === "text")?.text;
@@ -663,6 +664,84 @@ describe("update_section handler", () => {
       expect(notion.blocks.update).not.toHaveBeenCalled();
       expect(notion.blocks.delete).not.toHaveBeenCalled();
       expect(notion.blocks.children.append).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("test 6 reports only created rows for a positioned update_section append", async () => {
+    const pageBlocks = [
+      { id: "intro", type: "paragraph", paragraph: { rich_text: richText("Intro") } },
+      { id: "h2-target", type: "heading_2", heading_2: { rich_text: richText("Target") } },
+      { id: "old-body", type: "paragraph", paragraph: { rich_text: richText("Old body") } },
+      { id: "h2-next", type: "heading_2", heading_2: { rich_text: richText("Next") } },
+    ];
+    const trailingRows = [
+      { id: "t6-trail-1", type: "paragraph", paragraph: { rich_text: richText("Trailing one") } },
+      { id: "t6-trail-2", type: "paragraph", paragraph: { rich_text: richText("Trailing two") } },
+    ];
+    const fixedCreatedRows = [{
+      id: "t6-created-1",
+      type: "paragraph",
+      paragraph: { rich_text: [{ type: "text", text: { content: "Replacement body" } }] },
+    }];
+    const fixedLowLevelResponse = {
+      results: [...fixedCreatedRows, ...trailingRows],
+      has_more: false,
+      next_cursor: null,
+    };
+    const fixedExpectedReceipt = {
+      deleted: 2,
+      appended: 1,
+      deleted_blocks: [
+        { block_id: "h2-target", type: "heading_2", text_preview: "Target" },
+        { block_id: "old-body", type: "paragraph", text_preview: "Old body" },
+      ],
+      block_map: [
+        { block_id: "t6-created-1", type: "paragraph", text_preview: "Replacement body" },
+      ],
+    };
+    const notion = makeUpdateSectionNotion(pageBlocks);
+    const observedResponses: unknown[] = [];
+    notion.blocks.children.append.mockImplementation(async (args: any) => {
+      const response = appendResponseFixture({
+        mode: "realistic-capped",
+        children: args.children,
+        createdIds: ["t6-created-1"],
+        trailingRows,
+      });
+      observedResponses.push(response);
+      return response;
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "update_section",
+        arguments: {
+          page_id: "page-1",
+          heading: "Target",
+          markdown: "Replacement body",
+        },
+      }));
+
+      expect(response).toEqual(fixedExpectedReceipt);
+      expect(response.appended).toBe(1);
+      expect(response.block_map).toEqual([
+        { block_id: "t6-created-1", type: "paragraph", text_preview: "Replacement body" },
+      ]);
+      expect(JSON.stringify(response)).not.toContain("t6-trail-1");
+      expect(JSON.stringify(response)).not.toContain("t6-trail-2");
+      expect(observedResponses).toEqual([fixedLowLevelResponse]);
+      expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+      expect(notion.blocks.children.append).toHaveBeenCalledWith({
+        block_id: "page-1",
+        children: [{
+          type: "paragraph",
+          paragraph: { rich_text: [{ type: "text", text: { content: "Replacement body" } }] },
+        }],
+        position: { type: "after_block", after_block: { id: "intro" } },
+      });
     } finally {
       await close();
     }

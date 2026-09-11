@@ -6,6 +6,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createServer, type CreateServerConfig } from "../src/server.js";
+import { appendResponseFixture } from "./helpers/append-response-fixture.js";
 
 type RawBlock = Record<string, any> & { id: string; type: string; has_children?: boolean };
 
@@ -258,6 +259,81 @@ describe("identity-bearing mutation receipts", () => {
       }));
       expect(emptyResponse).toEqual({ success: true, blocks_added: 0 });
       expect(emptyResponse).not.toHaveProperty("block_map");
+    } finally {
+      await close();
+    }
+  });
+
+  it("test 9 keeps plain append_content receipts exact with realistic created-only rows", async () => {
+    const notion = makeNotion();
+    const fixedCreatedRows = [
+      {
+        id: "t9-created-1",
+        type: "paragraph",
+        paragraph: { rich_text: [{ type: "text", text: { content: "Plain append" } }] },
+      },
+      {
+        id: "t9-created-2",
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: [{ type: "text", text: { content: "Item" } }] },
+      },
+    ];
+    const fixedLowLevelResponse = {
+      results: fixedCreatedRows,
+      has_more: false,
+      next_cursor: null,
+    };
+    const fixedExpectedReceipt = {
+      success: true,
+      blocks_added: 2,
+      block_map: [
+        { block_id: "t9-created-1", type: "paragraph", text_preview: "Plain append" },
+        { block_id: "t9-created-2", type: "bulleted_list_item", text_preview: "Item" },
+      ],
+    };
+    const observedResponses: unknown[] = [];
+    notion.blocks.children.append.mockImplementation(async (args: any) => {
+      const response = appendResponseFixture({
+        mode: "realistic-capped",
+        children: args.children,
+        createdIds: ["t9-created-1", "t9-created-2"],
+        trailingRows: [],
+      });
+      observedResponses.push(response);
+      return response;
+    });
+    const { client, close } = await connect(notion);
+
+    try {
+      const response = parseToolText(await client.callTool({
+        name: "append_content",
+        arguments: {
+          page_id: "page-1",
+          markdown: "Plain append\n\n- Item",
+        },
+      }));
+
+      expect(response).toEqual(fixedExpectedReceipt);
+      expect(response.blocks_added).toBe(2);
+      expect(response.block_map).toEqual([
+        { block_id: "t9-created-1", type: "paragraph", text_preview: "Plain append" },
+        { block_id: "t9-created-2", type: "bulleted_list_item", text_preview: "Item" },
+      ]);
+      expect(observedResponses).toEqual([fixedLowLevelResponse]);
+      expect(notion.blocks.children.append).toHaveBeenCalledTimes(1);
+      expect(notion.blocks.children.append).toHaveBeenCalledWith({
+        block_id: "page-1",
+        children: [
+          {
+            type: "paragraph",
+            paragraph: { rich_text: [{ type: "text", text: { content: "Plain append" } }] },
+          },
+          {
+            type: "bulleted_list_item",
+            bulleted_list_item: { rich_text: [{ type: "text", text: { content: "Item" } }] },
+          },
+        ],
+      });
     } finally {
       await close();
     }
