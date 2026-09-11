@@ -9,12 +9,21 @@ export type AppendResponseFixtureRow = {
   [key: string]: unknown;
 };
 
+// A PartialBlockObjectResponse as the installed SDK types it: id only, no type.
+// Accepted only as a synthetic-invariant-violation returned row.
+export type AppendResponsePartialRow = {
+  id: string;
+  object: "block";
+  type?: undefined;
+  [key: string]: unknown;
+};
+
 type AppendResponseFixtureOptions = {
   mode: AppendResponseFixtureMode;
   children: Array<Record<string, any>>;
   createdIds?: string[];
   trailingRows?: AppendResponseFixtureRow[];
-  returnedRows?: AppendResponseFixtureRow[];
+  returnedRows?: Array<AppendResponseFixtureRow | AppendResponsePartialRow>;
 };
 
 export const APPEND_RESPONSE_FIXTURE_CURSOR = "append-response-fixture-cursor";

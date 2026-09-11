@@ -6,6 +6,7 @@ import {
   APPEND_RESPONSE_FIXTURE_CURSOR,
   appendResponseFixture,
   type AppendResponseFixtureRow,
+  type AppendResponsePartialRow,
 } from "./helpers/append-response-fixture.js";
 
 function richText(content: string) {
@@ -39,6 +40,10 @@ function createdRow(id: string, block: NotionBlock): AppendResponseFixtureRow {
 
 function paragraphRow(id: string, content: string): AppendResponseFixtureRow {
   return row(id, "paragraph", { rich_text: richText(content) });
+}
+
+function partialRow(id: string): AppendResponsePartialRow {
+  return { object: "block", id };
 }
 
 function position(id: string) {
@@ -177,6 +182,107 @@ describe("append response over-return handling", () => {
         next_cursor: null,
       },
     ]);
+  });
+
+  it("test 3a rejects a chunk-2 under-return after chunk 1 is accepted", async () => {
+    const chunkOne = Array.from({ length: 100 }, (_, index) => paragraph(`Block ${index}`));
+    const chunkTwo = [toggle("Outer", [toggle("Inner", [paragraph("Leaf")])]), paragraph("After")];
+    const blocks = [...chunkOne, ...chunkTwo];
+    const chunkOneCreated = chunkOne.map((block, index) => createdRow(`t3a-under-created-${index}`, block));
+    const chunkOneTrailing = [
+      paragraphRow("t3a-under-trail-1", "Trailing one"),
+      paragraphRow("t3a-under-trail-2", "Trailing two"),
+    ];
+    const chunkTwoReturned = [row("t3a-under-toggle", "toggle", { rich_text: richText("Outer") })];
+    const observedResponses: unknown[] = [];
+    const { client, append } = clientWithAppend((args, callIndex) => {
+      // This is a mutation discriminator and is not a model of a retained successful response.
+      const response = callIndex === 0
+        ? appendResponseFixture({
+            mode: "synthetic-overreturn",
+            children: args.children,
+            createdIds: chunkOneCreated.map((created) => created.id),
+            trailingRows: chunkOneTrailing,
+          })
+        : appendResponseFixture({
+            mode: "synthetic-invariant-violation",
+            children: args.children,
+            returnedRows: chunkTwoReturned,
+          });
+      observedResponses.push(response);
+      return response;
+    });
+
+    await expect(appendBlocksAfter(client, "page-id", blocks, "after-block-id")).rejects.toEqual(
+      new Error("Notion append returned fewer results than blocks sent (sent 2, returned 1)"),
+    );
+    expect(observedResponses).toEqual([
+      { results: [...chunkOneCreated, ...chunkOneTrailing], has_more: false, next_cursor: null },
+      { results: chunkTwoReturned, has_more: false, next_cursor: null },
+    ]);
+    expect(append).toHaveBeenCalledTimes(2);
+    expect(append.mock.calls.map(([args]) => args)).toEqual([
+      { block_id: "page-id", children: chunkOne, position: position("after-block-id") },
+      {
+        block_id: "page-id",
+        children: [toggle("Outer"), paragraph("After")],
+        position: position("t3a-under-created-99"),
+      },
+    ]);
+    expect(append.mock.calls.some(([args]) => args.block_id === "t3a-under-toggle")).toBe(false);
+    expect(append.mock.calls.some(([args]) => args.block_id === "t3a-under-trail-1")).toBe(false);
+  });
+
+  it("test 3a rejects a chunk-2 type mismatch after chunk 1 is accepted", async () => {
+    const chunkOne = Array.from({ length: 100 }, (_, index) => paragraph(`Block ${index}`));
+    const chunkTwo = [toggle("Outer", [toggle("Inner", [paragraph("Leaf")])]), paragraph("After")];
+    const blocks = [...chunkOne, ...chunkTwo];
+    const chunkOneCreated = chunkOne.map((block, index) => createdRow(`t3a-mismatch-created-${index}`, block));
+    const chunkOneTrailing = [
+      paragraphRow("t3a-mismatch-trail-1", "Trailing one"),
+      paragraphRow("t3a-mismatch-trail-2", "Trailing two"),
+    ];
+    const chunkTwoReturned = [
+      paragraphRow("t3a-mismatch-paragraph-1", "Foreign one"),
+      paragraphRow("t3a-mismatch-paragraph-2", "Foreign two"),
+    ];
+    const observedResponses: unknown[] = [];
+    const { client, append } = clientWithAppend((args, callIndex) => {
+      // This is a mutation discriminator and is not a model of a retained successful response.
+      const response = callIndex === 0
+        ? appendResponseFixture({
+            mode: "synthetic-overreturn",
+            children: args.children,
+            createdIds: chunkOneCreated.map((created) => created.id),
+            trailingRows: chunkOneTrailing,
+          })
+        : appendResponseFixture({
+            mode: "synthetic-invariant-violation",
+            children: args.children,
+            returnedRows: chunkTwoReturned,
+          });
+      observedResponses.push(response);
+      return response;
+    });
+
+    await expect(appendBlocksAfter(client, "page-id", blocks, "after-block-id")).rejects.toEqual(
+      new Error("Notion append results do not match sent block types (index 0: sent toggle, returned paragraph)"),
+    );
+    expect(observedResponses).toEqual([
+      { results: [...chunkOneCreated, ...chunkOneTrailing], has_more: false, next_cursor: null },
+      { results: chunkTwoReturned, has_more: false, next_cursor: null },
+    ]);
+    expect(append).toHaveBeenCalledTimes(2);
+    expect(append.mock.calls.map(([args]) => args)).toEqual([
+      { block_id: "page-id", children: chunkOne, position: position("after-block-id") },
+      {
+        block_id: "page-id",
+        children: [toggle("Outer"), paragraph("After")],
+        position: position("t3a-mismatch-created-99"),
+      },
+    ]);
+    expect(append.mock.calls.some(([args]) => args.block_id === "t3a-mismatch-paragraph-1")).toBe(false);
+    expect(append.mock.calls.some(([args]) => args.block_id === "t3a-mismatch-trail-1")).toBe(false);
   });
 
   it("test 4 rejects appendBlocks under-return with the exact error", async () => {
@@ -367,6 +473,94 @@ describe("append response over-return handling", () => {
 
     await expect(appendBlocksAfter(client, "page-id", blocks, "after-block-id")).rejects.toEqual(
       new Error("Notion append results do not match sent block types (index 0: sent paragraph, returned divider)"),
+    );
+    expect(observedResponses).toEqual([fixedResponse]);
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(append).toHaveBeenCalledWith({
+      block_id: "page-id",
+      children: blocks,
+      position: position("after-block-id"),
+    });
+  });
+
+  it("test 4b rejects an exact-length positional type mismatch past index 0", async () => {
+    const blocks = [paragraph("One"), paragraph("Two"), toggle("Three")];
+    const returnedRows = [
+      paragraphRow("t4b-late-paragraph-1", "One"),
+      paragraphRow("t4b-late-paragraph-2", "Two"),
+      row("t4b-late-divider", "divider", {}),
+    ];
+    const fixedResponse = { results: returnedRows, has_more: false, next_cursor: null };
+    const observedResponses: unknown[] = [];
+    const { client, append } = clientWithAppend((args) => {
+      // This is a mutation discriminator and is not a model of a retained successful response.
+      const response = appendResponseFixture({
+        mode: "synthetic-invariant-violation",
+        children: args.children,
+        returnedRows,
+      });
+      observedResponses.push(response);
+      return response;
+    });
+
+    await expect(appendBlocksAfter(client, "page-id", blocks, "after-block-id")).rejects.toEqual(
+      new Error("Notion append results do not match sent block types (index 2: sent toggle, returned divider)"),
+    );
+    expect(observedResponses).toEqual([fixedResponse]);
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(append).toHaveBeenCalledWith({
+      block_id: "page-id",
+      children: blocks,
+      position: position("after-block-id"),
+    });
+  });
+
+  it("test 4b rejects an exact-length positionless type mismatch through appendBlocks", async () => {
+    const blocks = [paragraph("One"), paragraph("Two")];
+    const returnedRows = [
+      row("t4b-plain-divider", "divider", {}),
+      paragraphRow("t4b-plain-paragraph", "Two"),
+    ];
+    const fixedResponse = { results: returnedRows, has_more: false, next_cursor: null };
+    const observedResponses: unknown[] = [];
+    const { client, append } = clientWithAppend((args) => {
+      // This is a mutation discriminator and is not a model of a retained successful response.
+      const response = appendResponseFixture({
+        mode: "synthetic-invariant-violation",
+        children: args.children,
+        returnedRows,
+      });
+      observedResponses.push(response);
+      return response;
+    });
+
+    await expect(appendBlocks(client, "page-id", blocks)).rejects.toEqual(
+      new Error("Notion append results do not match sent block types (index 0: sent paragraph, returned divider)"),
+    );
+    expect(observedResponses).toEqual([fixedResponse]);
+    expect(append).toHaveBeenCalledTimes(1);
+    expect(append.mock.calls.map(([args]) => args)).toStrictEqual([{ block_id: "page-id", children: blocks }]);
+    expect("position" in append.mock.calls[0][0]).toBe(false);
+  });
+
+  it("test 4c rejects exact-length type-less partial rows", async () => {
+    const blocks = [paragraph("One"), paragraph("Two")];
+    const returnedRows = [partialRow("t4c-partial-1"), partialRow("t4c-partial-2")];
+    const fixedResponse = { results: returnedRows, has_more: false, next_cursor: null };
+    const observedResponses: unknown[] = [];
+    const { client, append } = clientWithAppend((args) => {
+      // This is a mutation discriminator and is not a model of a retained successful response.
+      const response = appendResponseFixture({
+        mode: "synthetic-invariant-violation",
+        children: args.children,
+        returnedRows,
+      });
+      observedResponses.push(response);
+      return response;
+    });
+
+    await expect(appendBlocksAfter(client, "page-id", blocks, "after-block-id")).rejects.toEqual(
+      new Error("Notion append results do not match sent block types (index 0: sent paragraph, returned undefined)"),
     );
     expect(observedResponses).toEqual([fixedResponse]);
     expect(append).toHaveBeenCalledTimes(1);

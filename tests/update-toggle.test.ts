@@ -281,7 +281,9 @@ describe("update_toggle handler", () => {
     }
   });
 
-  it("test 7 reports only created rows from a synthetic over-returning update_toggle append", async () => {
+  // Exercises update_toggle's positionless first append: the body is written into the
+  // (emptied) toggle with a plain blocks.children.append, no after_block position.
+  it("test 7 reports only created rows from update_toggle's positionless first append under synthetic over-return", async () => {
     const notion = makeNotion({
       "page-1": [toggle("toggle-1", "Details", false)],
     });
